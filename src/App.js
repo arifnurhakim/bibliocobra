@@ -1843,7 +1843,7 @@ ${kutipanString}
                         </div>
                     </div>
                      <footer className="mt-8 text-gray-500 text-sm text-center">
-                        <p>&copy; 2025 Asisten KTI Bibliometrik. All rights reserved.</p>
+                        <p>&copy; Copyright © 2025 Papahnya Ibracobra. All rights reserved.</p>
                     </footer>
                 </main>
             </div>
