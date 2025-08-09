@@ -1047,6 +1047,9 @@ Publisher Name: `;
                 case 'url': reference.url = value; break;
                 case 'doi': reference.doi = value; break;
                 case 'publisher name': reference.publisher = value; break;
+				default:
+    console.warn(`Kunci "${key}" tidak dikenali`);
+    break;
             }
         });
         return reference;
