@@ -1,4 +1,0 @@
-[build]
-  base    = "bibliocobra-app"
-  publish = "bibliocobra-app/build"
-  command = "npm run build"
