@@ -41,7 +41,7 @@ function App() {
 
   // Fungsi untuk menangani import file
   const handleFileImport = (event) => {
-    const selectedFile = event.target.files[0]; // Perbaikan: Mengganti nama variabel dari 'file' ke 'selectedFile'
+    const selectedFile = event.target.files[0];
     if (selectedFile && selectedFile.type === "application/json") {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -67,7 +67,7 @@ function App() {
 
   // Fungsi untuk menangani perubahan file kuesioner
   const handleFileChange = (event) => {
-    const selectedFile = event.target.files[0]; // Perbaikan: Mengganti nama variabel dari 'file' ke 'selectedFile'
+    const selectedFile = event.target.files[0];
     if (selectedFile && selectedFile.type === "text/csv") {
       setFileName(selectedFile.name);
       
@@ -98,7 +98,7 @@ function App() {
   // Fungsi untuk menangani ekspor proyek
   const handleExportProject = () => {
     try {
-      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(projectData, null, 2))}`;
+      const jsonString = `text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(projectData, null, 2))}`;
       const link = document.createElement("a");
       link.href = jsonString;
       const date = new Date().toISOString().slice(0, 10);
@@ -721,7 +721,7 @@ function App() {
 
   // Fungsi untuk menangani perubahan file referensi
   const handleReferencesFileChange = (event) => {
-    const selectedFile = event.target.files[0]; // Perbaikan: Mengganti nama variabel dari 'file' ke 'selectedFile'
+    const selectedFile = event.target.files[0];
     
     if (selectedFile && (selectedFile.type === "application/json" || selectedFile.name.endsWith('.json'))) {
       const reader = new FileReader();
@@ -941,6 +941,105 @@ function App() {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
 
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input manual references
+  const handleManualReferenceChange = (e, index) => {
+    const newReferences = [...manualReferences];
+    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
+    setManualReferences(newReferences);
+  };
+
+  // Fungsi untuk menangani perubahan pada input manual reference text
+  const handleManualReferenceTextChange = (e) => {
+    setManualReferenceText(e.target.value);
+  };
+
+  // Fungsi untuk menangani perubahan pada input kuesioner
+  const handleKuesionerChange = (e, varIndex, itemIndex) => {
+    const newKuesioner = [...editingKuesioner];
+    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
+    setEditingKuesioner(newKuesioner);
+  };
+
+  // Fungsi untuk menangani perubahan pada input variabel
+  const handleVariableChange = (e) => {
+    const { name, value } = e.target;
+    setEditingVariables(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input edit ide
+  const handleEditIdeaChange = (e) => {
+    const { name, value } = e.target;
+    setEditingIdea(prev => ({ ...prev, [name]: value }));
+  };
+
   // Fungsi untuk menangani perubahan pada input jenis karya tulis
   const handleJenisKaryaChange = (e) => {
     const value = e.target.value;
@@ -1108,7 +1207,25 @@ function App() {
     }
   };
 
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -1181,113 +1298,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -1360,113 +1389,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -1539,113 +1480,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -1718,113 +1571,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -1897,113 +1662,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -2076,113 +1753,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -2255,113 +1844,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -2434,113 +1935,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -2613,113 +2026,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -2792,113 +2117,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -2971,113 +2208,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -3150,113 +2299,25 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
-  };
-
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input penutup
-  const handlePenutupChange = (e) => {
-    setProjectData(prev => ({ ...prev, penutupDraft: e.target.value }));
-  };
-
-  // Fungsi untuk menangani perubahan pada input API key Scopus
+  // Fungsi untuk menangani perubahan pada input Scopus API key
   const handleScopusApiKeyChange = (e) => {
     setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
@@ -3329,102 +2390,1692 @@ function App() {
     setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input manual references
-  const handleManualReferenceChange = (e, index) => {
-    const newReferences = [...manualReferences];
-    newReferences[index] = { ...newReferences[index], [e.target.name]: e.target.value };
-    setManualReferences(newReferences);
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input manual reference text
-  const handleManualReferenceTextChange = (e) => {
-    setManualReferenceText(e.target.value);
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input kuesioner
-  const handleKuesionerChange = (e, varIndex, itemIndex) => {
-    const newKuesioner = [...editingKuesioner];
-    newKuesioner[varIndex].item_kuesioner[itemIndex] = e.target.value;
-    setEditingKuesioner(newKuesioner);
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
 
-  // Fungsi untuk menangani perubahan pada input variabel
-  const handleVariableChange = (e) => {
-    const { name, value } = e.target;
-    setEditingVariables(prev => ({ ...prev, [name]: value }));
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
   };
 
-  // Fungsi untuk menangani perubahan pada input edit ide
-  const handleEditIdeaChange = (e) => {
-    const { name, value } = e.target;
-    setEditingIdea(prev => ({ ...prev, [name]: value }));
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis
-  const handleJenisKaryaChange = (e) => {
-    const value = e.target.value;
-    setProjectData(prev => ({
-      ...prev,
-      jenisKaryaTulis: value,
-      jenisKaryaTulisLainnya: value === 'Lainnya' ? prev.jenisKaryaTulisLainnya : ''
-    }));
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
   };
 
-  // Fungsi untuk menangani perubahan pada input jenis karya tulis lainnya
-  const handleJenisKaryaLainnyaChange = (e) => {
-    setProjectData(prev => ({ ...prev, jenisKaryaTulisLainnya: e.target.value }));
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input topik tema
-  const handleTopikTemaChange = (e) => {
-    setProjectData(prev => ({ ...prev, topikTema: e.target.value }));
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
   };
 
-  // Fungsi untuk menangani perubahan pada input judul KTI
-  const handleJudulKTIChange = (e) => {
-    setProjectData(prev => ({ ...prev, judulKTI: e.target.value }));
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
   };
 
-  // Fungsi untuk menangani perubahan pada input disiplin ilmu
-  const handleDisiplinIlmuChange = (e) => {
-    setProjectData(prev => ({ ...prev, disiplinIlmu: e.target.value }));
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
   };
 
-  // Fungsi untuk menangani perubahan pada input analisis kuantitatif
-  const handleAnalisisKuantitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKuantitatifDraft: e.target.value }));
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
   };
 
-  // Fungsi untuk menangani perubahan pada input analisis kualitatif
-  const handleAnalisisKualitatifChange = (e) => {
-    setProjectData(prev => ({ ...prev, analisisKualitatifDraft: e.target.value }));
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
   };
 
-  // Fungsi untuk menangani perubahan pada input hasil pembahasan
-  const handleHasilPembahasanChange = (e) => {
-    setProjectData(prev => ({ ...prev, hasilPembahasanDraft: e.target.value }));
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
   };
 
-  // Fungsi untuk menangani perubahan pada input kesimpulan
-  const handleKesimpulanChange = (e) => {
-    setProjectData(prev => ({ ...prev, kesimpulanDraft: e.target.value }));
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input metode penelitian
-  const handleMetodeChange = (e) => {
-    setProjectData(prev => ({ ...prev, metodeDraft: e.target.value }));
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
   };
 
-  // Fungsi untuk menangani perubahan pada input studi literatur
-  const handleStudiLiteraturChange = (e) => {
-    setProjectData(prev => ({ ...prev, studiLiteraturDraft: e.target.value }));
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
-  // Fungsi untuk menangani perubahan pada input pendahuluan
-  const handlePendahuluanChange = (e) => {
-    setProjectData(prev => ({ ...prev, pendahuluanDraft: e.target.value }));
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
   };
 
-  // Fungsi untuk menangani perubahan pada input pokok isi
-  const handlePokokIsiChange = (e) => {
-    setProjectData(prev => ({ ...prev, pokokIsiDraft: e.target.value
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+  const handleCloseAiReferenceModal = () => {
+    setShowAiReferenceModal(false);
+  };
+
+  // Fungsi untuk menangani penutupan modal variabel
+  const handleCloseVariableModal = () => {
+    setEditingVariables(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal kuesioner
+  const handleCloseKuesionerModal = () => {
+    setEditingKuesioner([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal catatan
+  const handleCloseNoteModal = () => {
+    setOpenNoteModal(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal import teks
+  const handleCloseTextImportModal = () => {
+    setShowTextImport(false);
+    setManualReferenceText('');
+  };
+
+  // Fungsi untuk menangani penutupan modal manual input
+  const handleCloseManualInputModal = () => {
+    setShowManualInput(false);
+    setManualReferences([]);
+  };
+
+  // Fungsi untuk menangani penutupan modal edit ide
+  const handleCloseEditIdeaModal = () => {
+    setEditingIdea(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal search prompts
+  const handleCloseSearchPromptsModal = () => {
+    setShowSearchPrompts(false);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  // Fungsi untuk menangani perubahan pada input Scopus API key
+  const handleScopusApiKeyChange = (e) => {
+    setProjectData(prev => ({ ...prev, scopusApiKey: e.target.value }));
+  };
+
+  // Fungsi untuk menangani perubahan pada input API key Google Gemini
+  const handleGeminiApiKeyChange = (e) => {
+    const key = e.target.value;
+    setGeminiApiKey(key);
+    localStorage.setItem('geminiApiKey', key);
+  };
+
+  // Fungsi untuk memvalidasi API key
+  const validateApiKey = (key) => {
+    if (!key || key.trim() === '') {
+      showInfoModal("API key Google AI tidak boleh kosong");
+      return false;
+    }
+    if (key.length < 30) {
+      showInfoModal("API key Google AI tidak valid");
+      return false;
+    }
+    return true;
+  };
+
+  // Fungsi untuk menangani penutupan modal import
+  const handleCloseImportModal = () => {
+    setIsImportConfirmOpen(false);
+    setImportedData(null);
+  };
+
+  // Fungsi untuk menangani penutupan modal referensi AI
+ 
