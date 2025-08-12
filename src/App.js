@@ -171,7 +171,13 @@ const IdeKTI = ({
     handleStartNewIdea,
     handleSaveIdea
 }) => {
-    if (projectData.judulKTI && !editingIdea) {
+    const [showSummary, setShowSummary] = useState(!!projectData.judulKTI && !editingIdea);
+
+    useEffect(() => {
+        setShowSummary(!!projectData.judulKTI && !editingIdea);
+    }, [projectData.judulKTI, editingIdea]);
+
+    if (showSummary) {
         return (
             <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">Ide KTI</h2>
@@ -189,9 +195,14 @@ const IdeKTI = ({
                         <p className="text-sm font-bold text-gray-700">Penjelasan Singkat:</p>
                         <p className="text-gray-800">{projectData.penjelasan}</p>
                     </div>
-                    <button onClick={handleStartNewIdea} className="mt-4 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-lg text-sm">
-                        Edit Ide
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                        <button onClick={() => setShowSummary(false)} className="mt-4 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg text-sm">
+                            Kembali
+                        </button>
+                        <button onClick={handleStartNewIdea} className="mt-4 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-lg text-sm">
+                            Edit Ide
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -3336,7 +3347,9 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             proyek: {
                 title: "Proyek",
                 items: [
-                    { id: 'dashboard', name: 'Dashboard' }
+                    { id: 'dashboard', name: 'Dashboard' },
+                    { id: 'imporProyek', name: 'Impor Proyek', action: triggerImport },
+                    { id: 'eksporProyek', name: 'Ekspor Proyek', action: handleExportProject }
                 ]
             },
         };
@@ -3524,7 +3537,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                                         {category.items.map(item => (
                                             <button 
                                                 key={item.id} 
-                                                onClick={() => setCurrentSection(item.id)}
+                                                onClick={() => item.action ? item.action() : setCurrentSection(item.id)}
                                                 className={`w-full text-left block p-2 rounded-md text-sm ${currentSection === item.id ? 'bg-blue-600' : 'hover:bg-gray-700'}`}
                                             >
                                                 {item.name}
@@ -3578,10 +3591,6 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                                 {renderSection()}
                             </div>
 
-                            <div className="mt-6 pt-6 border-t border-gray-200 flex justify-center gap-4">
-                                <button onClick={triggerImport} className="bg-gray-600 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Impor Proyek</button>
-                                <button onClick={handleExportProject} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Ekspor Proyek</button>
-                            </div>
                         </div>
                          <footer className="mt-8 text-gray-500 text-sm text-center">
                             <p>&copy; Copyright 2025. Papahnya Ibracobra. All rights reserved.</p>
