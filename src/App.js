@@ -1360,11 +1360,12 @@ const GeneratorWawancara = ({ projectData, setProjectData, handleGenerateWawanca
                                 <div className="space-y-2">
                                     {kategori.pertanyaan.map((item, qIndex) => (
                                         <div key={qIndex} className="flex items-center gap-2">
-                                            <input 
-                                                type="text" 
+                                            {/* PERUBAHAN: Mengganti input dengan textarea */}
+                                            <textarea 
                                                 value={item} 
                                                 onChange={e => handleQuestionChange(catIndex, qIndex, e.target.value)}
                                                 className="shadow-sm appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                                                rows="2"
                                             />
                                             <button onClick={() => handleRemoveQuestion(catIndex, qIndex)} className="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-lg text-sm flex-shrink-0">X</button>
                                         </div>
@@ -1386,7 +1387,18 @@ const GeneratorWawancara = ({ projectData, setProjectData, handleGenerateWawanca
 };
 
 // --- Komponen untuk Instrumen: Generator & Log Kueri ---
-const GeneratorLogKueri = ({ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, setLastCopiedQuery, handleCopyQuery, handleDeleteLog }) => {
+const GeneratorLogKueri = ({ 
+    projectData, 
+    setProjectData, 
+    handleGenerateQueries, 
+    isLoading, 
+    showInfoModal, 
+    lastCopiedQuery, 
+    handleCopyQuery, 
+    handleDeleteLog,
+    includeIndonesianQuery,
+    setIncludeIndonesianQuery
+}) => {
     const [isLogModalOpen, setIsLogModalOpen] = useState(false);
     const [logEntry, setLogEntry] = useState({
         resultsCount: '',
@@ -1474,6 +1486,19 @@ const GeneratorLogKueri = ({ projectData, setProjectData, handleGenerateQueries,
                         <option value="Google Scholar">Google Scholar</option>
                         <option value="Lainnya">Lainnya (Umum)</option>
                     </select>
+                </div>
+                {/* PERUBAHAN: Checkbox untuk Bahasa Indonesia */}
+                <div className="mb-4">
+                    <label className="flex items-center">
+                        <input 
+                            type="checkbox" 
+                            checked={includeIndonesianQuery} 
+                            onChange={(e) => setIncludeIndonesianQuery(e.target.checked)}
+                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                        <span className="ml-2 text-gray-700 text-sm">Sertakan padanan Bahasa Indonesia?</span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1 pl-6">Catatan: Opsi ini dapat mengurangi presisi hasil pada database internasional.</p>
                 </div>
                 <button onClick={handleGenerateQueries} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300" disabled={isLoading || !projectData.judulKTI}>
                     {isLoading ? 'Memproses...' : '✨ Hasilkan Kueri Berjenjang'}
@@ -2074,58 +2099,62 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
 // ============================================================================
 // KOMPONEN UTAMA: App
 // ============================================================================
+
+// Definisikan state awal di luar komponen agar bisa diakses kembali
+const initialProjectData = {
+    // Data Perencanaan
+    jenisKaryaTulis: 'Artikel Ilmiah',
+    jenisKaryaTulisLainnya: '',
+    topikTema: '',
+    pendekatan: '',
+    metode: '',
+    periode: '',
+    basisData: '',
+    tools: '',
+    judulKTI: '',
+    kataKunci: '',
+    penjelasan: '',
+    allReferences: [],
+    aiReferenceClues: null,
+    
+    // Data Instrumen
+    aiSuggestedVariables: null,
+    variabelTerikat: '',
+    variabelBebas: [],
+    aiSuggestedHypotheses: null,
+    hipotesis: [],
+    aiSuggestedKuesioner: null,
+    itemKuesioner: [],
+    aiSuggestedWawancara: null,
+    pertanyaanWawancara: [],
+    queryGeneratorTargetDB: 'Scopus',
+    aiGeneratedQueries: null,
+    searchLog: [],
+    
+    // Data Analisis
+    analisisKuantitatifHasil: '',
+    analisisKuantitatifDraft: '',
+    analisisKualitatifHasil: null,
+    analisisKualitatifDraft: '',
+    deskripsiVisualisasi: '',
+    interpretasiData: '',
+    analisisVisualDraft: '',
+
+    // Data Draf Bab
+    faktaMasalahDraft: '',
+    tujuanPenelitianDraft: '',
+    teoriPenelitianDraft: '',
+    outlineDraft: null,
+    pendahuluanDraft: '',
+    metodeDraft: '',
+    studiLiteraturDraft: '',
+    hasilPembahasanDraft: '',
+    kesimpulanDraft: '',
+};
+
 function App() {
     const [currentSection, setCurrentSection] = useState('ideKTI');
-    const [projectData, setProjectData] = useState({
-        // Data Perencanaan
-        jenisKaryaTulis: 'Artikel Ilmiah',
-        jenisKaryaTulisLainnya: '',
-        topikTema: '',
-        pendekatan: '',
-        metode: '',
-        periode: '',
-        basisData: '',
-        tools: '',
-        judulKTI: '',
-        kataKunci: '',
-        penjelasan: '',
-        allReferences: [],
-        aiReferenceClues: null,
-        
-        // Data Instrumen
-        aiSuggestedVariables: null,
-        variabelTerikat: '',
-        variabelBebas: [],
-        aiSuggestedHypotheses: null,
-        hipotesis: [],
-        aiSuggestedKuesioner: null,
-        itemKuesioner: [],
-        aiSuggestedWawancara: null,
-        pertanyaanWawancara: [],
-        queryGeneratorTargetDB: 'Scopus',
-        aiGeneratedQueries: null,
-        searchLog: [],
-        
-        // Data Analisis
-        analisisKuantitatifHasil: '',
-        analisisKuantitatifDraft: '',
-        analisisKualitatifHasil: null,
-        analisisKualitatifDraft: '',
-        deskripsiVisualisasi: '',
-        interpretasiData: '',
-        analisisVisualDraft: '',
-
-        // Data Draf Bab
-        faktaMasalahDraft: '',
-        tujuanPenelitianDraft: '',
-        teoriPenelitianDraft: '',
-        outlineDraft: null,
-        pendahuluanDraft: '',
-        metodeDraft: '',
-        studiLiteraturDraft: '',
-        hasilPembahasanDraft: '',
-        kesimpulanDraft: '',
-    });
+    const [projectData, setProjectData] = useState(initialProjectData);
     
     const [editingIdea, setEditingIdea] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -2164,12 +2193,16 @@ Publisher Name: `;
     const importInputRef = useRef(null);
     const importReferencesInputRef = useRef(null);
     const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
+    const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
     const [importedData, setImportedData] = useState(null);
     
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [openCategories, setOpenCategories] = useState([]);
     const [showWelcomeModal, setShowWelcomeModal] = useState(false);
     const [lastCopiedQuery, setLastCopiedQuery] = useState({ query: '', database: '' });
+    
+    // PERUBAHAN: State untuk checkbox kueri Bahasa Indonesia
+    const [includeIndonesianQuery, setIncludeIndonesianQuery] = useState(false);
 
 
     // Efek untuk menampilkan pop-up selamat datang
@@ -2190,63 +2223,13 @@ Publisher Name: `;
                 setGeminiApiKey(savedGeminiKey);
             }
 
-            const initialData = {
-                // Data Perencanaan
-                jenisKaryaTulis: 'Artikel Ilmiah',
-                jenisKaryaTulisLainnya: '',
-                topikTema: '',
-                pendekatan: '',
-                metode: '',
-                periode: '',
-                basisData: '',
-                tools: '',
-                judulKTI: '',
-                kataKunci: '',
-                penjelasan: '',
-                allReferences: [],
-                aiReferenceClues: null,
-                
-                // Data Instrumen
-                aiSuggestedVariables: null,
-                variabelTerikat: '',
-                variabelBebas: [],
-                aiSuggestedHypotheses: null,
-                hipotesis: [],
-                aiSuggestedKuesioner: null,
-                itemKuesioner: [],
-                aiSuggestedWawancara: null,
-                pertanyaanWawancara: [],
-                queryGeneratorTargetDB: 'Scopus',
-                aiGeneratedQueries: null,
-                searchLog: [],
-                
-                // Data Analisis
-                analisisKuantitatifHasil: '',
-                analisisKuantitatifDraft: '',
-                analisisKualitatifHasil: null,
-                analisisKualitatifDraft: '',
-                deskripsiVisualisasi: '',
-                interpretasiData: '',
-                analisisVisualDraft: '',
-
-                // Data Draf Bab
-                faktaMasalahDraft: '',
-                tujuanPenelitianDraft: '',
-                teoriPenelitianDraft: '',
-                outlineDraft: null,
-                pendahuluanDraft: '',
-                metodeDraft: '',
-                studiLiteraturDraft: '',
-                hasilPembahasanDraft: '',
-                kesimpulanDraft: '',
-            };
             if (savedData) {
                 const parsedData = JSON.parse(savedData);
                 // Pastikan semua kunci ada, bahkan jika data lama tidak memilikinya
-                const mergedData = { ...initialData, ...parsedData };
+                const mergedData = { ...initialProjectData, ...parsedData };
                 setProjectData(mergedData);
             } else {
-                setProjectData(initialData);
+                setProjectData(initialProjectData);
             }
         } catch (error) {
             console.error("Gagal memuat data dari localStorage:", error);
@@ -3198,6 +3181,12 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         setIsLoading(true);
         setProjectData(p => ({ ...p, aiGeneratedQueries: null }));
 
+        // PERUBAHAN: Logika untuk instruksi bahasa
+        let languageInstruction = "Prioritaskan kueri dalam Bahasa Inggris. JANGAN sertakan padanan Bahasa Indonesia.";
+        if (includeIndonesianQuery) {
+            languageInstruction = "Prioritaskan kueri dalam Bahasa Inggris, tetapi sertakan juga padanan istilah kunci dalam Bahasa Indonesia menggunakan operator OR. Contoh: ((\"digital transformation\") OR (\"transformasi digital\"))";
+        }
+
         const prompt = `Anda adalah seorang Pustakawan Riset (Research Librarian) yang ahli dalam merancang strategi penelusuran sistematis untuk database akademis.
 **Konteks Proyek:**
 - Judul: "${projectData.judulKTI}"
@@ -3215,6 +3204,7 @@ Buat 5 level kueri pencarian (search strings), dari yang paling spesifik hingga 
 - Level 5 (Paling Umum): Pencarian paling luas, biasanya hanya dibatasi oleh kata kunci utama.
 
 **Aturan Penting:**
+- **Instruksi Bahasa:** ${languageInstruction}
 - **JANGAN** sertakan batasan tahun atau periode (misalnya, AND PUBYEAR > 2020) di dalam string kueri yang dihasilkan. Peneliti akan mengatur filter periode secara manual di antarmuka database.
 
 **Instruksi Sintaks:**
@@ -3472,6 +3462,13 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         showInfoModal("Proyek berhasil diimpor!");
     };
     
+    const handleResetProject = () => {
+        localStorage.removeItem('kti-bibliometric-project');
+        setProjectData(initialProjectData);
+        setIsResetConfirmOpen(false);
+        showInfoModal("Proyek telah berhasil di-reset.");
+    };
+    
     const handleExportReferences = () => {
         try {
             const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
@@ -3546,7 +3543,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             
             // Instrumen
             case 'genLogKueri':
-                return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, setLastCopiedQuery, handleCopyQuery, handleDeleteLog }} />;
+                return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, handleCopyQuery, handleDeleteLog, includeIndonesianQuery, setIncludeIndonesianQuery }} />;
             case 'genVariabel':
                 return <GeneratorVariabel {...{ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal }} />;
             case 'genHipotesis':
@@ -3637,7 +3634,8 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                 items: [
                     { id: 'dashboard', name: 'Dashboard' },
                     { id: 'imporProyek', name: 'Impor Proyek', action: triggerImport },
-                    { id: 'eksporProyek', name: 'Ekspor Proyek', action: handleExportProject }
+                    { id: 'eksporProyek', name: 'Ekspor Proyek', action: handleExportProject },
+                    { id: 'resetProyek', name: 'Reset Proyek', action: () => setIsResetConfirmOpen(true) }
                 ]
             },
         };
@@ -3709,6 +3707,19 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                         <div className="mt-6 flex justify-end gap-2">
                             <button onClick={() => setIsImportConfirmOpen(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Batal</button>
                             <button onClick={confirmImport} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Ya, Timpa & Impor</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {isResetConfirmOpen && (
+                 <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full flex flex-col">
+                        <h3 className="text-xl font-semibold mb-4 text-gray-800">Konfirmasi Reset Proyek</h3>
+                        <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg mb-4"><b>Peringatan:</b> Anda akan menghapus semua data proyek yang tersimpan di browser ini. Tindakan ini tidak dapat diurungkan.</p>
+                        <p className="text-gray-700">Apakah Anda yakin ingin memulai proyek baru?</p>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setIsResetConfirmOpen(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Batal</button>
+                            <button onClick={handleResetProject} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Ya, Reset Proyek</button>
                         </div>
                     </div>
                 </div>
