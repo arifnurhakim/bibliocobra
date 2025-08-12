@@ -21,6 +21,17 @@ const CloseIcon = () => (
     </svg>
 );
 
+const CopyIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+    </svg>
+);
+
+const DeleteIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+);
 
 // ============================================================================
 // SERVICES: Centralized API Logic
@@ -1374,6 +1385,190 @@ const GeneratorWawancara = ({ projectData, setProjectData, handleGenerateWawanca
     );
 };
 
+// --- Komponen untuk Instrumen: Generator & Log Kueri ---
+const GeneratorLogKueri = ({ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, setLastCopiedQuery, handleCopyQuery, handleDeleteLog }) => {
+    const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+    const [logEntry, setLogEntry] = useState({
+        resultsCount: '',
+        searchDate: new Date().toISOString().slice(0, 10)
+    });
+
+    const handleOpenLogModal = () => {
+        if (!lastCopiedQuery.query) {
+            showInfoModal("Silakan salin sebuah kueri terlebih dahulu untuk dicatat ke dalam log.");
+            return;
+        }
+        setLogEntry(prev => ({
+            ...prev,
+            searchDate: new Date().toISOString().slice(0, 10) // Reset tanggal setiap buka modal
+        }));
+        setIsLogModalOpen(true);
+    };
+
+    const handleSaveLog = () => {
+        if (!logEntry.resultsCount) {
+            showInfoModal("Jumlah dokumen ditemukan tidak boleh kosong.");
+            return;
+        }
+        const newLog = {
+            id: Date.now(),
+            query: lastCopiedQuery.query,
+            database: projectData.queryGeneratorTargetDB,
+            resultsCount: parseInt(logEntry.resultsCount, 10),
+            searchDate: logEntry.searchDate
+        };
+        setProjectData(p => ({
+            ...p,
+            searchLog: [...p.searchLog, newLog]
+        }));
+        setIsLogModalOpen(false);
+        setLogEntry({ resultsCount: '', searchDate: new Date().toISOString().slice(0, 10) }); // Reset form
+    };
+
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            {isLogModalOpen && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full flex flex-col">
+                        <h3 className="text-xl font-semibold mb-4 text-gray-800">Tambah Entri Log Penelusuran</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Kueri:</label>
+                                <p className="text-sm bg-gray-100 p-2 rounded-md font-mono">{lastCopiedQuery.query}</p>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Database:</label>
+                                <p className="text-sm bg-gray-100 p-2 rounded-md">{projectData.queryGeneratorTargetDB}</p>
+                            </div>
+                             <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Jumlah Dokumen Ditemukan:</label>
+                                <input type="number" value={logEntry.resultsCount} onChange={e => setLogEntry({...logEntry, resultsCount: e.target.value})} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" />
+                            </div>
+                             <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Tanggal Penelusuran:</label>
+                                <input type="date" value={logEntry.searchDate} onChange={e => setLogEntry({...logEntry, searchDate: e.target.value})} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" />
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setIsLogModalOpen(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Batal</button>
+                            <button onClick={handleSaveLog} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Simpan Log</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Generator & Log Kueri</h2>
+            <p className="text-gray-700 mb-4">Alat ini membantu Anda membuat dan mendokumentasikan kueri pencarian secara sistematis, sebuah syarat wajib untuk penelitian SLR/Bibliometrik yang valid.</p>
+            
+            <div className="p-4 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 mb-8">
+                <h3 className="text-lg font-semibold mb-3 text-blue-800">Langkah 1: Hasilkan Kueri Berjenjang</h3>
+                <div className="mb-4">
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Pilih Database Target:</label>
+                    <select 
+                        value={projectData.queryGeneratorTargetDB} 
+                        onChange={(e) => setProjectData(p => ({...p, queryGeneratorTargetDB: e.target.value}))} 
+                        className="shadow appearance-none border rounded-lg w-full md:w-1/2 py-2 px-3 text-gray-700"
+                    >
+                        <option value="Scopus">Scopus</option>
+                        <option value="Web of Science">Web of Science</option>
+                        <option value="Google Scholar">Google Scholar</option>
+                        <option value="Lainnya">Lainnya (Umum)</option>
+                    </select>
+                </div>
+                <button onClick={handleGenerateQueries} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300" disabled={isLoading || !projectData.judulKTI}>
+                    {isLoading ? 'Memproses...' : '✨ Hasilkan Kueri Berjenjang'}
+                </button>
+            </div>
+
+            {isLoading && !projectData.aiGeneratedQueries && (
+                <div className="mt-6 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <p className="ml-3 text-gray-600">AI sedang merancang strategi pencarian...</p>
+                </div>
+            )}
+
+            {projectData.aiGeneratedQueries && (
+                <div className="mb-8">
+                    <h3 className="text-xl font-bold mb-4 text-gray-800">Kueri yang Dihasilkan</h3>
+                    <div className="overflow-x-auto border rounded-lg">
+                        <table className="w-full text-sm text-left text-gray-500">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+                                <tr>
+                                    <th className="px-4 py-2">Level</th>
+                                    <th className="px-4 py-2">Penjelasan</th>
+                                    <th className="px-4 py-2">Kueri</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {projectData.aiGeneratedQueries.map((q, index) => (
+                                    <tr key={index} className="bg-white border-b hover:bg-gray-50">
+                                        <td className="px-4 py-3 font-semibold">{q.level}</td>
+                                        <td className="px-4 py-3 text-xs">{q.penjelasan}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <code className="text-xs bg-gray-200 p-2 rounded-md block whitespace-pre-wrap">{q.kueri}</code>
+                                                <button onClick={() => handleCopyQuery(q.kueri)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold p-2 rounded-lg flex-shrink-0">
+                                                    <CopyIcon />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2 italic">Catatan: AI menghasilkan kueri berdasarkan praktik umum. Selalu verifikasi sintaks di situs web database target sebelum menjalankan.</p>
+                </div>
+            )}
+
+            <div className="mt-10 pt-8 border-t-2 border-dashed border-gray-300">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold text-gray-800">Langkah 2: Log Penelusuran (Logbook)</h3>
+                    <button onClick={handleOpenLogModal} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">
+                        + Tambah Log Baru
+                    </button>
+                </div>
+                 {projectData.searchLog.length > 0 ? (
+                    <div className="overflow-x-auto border rounded-lg">
+                        <table className="w-full text-sm text-left text-gray-500">
+                             <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+                                <tr>
+                                    <th className="px-4 py-2">Tanggal</th>
+                                    <th className="px-4 py-2">Database</th>
+                                    <th className="px-4 py-2">Kueri</th>
+                                    <th className="px-4 py-2">Hasil</th>
+                                    <th className="px-4 py-2">Tindakan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {projectData.searchLog.map(log => (
+                                    <tr key={log.id} className="bg-white border-b hover:bg-gray-50">
+                                        <td className="px-4 py-3">{log.searchDate}</td>
+                                        <td className="px-4 py-3">{log.database}</td>
+                                        <td className="px-4 py-3"><code className="text-xs bg-gray-100 p-1 rounded">{log.query}</code></td>
+                                        <td className="px-4 py-3 font-semibold">{log.resultsCount}</td>
+                                        <td className="px-4 py-3">
+                                            <button onClick={() => handleDeleteLog(log.id)} className="text-red-500 hover:text-red-700 p-1">
+                                                <DeleteIcon />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                 ) : (
+                    <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                        <p>Log penelusuran Anda masih kosong.</p>
+                        <p className="text-sm">Hasilkan kueri, jalankan, lalu catat hasilnya di sini.</p>
+                    </div>
+                 )}
+            </div>
+        </div>
+    );
+};
+
+
 // --- Komponen untuk Analisis Data Kuantitatif (Fungsional) ---
 const AnalisisKuantitatif = ({ projectData, setProjectData, handleGenerateAnalisis, isLoading, showInfoModal, setCurrentSection }) => {
     const [fileName, setFileName] = useState('');
@@ -1907,6 +2102,9 @@ function App() {
         itemKuesioner: [],
         aiSuggestedWawancara: null,
         pertanyaanWawancara: [],
+        queryGeneratorTargetDB: 'Scopus',
+        aiGeneratedQueries: null,
+        searchLog: [],
         
         // Data Analisis
         analisisKuantitatifHasil: '',
@@ -1971,6 +2169,8 @@ Publisher Name: `;
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [openCategories, setOpenCategories] = useState([]);
     const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+    const [lastCopiedQuery, setLastCopiedQuery] = useState({ query: '', database: '' });
+
 
     // Efek untuk menampilkan pop-up selamat datang
     useEffect(() => {
@@ -1991,6 +2191,7 @@ Publisher Name: `;
             }
 
             const initialData = {
+                // Data Perencanaan
                 jenisKaryaTulis: 'Artikel Ilmiah',
                 jenisKaryaTulisLainnya: '',
                 topikTema: '',
@@ -2004,6 +2205,8 @@ Publisher Name: `;
                 penjelasan: '',
                 allReferences: [],
                 aiReferenceClues: null,
+                
+                // Data Instrumen
                 aiSuggestedVariables: null,
                 variabelTerikat: '',
                 variabelBebas: [],
@@ -2013,6 +2216,11 @@ Publisher Name: `;
                 itemKuesioner: [],
                 aiSuggestedWawancara: null,
                 pertanyaanWawancara: [],
+                queryGeneratorTargetDB: 'Scopus',
+                aiGeneratedQueries: null,
+                searchLog: [],
+                
+                // Data Analisis
                 analisisKuantitatifHasil: '',
                 analisisKuantitatifDraft: '',
                 analisisKualitatifHasil: null,
@@ -2020,6 +2228,8 @@ Publisher Name: `;
                 deskripsiVisualisasi: '',
                 interpretasiData: '',
                 analisisVisualDraft: '',
+
+                // Data Draf Bab
                 faktaMasalahDraft: '',
                 tujuanPenelitianDraft: '',
                 teoriPenelitianDraft: '',
@@ -2032,7 +2242,9 @@ Publisher Name: `;
             };
             if (savedData) {
                 const parsedData = JSON.parse(savedData);
-                setProjectData({ ...initialData, ...parsedData });
+                // Pastikan semua kunci ada, bahkan jika data lama tidak memilikinya
+                const mergedData = { ...initialData, ...parsedData };
+                setProjectData(mergedData);
             } else {
                 setProjectData(initialData);
             }
@@ -2425,6 +2637,13 @@ Publisher Name: ${ref.publisher || ''}`;
 
         document.body.removeChild(textArea);
     };
+    
+    const handleCopyQuery = (queryText) => {
+        handleCopyToClipboard(queryText); // Re-use the existing copy function
+        setLastCopiedQuery({ query: queryText }); // Store the copied query
+        showInfoModal("Kueri disalin ke clipboard!");
+    };
+
 
     const handleGeneratePokokIsi = async () => {
         setIsLoading(true);
@@ -2974,6 +3193,71 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         }
     };
 
+    // Handler untuk Generator & Log Kueri
+    const handleGenerateQueries = async () => {
+        setIsLoading(true);
+        setProjectData(p => ({ ...p, aiGeneratedQueries: null }));
+
+        const prompt = `Anda adalah seorang Pustakawan Riset (Research Librarian) yang ahli dalam merancang strategi penelusuran sistematis untuk database akademis.
+**Konteks Proyek:**
+- Judul: "${projectData.judulKTI}"
+- Kata Kunci: "${projectData.kataKunci}"
+- Database Target: "${projectData.queryGeneratorTargetDB}"
+
+**Tugas Utama:**
+Buat 5 level kueri pencarian (search strings), dari yang paling spesifik hingga paling luas.
+
+**Level Kueri:**
+- Level 1 (Paling Khusus): Cari istilah inti hanya di judul artikel.
+- Level 2 (Sedikit Lebih Umum): Cari di judul, abstrak, dan kata kunci.
+- Level 3 (Umum Menengah): Perluas pencarian dengan sinonim dan istilah terkait yang relevan.
+- Level 4 (Lebih Umum): Hilangkan beberapa batasan untuk eksplorasi lebih luas.
+- Level 5 (Paling Umum): Pencarian paling luas, biasanya hanya dibatasi oleh kata kunci utama.
+
+**Aturan Penting:**
+- **JANGAN** sertakan batasan tahun atau periode (misalnya, AND PUBYEAR > 2020) di dalam string kueri yang dihasilkan. Peneliti akan mengatur filter periode secara manual di antarmuka database.
+
+**Instruksi Sintaks:**
+Gunakan sintaks yang paling sesuai untuk Database Target.
+- Untuk Scopus: Gunakan TITLE-ABS-KEY() dan TITLE().
+- Untuk Web of Science: Gunakan TS=() (Topic Search) dan TI=() (Title Search).
+- Untuk Google Scholar: Gunakan allintitle: dan "frasa dalam tanda kutip".
+- Untuk Lainnya (Umum): Gunakan sintaks boolean umum (AND, OR, NOT) dan tanda kurung.
+
+**Format Output:**
+Berikan jawaban HANYA dalam format JSON yang ketat.`;
+
+        const schema = {
+            type: "ARRAY",
+            items: {
+                type: "OBJECT",
+                properties: {
+                    level: { type: "STRING" },
+                    penjelasan: { type: "STRING" },
+                    kueri: { type: "STRING" }
+                },
+                required: ["level", "penjelasan", "kueri"]
+            }
+        };
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKey, schema);
+            setProjectData(p => ({ ...p, aiGeneratedQueries: result }));
+            showInfoModal("Kueri berjenjang berhasil dibuat!");
+        } catch (error) {
+            showInfoModal(`Gagal membuat kueri: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleDeleteLog = (id) => {
+        setProjectData(p => ({
+            ...p,
+            searchLog: p.searchLog.filter(log => log.id !== id)
+        }));
+    };
+
     const handleGenerateAnalisis = async (data, analysisType) => {
         if (!data) {
             showInfoModal("Tidak ada data untuk dianalisis. Silakan unggah file .csv terlebih dahulu.");
@@ -3261,6 +3545,8 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                 return <Referensi {...{ projectData, manualRef, setManualRef, handleSaveManualReference, freeTextRef, setFreeTextRef, handleImportFromText, handleEditReference, handleDeleteReference, handleGenerateApa, generatedApaReferences, handleCopyToClipboard, handleShowSearchPrompts, handleGenerateReferenceClues, isLoading, openNoteModal, triggerReferencesImport, handleExportReferences }} />;
             
             // Instrumen
+            case 'genLogKueri':
+                return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, setLastCopiedQuery, handleCopyQuery, handleDeleteLog }} />;
             case 'genVariabel':
                 return <GeneratorVariabel {...{ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal }} />;
             case 'genHipotesis':
@@ -3322,7 +3608,9 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             },
             instrumen: {
                 title: "Instrumen Penelitian",
-                items: []
+                items: [
+                    { id: 'genLogKueri', name: 'Generator & Log Kueri'}
+                ]
             },
             analisis: {
                 title: "Analisis Data",
