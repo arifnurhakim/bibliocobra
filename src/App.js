@@ -168,27 +168,22 @@ const DashboardProyek = ({ projectData, setCurrentSection }) => {
 };
 
 
-// --- Komponen untuk Tab 1: Ide KTI ---
+// --- Komponen untuk Tab 1: Ide KTI (ALUR KERJA BARU) ---
 const IdeKTI = ({ 
     projectData, 
     handleInputChange, 
     handleGenerateIdeKTI, 
+    handleStartNewIdea,
     isLoading, 
-    aiStructuredResponse, 
-    aiResponse,
+    aiStructuredResponse,
     editingIdea,
     setEditingIdea,
     handleStartEditing,
-    handleStartNewIdea,
-    handleSaveIdea
+    handleSaveIdea,
+    ideKtiMode,
 }) => {
-    const [showSummary, setShowSummary] = useState(!!projectData.judulKTI && !editingIdea);
-
-    useEffect(() => {
-        setShowSummary(!!projectData.judulKTI && !editingIdea);
-    }, [projectData.judulKTI, editingIdea]);
-
-    if (showSummary) {
+    // Jika proyek sudah punya judul, tampilkan ringkasan dan tombol edit
+    if (projectData.judulKTI && !editingIdea && !ideKtiMode) {
         return (
             <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">Ide KTI</h2>
@@ -207,11 +202,8 @@ const IdeKTI = ({
                         <p className="text-gray-800">{projectData.penjelasan}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        <button onClick={() => setShowSummary(false)} className="mt-4 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-lg text-sm">
-                            Kembali
-                        </button>
                         <button onClick={handleStartNewIdea} className="mt-4 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-lg text-sm">
-                            Edit Ide
+                            Edit Ide & Detail Proyek
                         </button>
                     </div>
                 </div>
@@ -219,11 +211,15 @@ const IdeKTI = ({
         );
     }
 
+    // Tampilan utama untuk memulai proyek baru atau mengedit
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Ide KTI</h2>
-            {!editingIdea && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Mulai Proyek: Ide KTI</h2>
+            
+            {/* Form Detail Penelitian (Selalu Terlihat) */}
+            <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 mb-6">
+                <h3 className="text-lg font-semibold mb-4 text-gray-800">1. Lengkapi Detail Penelitian</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-gray-700 text-sm font-bold mb-2">Topik atau Tema:</label>
                         <input type="text" name="topikTema" value={projectData.topikTema} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Digital Innovation Culture"/>
@@ -270,73 +266,71 @@ const IdeKTI = ({
                         <input type="text" name="tools" value={projectData.tools} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Vosviewer, R (bibliometrix)"/>
                     </div>
                 </div>
-            )}
-            
-            {!editingIdea && (
+            </div>
+
+            {/* Tombol Pilihan Aksi */}
+            <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-4 text-gray-800">2. Tentukan Judul & Penjelasan</h3>
                 <div className="flex flex-wrap gap-4">
                     <button onClick={handleGenerateIdeKTI} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed" disabled={isLoading || !projectData.topikTema}>
-                        {isLoading ? 'Meminta Pertanyaan...' : '✨ Hasilkan Ide dari AI'}
+                        {isLoading && ideKtiMode === 'ai' ? 'Meminta Pertanyaan...' : '✨ Hasilkan Ide dari AI'}
                     </button>
                     <button onClick={handleStartNewIdea} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-green-300" disabled={isLoading}>
                         💡 Tulis Ide Sendiri
                     </button>
                 </div>
-            )}
+            </div>
 
-            {isLoading && !aiStructuredResponse && (
-                <div className="mt-6 flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    <p className="ml-3 text-gray-600">AI sedang memproses...</p>
-                </div>
-            )}
+            {/* Area Hasil (Dinamis) */}
+            <div className="mt-8">
+                {isLoading && !aiStructuredResponse && ideKtiMode === 'ai' && (
+                    <div className="flex items-center justify-center p-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <p className="ml-3 text-gray-600">AI sedang memproses...</p>
+                    </div>
+                )}
 
-            {aiStructuredResponse && aiStructuredResponse.length > 0 && (
-                <div className="mt-8">
-                    <h3 className="text-xl font-bold mb-4 text-gray-800">Rekomendasi Ide dari AI:</h3>
-                    <div className="grid grid-cols-1 gap-4">
-                        {aiStructuredResponse.map((idea, index) => (
-                            <div key={index} className="bg-blue-50 p-4 rounded-lg shadow-sm border border-blue-200">
-                                <h4 className="text-lg font-semibold text-blue-700 mb-2">{idea.judul}</h4>
-                                <p className="text-gray-700 mb-2"><strong>Kata Kunci:</strong> {idea.kata_kunci}</p>
-                                <p className="text-gray-600 text-sm mb-3">{idea.penjelasan}</p>
-                                <button onClick={() => handleStartEditing(idea)} className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold py-2 px-3 rounded-lg">
-                                    Pilih & Sunting Ide Ini
-                                </button>
+                {ideKtiMode === 'ai' && aiStructuredResponse && aiStructuredResponse.length > 0 && (
+                    <div className="animate-fade-in">
+                        <h3 className="text-xl font-bold mb-4 text-gray-800">Rekomendasi Ide dari AI:</h3>
+                        <div className="grid grid-cols-1 gap-4">
+                            {aiStructuredResponse.map((idea, index) => (
+                                <div key={index} className="bg-blue-50 p-4 rounded-lg shadow-sm border border-blue-200">
+                                    <h4 className="text-lg font-semibold text-blue-700 mb-2">{idea.judul}</h4>
+                                    <p className="text-gray-700 mb-2"><strong>Kata Kunci:</strong> {idea.kata_kunci}</p>
+                                    <p className="text-gray-600 text-sm mb-3">{idea.penjelasan}</p>
+                                    <button onClick={() => handleStartEditing(idea)} className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold py-2 px-3 rounded-lg">
+                                        Pilih & Sunting Ide Ini
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {editingIdea && (
+                    <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-300 animate-fade-in">
+                        <h3 className="text-xl font-bold mb-4 text-gray-800">3. Konfirmasi & Simpan Proyek</h3>
+                        <div className="space-y-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Judul KTI:</label>
+                                <input type="text" value={editingIdea.judul} onChange={e => setEditingIdea({...editingIdea, judul: e.target.value})} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"/>
                             </div>
-                        ))}
+                             <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Kata Kunci:</label>
+                                <input type="text" value={editingIdea.kata_kunci} onChange={e => setEditingIdea({...editingIdea, kata_kunci: e.target.value})} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"/>
+                            </div>
+                             <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Penjelasan Singkat:</label>
+                                <textarea value={editingIdea.penjelasan} onChange={e => setEditingIdea({...editingIdea, penjelasan: e.target.value})} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" rows="3"></textarea>
+                            </div>
+                            <button onClick={handleSaveIdea} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg">
+                                Simpan Ide & Lanjutkan ke Tahap Berikutnya
+                            </button>
+                        </div>
                     </div>
-                </div>
-            )}
-
-            {editingIdea && (
-                <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-300">
-                    <h3 className="text-xl font-bold mb-4 text-gray-800">Area Konfirmasi & Penyuntingan Ide</h3>
-                    <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-                        <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Judul KTI:</label>
-                            <input type="text" value={editingIdea.judul} onChange={e => setEditingIdea({...editingIdea, judul: e.target.value})} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"/>
-                        </div>
-                         <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Kata Kunci:</label>
-                            <input type="text" value={editingIdea.kata_kunci} onChange={e => setEditingIdea({...editingIdea, kata_kunci: e.target.value})} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"/>
-                        </div>
-                         <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Penjelasan Singkat:</label>
-                            <textarea value={editingIdea.penjelasan} onChange={e => setEditingIdea({...editingIdea, penjelasan: e.target.value})} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" rows="3"></textarea>
-                        </div>
-                        <button onClick={handleSaveIdea} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg">
-                            Simpan Ide & Lanjutkan
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {aiResponse && (
-                 <div className="mt-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg">
-                    <p className="font-bold">Terjadi Kesalahan:</p>
-                    <p className="whitespace-pre-wrap">{aiResponse}</p>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 };
@@ -2156,10 +2150,12 @@ function App() {
     const [currentSection, setCurrentSection] = useState('ideKTI');
     const [projectData, setProjectData] = useState(initialProjectData);
     
+    // State untuk alur kerja Ide KTI yang baru
+    const [ideKtiMode, setIdeKtiMode] = useState(null); // 'ai', 'manual', atau null
     const [editingIdea, setEditingIdea] = useState(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [aiResponse, setAiResponse] = useState('');
     const [aiStructuredResponse, setAiStructuredResponse] = useState(null);
+    
+    const [isLoading, setIsLoading] = useState(false);
     
     const manualRefTemplate = `Journal Article Title: 
 Journal Name: 
@@ -2201,7 +2197,6 @@ Publisher Name: `;
     const [showWelcomeModal, setShowWelcomeModal] = useState(false);
     const [lastCopiedQuery, setLastCopiedQuery] = useState({ query: '', database: '' });
     
-    // PERUBAHAN: State untuk checkbox kueri Bahasa Indonesia
     const [includeIndonesianQuery, setIncludeIndonesianQuery] = useState(false);
 
 
@@ -2225,7 +2220,6 @@ Publisher Name: `;
 
             if (savedData) {
                 const parsedData = JSON.parse(savedData);
-                // Pastikan semua kunci ada, bahkan jika data lama tidak memilikinya
                 const mergedData = { ...initialProjectData, ...parsedData };
                 setProjectData(mergedData);
             } else {
@@ -2281,9 +2275,11 @@ Publisher Name: `;
         setProjectData(prev => ({ ...prev, [name]: value }));
     };
 
+    // --- ALUR KERJA IDE KTI BARU ---
+
     const handleGenerateIdeKTI = async () => {
         setIsLoading(true);
-        setAiResponse('');
+        setIdeKtiMode('ai');
         setAiStructuredResponse(null);
         setEditingIdea(null);
         
@@ -2351,7 +2347,6 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
             const result = await geminiService.run(prompt, geminiApiKey, schema);
             setAiStructuredResponse(result);
         } catch (error) {
-            setAiResponse(error.message);
             showInfoModal(`Gagal menghasilkan ide: ${error.message}`);
         } finally {
             setIsLoading(false);
@@ -2367,6 +2362,7 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
     };
 
     const handleStartNewIdea = () => {
+        setIdeKtiMode('manual');
         setAiStructuredResponse(null);
         setEditingIdea({
             judul: projectData.judulKTI || '',
@@ -2380,17 +2376,24 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
             showInfoModal("Judul KTI tidak boleh kosong.");
             return;
         }
+        // Menyimpan semua data dari form detail dan form ide
         setProjectData(prev => ({
-            ...prev,
+            ...prev, // Ini sudah berisi data dari form detail
             judulKTI: editingIdea.judul,
             kataKunci: editingIdea.kata_kunci,
             penjelasan: editingIdea.penjelasan,
         }));
+        
+        // Reset state
         setEditingIdea(null);
         setAiStructuredResponse(null);
-        showInfoModal(`Ide KTI "${editingIdea.judul}" berhasil disimpan.`);
-        setCurrentSection('referensi');
+        setIdeKtiMode(null);
+        
+        showInfoModal(`Proyek "${editingIdea.judul}" berhasil disimpan.`);
+        setCurrentSection('referensi'); // Pindah ke tab selanjutnya
     };
+
+    // --- AKHIR ALUR KERJA IDE KTI BARU ---
     
     const handleShowSearchPrompts = async () => {
         if (!projectData.aiReferenceClues) {
@@ -2423,14 +2426,13 @@ Berikan jawaban hanya dalam format JSON.`;
         try {
             const results = await geminiService.run(prompt, geminiApiKey, schema);
             const narrativeMap = results.reduce((acc, item) => {
-                // Normalisasi kunci untuk mengatasi perbedaan kecil (spasi, dll.)
                 acc[item.clue.trim()] = item.narrative;
                 return acc;
             }, {});
             setAiClueNarratives(narrativeMap);
         } catch (error) {
             showInfoModal(`Gagal menghasilkan narasi untuk clues: ${error.message}`);
-            setShowSearchPromptModal(false); // Tutup modal jika terjadi error
+            setShowSearchPromptModal(false);
         } finally {
             setIsLoading(false);
         }
@@ -2461,9 +2463,7 @@ Berikan jawaban hanya dalam format JSON.`;
                 case 'url': reference.url = value; break;
                 case 'doi': reference.doi = value; break;
                 case 'publisher name': reference.publisher = value; break;
-                default:
-                    console.warn(`Kunci "${key}" tidak dikenali`);
-                    break;
+                default: break;
             }
         });
         return reference;
@@ -2477,19 +2477,17 @@ Berikan jawaban hanya dalam format JSON.`;
         }
 
         if (manualRef.id) {
-            // Update existing
             setProjectData(prev => ({
                 ...prev,
                 allReferences: prev.allReferences.map(ref => ref.id === manualRef.id ? { ...ref, ...parsedRef, id: manualRef.id } : ref)
             }));
         } else {
-            // Add new
             setProjectData(prev => ({
                 ...prev,
                 allReferences: [...prev.allReferences, { ...parsedRef, id: Date.now(), isiKutipan: '' }]
             }));
         }
-        setManualRef({ id: null, text: manualRefTemplate }); // Reset form to template
+        setManualRef({ id: null, text: manualRefTemplate });
     };
 
     const handleImportFromText = async () => {
@@ -2568,16 +2566,10 @@ Publisher Name: ${ref.publisher || ''}`;
             .map(ref => {
                 let citation = `${ref.author || ''} (${ref.year || 't.t.'}). ${ref.title || ''}.`;
                 if (ref.journal) {
-                    citation += ` ${ref.journal}`; // Dibuat plain text
-                    if (ref.volume) {
-                        citation += `, ${ref.volume}`;
-                    }
-                    if (ref.issue) {
-                        citation += `(${ref.issue})`;
-                    }
-                    if (ref.pages) {
-                        citation += `, ${ref.pages}`;
-                    }
+                    citation += ` ${ref.journal}`;
+                    if (ref.volume) citation += `, ${ref.volume}`;
+                    if (ref.issue) citation += `(${ref.issue})`;
+                    if (ref.pages) citation += `, ${ref.pages}`;
                     citation += '.';
                 }
                 if (ref.doi) {
@@ -2587,43 +2579,32 @@ Publisher Name: ${ref.publisher || ''}`;
                 }
                 return citation;
             }).join('\n\n');
-        setGeneratedApaReferences(list.replace(/\n/g, '<br />')); // Tetap pakai <br> untuk tampilan di HTML
+        setGeneratedApaReferences(list.replace(/\n/g, '<br />'));
     };
 
     const handleCopyToClipboard = (text) => {
-        // Membersihkan teks dari semua format
         const plainText = text
-            .replace(/<br\s*\/?>/gi, "\n") // Mengganti <br> dengan newline
-            .replace(/<[^>]*>/g, "")       // Menghapus semua tag HTML lainnya
-            .replace(/[*_]/g, "");          // Menghapus karakter markdown * dan _
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<[^>]*>/g, "")
+            .replace(/[*_]/g, "");
 
         const textArea = document.createElement("textarea");
         textArea.value = plainText;
-        textArea.style.position = "fixed";
-        textArea.style.top = "-9999px";
-        textArea.style.left = "-9999px";
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
-
         try {
-            const successful = document.execCommand('copy');
-            if (successful) {
-                showInfoModal("Teks berhasil disalin!");
-            } else {
-                showInfoModal("Gagal menyalin teks.");
-            }
+            document.execCommand('copy');
+            showInfoModal("Teks berhasil disalin!");
         } catch (err) {
-            showInfoModal("Gagal menyalin teks karena kesalahan teknis.");
-            console.error('Fallback: Gagal menyalin teks', err);
+            showInfoModal("Gagal menyalin teks.");
         }
-
         document.body.removeChild(textArea);
     };
     
     const handleCopyQuery = (queryText) => {
-        handleCopyToClipboard(queryText); // Re-use the existing copy function
-        setLastCopiedQuery({ query: queryText }); // Store the copied query
+        handleCopyToClipboard(queryText);
+        setLastCopiedQuery({ query: queryText });
         showInfoModal("Kueri disalin ke clipboard!");
     };
 
@@ -2775,7 +2756,6 @@ Pastikan ada kesinambungan dan alur yang logis antar sub-bab.`;
 
         try {
             const result = await geminiService.run(prompt, geminiApiKey);
-            // Membersihkan hasil dari AI untuk memastikan tidak ada format yang lolos
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, pendahuluanDraft: cleanResult }));
             showInfoModal("Draf Pendahuluan Lengkap berhasil dibuat!");
@@ -2814,7 +2794,6 @@ Pastikan ada kesinambungan dan alur yang logis antar sub-bab.`;
 
         try {
             const result = await geminiService.run(prompt, geminiApiKey);
-             // Membersihkan hasil dari AI untuk memastikan tidak ada format yang lolos
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, [draftKey]: cleanResult }));
             showInfoModal(`Draf berhasil diubah ke versi "${mode}".`);
@@ -2892,15 +2871,9 @@ ${kutipanString}
         setProjectData(p => ({ ...p, hasilPembahasanDraft: '' }));
 
         let dataSintesis = '';
-        if (projectData.analisisKuantitatifDraft) {
-            dataSintesis += `--- ANALISIS KUANTITATIF ---\n${projectData.analisisKuantitatifDraft}\n\n`;
-        }
-        if (projectData.analisisKualitatifDraft) {
-            dataSintesis += `--- ANALISIS KUALITATIF ---\n${projectData.analisisKualitatifDraft}\n\n`;
-        }
-        if (projectData.analisisVisualDraft) {
-            dataSintesis += `--- ANALISIS VISUAL ---\n${projectData.analisisVisualDraft}\n\n`;
-        }
+        if (projectData.analisisKuantitatifDraft) dataSintesis += `--- ANALISIS KUANTITATIF ---\n${projectData.analisisKuantitatifDraft}\n\n`;
+        if (projectData.analisisKualitatifDraft) dataSintesis += `--- ANALISIS KUALITATIF ---\n${projectData.analisisKualitatifDraft}\n\n`;
+        if (projectData.analisisVisualDraft) dataSintesis += `--- ANALISIS VISUAL ---\n${projectData.analisisVisualDraft}\n\n`;
 
         if (!dataSintesis) {
             showInfoModal("Tidak ada draf analisis yang bisa disintesis. Harap selesaikan salah satu modul analisis terlebih dahulu.");
@@ -2948,13 +2921,10 @@ Pastikan ada alur yang logis antara penyajian hasil dan pembahasannya.`;
         const context = `
 **Judul Penelitian:**
 ${projectData.judulKTI}
-
 **Draf Pendahuluan (termasuk tujuan penelitian):**
 ${projectData.pendahuluanDraft}
-
 **Draf Metode Penelitian:**
 ${projectData.metodeDraft}
-
 **Draf Hasil dan Pembahasan:**
 ${projectData.hasilPembahasanDraft}
 `;
@@ -2995,10 +2965,9 @@ Pastikan ada alur yang logis dan setiap bagian saling terkait.`;
         }
     };
     
-    // Handler untuk Generator Variabel
     const handleGenerateVariabel = async () => {
         setIsLoading(true);
-        setProjectData(prev => ({ ...prev, aiSuggestedVariables: null })); // Reset saran sebelumnya
+        setProjectData(prev => ({ ...prev, aiSuggestedVariables: null }));
 
         const prompt = `Anda adalah seorang metodolog penelitian ahli. Berdasarkan judul penelitian kuantitatif berikut, identifikasi dan sarankan satu variabel terikat (dependent variable) dan beberapa (2 hingga 4) variabel bebas (independent variables) yang paling relevan dan umum diteliti.
 
@@ -3010,13 +2979,9 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         const schema = {
             type: "OBJECT",
             properties: {
-                variabel_terikat: { 
-                    type: "STRING",
-                    description: "Nama variabel yang dipengaruhi dalam penelitian (variabel Y)."
-                },
+                variabel_terikat: { type: "STRING" },
                 variabel_bebas: {
                     type: "ARRAY",
-                    description: "Daftar nama variabel yang mempengaruhi variabel terikat (variabel X).",
                     items: { type: "STRING" }
                 }
             },
@@ -3034,7 +2999,6 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         }
     };
 
-    // Handler untuk Generator Hipotesis
     const handleGenerateHipotesis = async () => {
         if (!projectData.variabelTerikat || projectData.variabelBebas.length === 0) {
             showInfoModal("Tentukan variabel penelitian terlebih dahulu di 'Generator Variabel'.");
@@ -3056,14 +3020,8 @@ Berikan jawaban hanya dalam format JSON.`;
             items: {
                 type: "OBJECT",
                 properties: {
-                    h1: { 
-                        type: "STRING",
-                        description: "Hipotesis alternatif (misal: Terdapat pengaruh positif X terhadap Y)."
-                    },
-                    h0: {
-                        type: "STRING",
-                        description: "Hipotesis nol (misal: Tidak terdapat pengaruh X terhadap Y)."
-                    }
+                    h1: { type: "STRING" },
+                    h0: { type: "STRING" }
                 },
                 required: ["h1", "h0"]
             }
@@ -3080,7 +3038,6 @@ Berikan jawaban hanya dalam format JSON.`;
         }
     };
 
-    // Handler untuk Generator Kuesioner
     const handleGenerateKuesioner = async () => {
         if (!projectData.variabelTerikat || projectData.variabelBebas.length === 0) {
             showInfoModal("Tentukan variabel penelitian terlebih dahulu di 'Generator Variabel'.");
@@ -3124,7 +3081,6 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         }
     };
 
-    // Handler untuk Generator Pertanyaan Wawancara
     const handleGenerateWawancara = async () => {
         if (!projectData.judulKTI || !projectData.tujuanPenelitianDraft) {
             showInfoModal("Lengkapi 'Ide KTI' dan 'Pokok Isi KTI' (khususnya Tujuan Penelitian) terlebih dahulu.");
@@ -3176,12 +3132,10 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         }
     };
 
-    // Handler untuk Generator & Log Kueri
     const handleGenerateQueries = async () => {
         setIsLoading(true);
         setProjectData(p => ({ ...p, aiGeneratedQueries: null }));
 
-        // PERUBAHAN: Logika untuk instruksi bahasa
         let languageInstruction = "Prioritaskan kueri dalam Bahasa Inggris. JANGAN sertakan padanan Bahasa Indonesia.";
         if (includeIndonesianQuery) {
             languageInstruction = "Prioritaskan kueri dalam Bahasa Inggris, tetapi sertakan juga padanan istilah kunci dalam Bahasa Indonesia menggunakan operator OR. Contoh: ((\"digital transformation\") OR (\"transformasi digital\"))";
@@ -3412,9 +3366,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
 
     const handleExportProject = () => {
         try {
-            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
-                JSON.stringify(projectData, null, 2)
-            )}`;
+            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(projectData, null, 2))}`;
             const link = document.createElement("a");
             link.href = jsonString;
             const date = new Date().toISOString().slice(0, 10);
@@ -3422,13 +3374,10 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             link.click();
         } catch (error) {
             showInfoModal("Gagal mengekspor proyek.");
-            console.error("Export error:", error);
         }
     };
 
-    const triggerImport = () => {
-        importInputRef.current.click();
-    };
+    const triggerImport = () => importInputRef.current.click();
 
     const handleFileImport = (event) => {
         const file = event.target.files[0];
@@ -3445,7 +3394,6 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     }
                 } catch (error) {
                     showInfoModal("Gagal membaca file. Pastikan file JSON dalam format yang benar.");
-                    console.error("Import parse error:", error);
                 }
             };
             reader.readAsText(file);
@@ -3471,9 +3419,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
     
     const handleExportReferences = () => {
         try {
-            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
-                JSON.stringify(projectData.allReferences, null, 2)
-            )}`;
+            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(projectData.allReferences, null, 2))}`;
             const link = document.createElement("a");
             link.href = jsonString;
             const date = new Date().toISOString().slice(0, 10);
@@ -3481,13 +3427,10 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             link.click();
         } catch (error) {
             showInfoModal("Gagal mengekspor referensi.");
-            console.error("Export error:", error);
         }
     };
 
-    const triggerReferencesImport = () => {
-        importReferencesInputRef.current.click();
-    };
+    const triggerReferencesImport = () => importReferencesInputRef.current.click();
 
     const handleFileImportReferences = (event) => {
         const file = event.target.files[0];
@@ -3523,7 +3466,6 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
 
                 } catch (error) {
                     showInfoModal("Gagal membaca file. Pastikan file JSON dalam format yang benar.");
-                    console.error("Import parse error:", error);
                 }
             };
             reader.readAsText(file);
@@ -3535,13 +3477,10 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
 
     const renderSection = () => {
         switch (currentSection) {
-            // Perencanaan
             case 'ideKTI':
-                return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, isLoading, aiStructuredResponse, aiResponse, editingIdea, setEditingIdea, handleStartEditing, handleStartNewIdea, handleSaveIdea }} />;
+                return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
             case 'referensi':
                 return <Referensi {...{ projectData, manualRef, setManualRef, handleSaveManualReference, freeTextRef, setFreeTextRef, handleImportFromText, handleEditReference, handleDeleteReference, handleGenerateApa, generatedApaReferences, handleCopyToClipboard, handleShowSearchPrompts, handleGenerateReferenceClues, isLoading, openNoteModal, triggerReferencesImport, handleExportReferences }} />;
-            
-            // Instrumen
             case 'genLogKueri':
                 return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, handleCopyQuery, handleDeleteLog, includeIndonesianQuery, setIncludeIndonesianQuery }} />;
             case 'genVariabel':
@@ -3552,16 +3491,12 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                 return <GeneratorKuesioner {...{ projectData, setProjectData, handleGenerateKuesioner, isLoading, showInfoModal }} />;
             case 'genWawancara':
                 return <GeneratorWawancara {...{ projectData, setProjectData, handleGenerateWawancara, isLoading, showInfoModal }} />;
-
-            // Analisis
             case 'analisisKuantitatif':
                 return <AnalisisKuantitatif {...{ projectData, setProjectData, handleGenerateAnalisis, isLoading, showInfoModal, setCurrentSection }} />;
             case 'analisisKualitatif':
                 return <AnalisisKualitatif {...{ projectData, setProjectData, handleGenerateAnalisisKualitatif, isLoading, showInfoModal }} />;
             case 'analisisVisual':
                 return <AnalisisVisual {...{ projectData, setProjectData, handleGenerateAnalisisVisual, isLoading, showInfoModal }} />;
-
-            // Penulisan
             case 'pokokIsi':
                 return <PokokIsi {...{ projectData, setProjectData, handleGeneratePokokIsi, isLoading }} />;
             case 'outline':
@@ -3576,13 +3511,10 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                 return <HasilPembahasan {...{ projectData, setProjectData, handleGenerateHasilPembahasan, isLoading, handleCopyToClipboard, handleModifyText }} />;
             case 'kesimpulan':
                  return <Kesimpulan {...{ projectData, setProjectData, handleGenerateKesimpulan, isLoading, handleCopyToClipboard, handleModifyText }} />;
-            
-            // Proyek
             case 'dashboard':
                 return <DashboardProyek {...{ projectData, setCurrentSection }} />;
-
             default:
-                return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, isLoading, aiStructuredResponse, aiResponse, editingIdea, setEditingIdea, handleStartEditing, handleStartNewIdea, handleSaveIdea }} />;
+                return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
         }
     };
     
@@ -3661,35 +3593,23 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
 
     return (
         <div className="min-h-screen bg-gray-100 font-sans text-gray-900">
-            {/* PapaParse CSV Parser Library */}
             <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap'); body { font-family: 'Inter', sans-serif; } .animate-fade-in { animation: fadeIn 0.5s ease-in-out; } @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }`}</style>
             
             <input type="file" ref={importInputRef} onChange={handleFileImport} style={{ display: 'none' }} accept=".json" />
             <input type="file" ref={importReferencesInputRef} onChange={handleFileImportReferences} style={{ display: 'none' }} accept=".json" />
 
-            {/* Welcome Modal */}
             {showWelcomeModal && (
                 <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex justify-center items-center z-50 p-4">
                     <div className="bg-white p-8 rounded-lg shadow-2xl max-w-md w-full text-center animate-fade-in">
                         <h2 className="text-2xl font-bold text-gray-800 mb-4">Selamat Datang di Bibliocobra</h2>
-                        <p className="text-gray-600 mb-6">
-                            Aplikasi ini dibuat oleh <strong>Papahnya Ibracobra</strong> dan sepenuhnya gratis untuk memajukan ilmu pengetahuan.
-                        </p>
-                        <p className="text-gray-600 mb-8">
-                            Sebagai dukungan, cukup doakan agar kita semua senantiasa diberikan kesehatan dan kemudahan dalam segala urusan.
-                        </p>
-                        <button 
-                            onClick={handleCloseWelcomeModal} 
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg w-full text-lg shadow-lg hover:shadow-xl transition-all duration-300"
-                        >
-                            AMIN, Mari Kita Mulai
-                        </button>
+                        <p className="text-gray-600 mb-6">Aplikasi ini dibuat oleh <strong>Papahnya Ibracobra</strong> dan sepenuhnya gratis untuk memajukan ilmu pengetahuan.</p>
+                        <p className="text-gray-600 mb-8">Sebagai dukungan, cukup doakan agar kita semua senantiasa diberikan kesehatan dan kemudahan dalam segala urusan.</p>
+                        <button onClick={handleCloseWelcomeModal} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg w-full text-lg shadow-lg hover:shadow-xl transition-all duration-300">AMIN, Mari Kita Mulai</button>
                     </div>
                 </div>
             )}
 
-            {/* All Other Modals */}
             {showModal && (
                 <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
                     <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
@@ -3785,16 +3705,10 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                                             {category.clues.map((clue, clueIndex) => (
                                                 <div key={clueIndex} className="bg-purple-50 p-3 rounded-lg border border-purple-200">
                                                     <p className="font-semibold text-gray-800">{clue}</p>
-                                                    <p className="text-sm italic text-purple-800 my-2">
-                                                        ✍️ {aiClueNarratives[clue.trim()] || 'Memuat narasi...'}
-                                                    </p>
+                                                    <p className="text-sm italic text-purple-800 my-2">✍️ {aiClueNarratives[clue.trim()] || 'Memuat narasi...'}</p>
                                                     <div className="mt-2 flex flex-wrap gap-2">
-                                                        <a href={`https://scholar.google.com/scholar?q=${encodeURIComponent(clue)}`} target="_blank" rel="noopener noreferrer" className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded-lg">
-                                                            Cek di Google Scholar
-                                                        </a>
-                                                        <a href={`https://www.semanticscholar.org/search?q=${encodeURIComponent(clue)}`} target="_blank" rel="noopener noreferrer" className="bg-gray-500 hover:bg-gray-600 text-white text-xs font-bold py-1 px-3 rounded-lg">
-                                                            Cek di Semantic Scholar
-                                                        </a>
+                                                        <a href={`https://scholar.google.com/scholar?q=${encodeURIComponent(clue)}`} target="_blank" rel="noopener noreferrer" className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded-lg">Cek di Google Scholar</a>
+                                                        <a href={`https://www.semanticscholar.org/search?q=${encodeURIComponent(clue)}`} target="_blank" rel="noopener noreferrer" className="bg-gray-500 hover:bg-gray-600 text-white text-xs font-bold py-1 px-3 rounded-lg">Cek di Semantic Scholar</a>
                                                     </div>
                                                 </div>
                                             ))}
@@ -3804,9 +3718,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                             </div>
                         ) : <p className="text-gray-600 text-center py-10">Tidak ada 'Clue Referensi' yang ditemukan.</p>}
                         <div className="mt-6 pt-4 border-t flex justify-end">
-                            <button onClick={() => setShowSearchPromptModal(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">
-                                Tutup
-                            </button>
+                            <button onClick={() => setShowSearchPromptModal(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Tutup</button>
                         </div>
                     </div>
                 </div>
@@ -3814,7 +3726,6 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
 
 
             <div className="flex w-full">
-                {/* Sidebar */}
                 <aside className={`bg-gray-800 text-white h-screen p-4 flex-shrink-0 ${isSidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300`}>
                      <div className="flex items-center justify-between mb-6">
                         {isSidebarOpen && <h1 className="text-xl font-bold whitespace-nowrap">Bibliocobra</h1>}
@@ -3850,7 +3761,6 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     </nav>
                 </aside>
 
-                {/* Main Content */}
                 <main className="flex-grow p-4 md:p-8 overflow-y-auto h-screen">
                     <div className="w-full max-w-4xl mx-auto">
                         
@@ -3861,9 +3771,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                         
                         <div className="bg-white rounded-xl shadow-lg p-6">
                             <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                                <label htmlFor="geminiApiKey" className="block text-gray-700 text-sm font-bold mb-2">
-                                    Google AI API Key Anda:
-                                </label>
+                                <label htmlFor="geminiApiKey" className="block text-gray-700 text-sm font-bold mb-2">Google AI API Key Anda:</label>
                                 <input
                                     type="password"
                                     id="geminiApiKey"
@@ -3872,9 +3780,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                                     className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
                                     placeholder="Masukkan Google AI API Key Anda"
                                 />
-                                <p className="text-xs text-gray-500 mt-1">
-                                    Dapatkan kunci dari <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold">Google AI Studio</a>. Kunci tidak disimpan dan hanya digunakan di browser Anda.
-                                </p>
+                                <p className="text-xs text-gray-500 mt-1">Dapatkan kunci dari <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold">Google AI Studio</a>. Kunci tidak disimpan dan hanya digunakan di browser Anda.</p>
                             </div>
 
                             {projectData.judulKTI && (
