@@ -222,7 +222,7 @@ const IdeKTI = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-gray-700 text-sm font-bold mb-2">Topik atau Tema:</label>
-                        <input type="text" name="topikTema" value={projectData.topikTema} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Digital Innovation Culture"/>
+                        <textarea name="topikTema" value={projectData.topikTema} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Menganalisis dampak budaya inovasi digital terhadap kinerja organisasi di sektor perbankan" rows="3"></textarea>
                     </div>
                     <div>
                         <label className="block text-gray-700 text-sm font-bold mb-2">Jenis Karya Tulis:</label>
