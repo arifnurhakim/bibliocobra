@@ -87,7 +87,9 @@ const geminiService = {
                 const rawText = result.candidates[0].content.parts[0].text;
                 if (schema) {
                     try {
-                        return JSON.parse(rawText);
+                        // Membersihkan respons mentah sebelum parsing
+                        const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                        return JSON.parse(cleanedText);
                     } catch (parseError) {
                         console.error("Gagal mem-parsing JSON dari AI:", parseError, "\nRespons Mentah:", rawText);
                         throw new Error("Respons AI bukan JSON yang valid.");
@@ -186,7 +188,7 @@ const IdeKTI = ({
     if (projectData.judulKTI && !editingIdea && !ideKtiMode) {
         return (
             <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-                <h2 className="text-2xl font-bold mb-6 text-gray-800">Ide KTI</h2>
+                <h2 className="text-2xl font-bold mb-6 text-gray-800">Ide KTI & Fondasi Penelitian</h2>
                 <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
                     <h3 className="text-lg font-semibold text-indigo-800 mb-3">Ringkasan Proyek Anda</h3>
                     <div>
@@ -194,16 +196,16 @@ const IdeKTI = ({
                         <p className="mb-3 text-gray-800">{projectData.judulKTI}</p>
                     </div>
                     <div>
-                        <p className="text-sm font-bold text-gray-700">Kata Kunci:</p>
-                        <p className="mb-3 text-gray-800">{projectData.kataKunci}</p>
+                        <p className="text-sm font-bold text-gray-700">Fakta/Pokok Masalah:</p>
+                        <p className="mb-3 text-gray-800">{projectData.faktaMasalahDraft}</p>
                     </div>
                     <div>
-                        <p className="text-sm font-bold text-gray-700">Penjelasan Singkat:</p>
-                        <p className="text-gray-800">{projectData.penjelasan}</p>
+                        <p className="text-sm font-bold text-gray-700">Tujuan Penelitian:</p>
+                        <p className="mb-3 text-gray-800">{projectData.tujuanPenelitianDraft}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <button onClick={handleStartNewIdea} className="mt-4 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-lg text-sm">
-                            Edit Ide & Detail Proyek
+                            Edit Detail Proyek
                         </button>
                     </div>
                 </div>
@@ -214,13 +216,13 @@ const IdeKTI = ({
     // Tampilan utama untuk memulai proyek baru atau mengedit
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Mulai Proyek: Ide KTI</h2>
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Mulai Proyek: Ide KTI & Fondasi Penelitian</h2>
             
             {/* Form Detail Penelitian (Selalu Terlihat) */}
             <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 mb-6">
-                <h3 className="text-lg font-semibold mb-4 text-gray-800">1. Lengkapi Detail Penelitian</h3>
+                <h3 className="text-lg font-semibold mb-4 text-gray-800">1. Lengkapi Detail & Fondasi Penelitian</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div className="md:col-span-2">
                         <label className="block text-gray-700 text-sm font-bold mb-2">Topik atau Tema:</label>
                         <textarea name="topikTema" value={projectData.topikTema} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Menganalisis dampak budaya inovasi digital terhadap kinerja organisasi di sektor perbankan" rows="3"></textarea>
                     </div>
@@ -235,9 +237,9 @@ const IdeKTI = ({
                         </select>
                     </div>
                     {projectData.jenisKaryaTulis === 'Lainnya' && (
-                         <div className="md:col-span-2">
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Sebutkan Jenis Karya Tulis Lainnya:</label>
-                            <input type="text" name="jenisKaryaTulisLainnya" value={projectData.jenisKaryaTulisLainnya} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Naskah Kebijakan, Laporan"/>
+                         <div>
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Sebutkan Jenis Lainnya:</label>
+                            <input type="text" name="jenisKaryaTulisLainnya" value={projectData.jenisKaryaTulisLainnya} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Naskah Kebijakan"/>
                         </div>
                     )}
                     <div className="md:col-span-2">
@@ -249,6 +251,18 @@ const IdeKTI = ({
                             <option value="Metode Campuran">Metode Campuran</option>
                         </select>
                     </div>
+                    
+                    {/* --- PERUBAHAN DIMULAI DI SINI --- */}
+                    <div className="md:col-span-2">
+                        <label className="block text-gray-700 text-sm font-bold mb-2">Fakta/Pokok Masalah:</label>
+                        <textarea name="faktaMasalahDraft" value={projectData.faktaMasalahDraft} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Jelaskan masalah utama atau fenomena yang ingin Anda teliti." rows="4"></textarea>
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="block text-gray-700 text-sm font-bold mb-2">Tujuan Penelitian:</label>
+                        <textarea name="tujuanPenelitianDraft" value={projectData.tujuanPenelitianDraft} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Sebutkan tujuan-tujuan yang ingin dicapai melalui penelitian ini." rows="3"></textarea>
+                    </div>
+                    {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
+
                     <div className="md:col-span-2">
                         <label className="block text-gray-700 text-sm font-bold mb-2">Metode Spesifik:</label>
                         <input type="text" name="metode" value={projectData.metode} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Bibliometrik, SLR, Studi Kasus"/>
@@ -503,44 +517,6 @@ const Referensi = ({
         </div>
     );
 };
-
-// --- Komponen untuk Tab 3: Pokok Isi KTI ---
-const PokokIsi = ({ projectData, setProjectData, handleGeneratePokokIsi, isLoading }) => (
-    <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Pokok Isi KTI</h2>
-        <p className="text-gray-700 mb-4">Kembangkan fondasi tulisan Anda. AI akan membantu menyusun draf Fakta/Masalah, Tujuan, dan Teori Penelitian berdasarkan judul dan referensi yang ada.</p>
-        
-        <div className="flex flex-wrap gap-4 mb-6">
-            <button onClick={handleGeneratePokokIsi} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed" disabled={isLoading || !projectData.judulKTI}>
-                {isLoading ? 'Memproses...' : '✨ Hasilkan Draf Pokok Isi'}
-            </button>
-        </div>
-
-        {isLoading && !projectData.faktaMasalahDraft && (
-            <div className="mt-6 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="ml-3 text-gray-600">AI sedang menyusun draf...</p>
-            </div>
-        )}
-
-        {(projectData.faktaMasalahDraft || projectData.tujuanPenelitianDraft || projectData.teoriPenelitianDraft) && (
-            <div className="mt-6 space-y-4">
-                <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">Draf Fakta/Realitas Masalah:</label>
-                    <textarea value={projectData.faktaMasalahDraft} onChange={(e) => setProjectData(p => ({...p, faktaMasalahDraft: e.target.value}))} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" rows="4"></textarea>
-                </div>
-                <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">Draf Tujuan Penelitian:</label>
-                    <textarea value={projectData.tujuanPenelitianDraft} onChange={(e) => setProjectData(p => ({...p, tujuanPenelitianDraft: e.target.value}))} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" rows="3"></textarea>
-                </div>
-                <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">Draf Teori Penelitian:</label>
-                    <textarea value={projectData.teoriPenelitianDraft} onChange={(e) => setProjectData(p => ({...p, teoriPenelitianDraft: e.target.value}))} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" rows="3"></textarea>
-                </div>
-            </div>
-        )}
-    </div>
-);
 
 // --- Komponen untuk Tab 4: Outline KTI ---
 const Outline = ({ projectData, handleGenerateOutline, isLoading }) => (
@@ -1587,410 +1563,654 @@ const GeneratorLogKueri = ({
     );
 };
 
+// ================ ANALISIS KUANTITATIF (TABEL) ================
+const AnalisisKuantitatif = ({ 
+  projectData, 
+  setProjectData, 
+  handleGenerateAnalisis, 
+  isLoading, 
+  showInfoModal, 
+  handleCopyToClipboard 
+}) => {
+  const [fileName, setFileName] = useState('');
+  const [dataPreview, setDataPreview] = useState(null);
+  const [parsedData, setParsedData] = useState(null);
+  const fileInputRef = useRef(null);
 
-// --- Komponen untuk Analisis Data Kuantitatif (Fungsional) ---
-const AnalisisKuantitatif = ({ projectData, setProjectData, handleGenerateAnalisis, isLoading, showInfoModal, setCurrentSection }) => {
-    const [fileName, setFileName] = useState('');
-    const [dataPreview, setDataPreview] = useState(null);
-    const [parsedData, setParsedData] = useState(null);
-    const fileInputRef = useRef(null);
-
-    const handleFileChange = (event) => {
-        const selectedFile = event.target.files[0];
-        if (selectedFile && selectedFile.name.endsWith('.csv')) {
-            setFileName(selectedFile.name);
-            
-            if (typeof window.Papa === 'undefined') {
-                showInfoModal("Library parsing CSV belum siap. Coba lagi sesaat.");
-                return;
-            }
-
-            window.Papa.parse(selectedFile, {
-                header: true,
-                skipEmptyLines: true,
-                complete: (results) => {
-                    if(results.data.length > 0) {
-                        setDataPreview(results.data.slice(0, 5)); // Pratinjau 5 baris pertama
-                        setParsedData(results.data);
-                    } else {
-                        showInfoModal("File CSV kosong atau tidak memiliki header.");
-                    }
-                },
-                error: (error) => {
-                    showInfoModal(`Gagal mem-parsing file CSV: ${error.message}`);
-                    console.error("CSV Parse Error:", error);
-                }
-            });
-
-        } else {
-            showInfoModal("Harap pilih file dengan format .csv");
+  // Handle file upload
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file && file.name.endsWith('.csv')) {
+      setFileName(file.name);
+      
+      window.Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if(results.data.length > 0) {
+            setDataPreview(results.data.slice(0, 5));
+            setParsedData(results.data);
+          } else {
+            showInfoModal("File CSV kosong atau tidak memiliki header.");
+          }
+        },
+        error: (error) => {
+          showInfoModal(`Gagal mem-parsing file CSV: ${error.message}`);
         }
-        event.target.value = null; // Reset input file
-    };
+      });
+    } else {
+      showInfoModal("Harap pilih file dengan format .csv");
+    }
+    event.target.value = null;
+  };
 
-    const triggerFileSelect = () => {
-        fileInputRef.current.click();
-    };
+  const triggerFileSelect = () => {
+    fileInputRef.current.click();
+  };
 
-    const handleAnalysisSelection = (type) => {
-        if (type === 'konfirmatif' && (!projectData.hipotesis || projectData.hipotesis.length === 0)) {
-            showInfoModal("Analisis Konfirmatif memerlukan hipotesis. Silakan buat hipotesis terlebih dahulu di menu 'Generator Hipotesis'.");
-            return;
-        }
-        handleGenerateAnalisis(parsedData, type);
-    };
+  // Tambahkan hasil ke draf gabungan
+  const handleAddToDraft = () => {
+    if (!projectData.analisisKuantitatifHasil) {
+      showInfoModal("Tidak ada hasil analisis untuk ditambahkan.");
+      return;
+    }
 
-    const handleSaveAnalysis = () => {
-        setProjectData(p => ({ ...p, analisisKuantitatifDraft: p.analisisKuantitatifHasil }));
-        showInfoModal("Hasil analisis berhasil disimpan ke draf proyek.");
-    };
+    const separator = `\n\n---\n[Analisis untuk: ${fileName || 'Data Tanpa Nama'} - ${new Date().toLocaleDateString()}]\n---\n`;
+    const newContent = separator + projectData.analisisKuantitatifHasil;
 
-    return (
-        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Analisis Data Kuantitatif (Tabel)</h2>
-            <p className="text-gray-700 mb-4">Unggah data hasil kuesioner atau ekstraksi SLR Anda dalam format .csv. AI akan membantu menganalisis data tersebut dalam konteks penelitian Anda.</p>
-            
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".csv" />
-            
-            <div className="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg">
-                <button onClick={triggerFileSelect} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">
-                    Pilih File .csv
-                </button>
-                {fileName && <p className="text-sm text-gray-600 mt-2">File terpilih: {fileName}</p>}
-            </div>
+    setProjectData(p => ({
+      ...p,
+      analisisKuantitatifDraft: (p.analisisKuantitatifDraft || '') + newContent,
+      analisisKuantitatifHasil: '' // Reset hasil sementara
+    }));
 
-            {dataPreview && (
-                <div className="mb-6">
-                    <h3 className="text-lg font-semibold mb-2 text-gray-800">Pratinjau Data (5 baris pertama)</h3>
-                    <div className="overflow-x-auto border rounded-lg">
-                        <table className="w-full text-sm text-left text-gray-500">
-                            <thead className="text-xs text-gray-700 uppercase bg-gray-100">
-                                <tr>
-                                    {Object.keys(dataPreview[0]).map(header => <th key={header} className="px-4 py-2">{header}</th>)}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {dataPreview.map((row, index) => (
-                                    <tr key={index} className="bg-white border-b hover:bg-gray-50">
-                                        {Object.values(row).map((cell, i) => <td key={i} className="px-4 py-2">{cell}</td>)}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-
-            {parsedData && (
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                    <h3 className="text-lg font-semibold mb-3 text-gray-800">Pilih Jenis Analisis:</h3>
-                    <div className="flex flex-wrap gap-4">
-                        <button 
-                            onClick={() => handleAnalysisSelection('konfirmatif')} 
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300"
-                            disabled={isLoading}
-                        >
-                            {isLoading ? 'Menganalisis...' : 'Analisis Konfirmatif (Uji Hipotesis)'}
-                        </button>
-                        <button 
-                            onClick={() => handleAnalysisSelection('eksploratif')} 
-                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-green-300"
-                            disabled={isLoading}
-                        >
-                            {isLoading ? 'Menganalisis...' : 'Analisis Eksploratif (Temukan Wawasan)'}
-                        </button>
-                    </div>
-                </div>
-            )}
-
-
-            {isLoading && !projectData.analisisKuantitatifHasil && (
-                <div className="mt-6 flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    <p className="ml-3 text-gray-600">AI sedang menganalisis data Anda...</p>
-                </div>
-            )}
-
-            {projectData.analisisKuantitatifHasil && (
-                <div className="mt-8">
-                    <h3 className="text-xl font-bold mb-4 text-gray-800">Hasil Analisis AI</h3>
-                    <textarea
-                        value={projectData.analisisKuantitatifHasil}
-                        onChange={(e) => setProjectData(p => ({ ...p, analisisKuantitatifHasil: e.target.value }))}
-                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                        rows="20"
-                    ></textarea>
-                    <button onClick={handleSaveAnalysis} className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg">
-                        Simpan Hasil Analisis
-                    </button>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// --- Komponen untuk Analisis Data Kualitatif (Fungsional) ---
-const AnalisisKualitatif = ({ projectData, setProjectData, handleGenerateAnalisisKualitatif, isLoading, showInfoModal }) => {
-    const [fileContent, setFileContent] = useState('');
-    const [fileName, setFileName] = useState('');
-    const fileInputRef = useRef(null);
-
-    const handleFileChange = (event) => {
-        const file = event.target.files[0];
-        if (file && file.name.endsWith('.txt')) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const text = e.target.result;
-                setFileContent(text);
-                setFileName(file.name);
-            };
-            reader.onerror = (e) => {
-                showInfoModal("Gagal membaca file.");
-                console.error("File reading error:", e);
-            };
-            reader.readAsText(file);
-        } else {
-            showInfoModal("Harap pilih file dengan format .txt");
-        }
-        event.target.value = null; // Reset input file
-    };
-
-    const triggerFileSelect = () => {
-        fileInputRef.current.click();
-    };
+    // Reset state file
+    setFileName('');
+    setDataPreview(null);
+    setParsedData(null);
     
-    const handleAnalysis = () => {
-        if (!fileContent) {
-            showInfoModal("Tidak ada konten untuk dianalisis. Unggah file .txt terlebih dahulu.");
-            return;
-        }
-        handleGenerateAnalisisKualitatif(fileContent);
-    };
+    showInfoModal("Hasil analisis berhasil ditambahkan ke draf gabungan!");
+  };
 
-    const handleSaveAnalysis = () => {
-        // Menggabungkan hasil terstruktur menjadi draf narasi
-        if (projectData.analisisKualitatifHasil) {
-            const narrative = projectData.analisisKualitatifHasil.map(theme => 
-                `Tema: ${theme.tema}\n\n${theme.deskripsi}\n\nKutipan Pendukung:\n${theme.kutipan_pendukung.map(q => `- "${q}"`).join('\n')}`
-            ).join('\n\n---\n\n');
-            setProjectData(p => ({ ...p, analisisKualitatifDraft: narrative }));
-            showInfoModal("Hasil analisis tematik berhasil disimpan ke draf proyek.");
-        }
-    };
+  // Bersihkan draf gabungan
+  const handleClearDraft = () => {
+    setProjectData(p => ({ ...p, analisisKuantitatifDraft: '' }));
+  };
 
-    return (
-        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Analisis Data Kualitatif (Dokumen)</h2>
-            <p className="text-gray-700 mb-4">Unggah transkrip wawancara atau dokumen teks lainnya dalam format .txt. AI akan membantu Anda melakukan analisis tematik untuk menemukan pola dan wawasan kunci.</p>
+  return (
+    <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+      <h2 className="text-2xl font-bold mb-6 text-gray-800">Analisis Data Kuantitatif (Tabel)</h2>
+      
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".csv" />
+      
+      <div className="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg">
+        <button onClick={triggerFileSelect} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">
+          Pilih File .csv
+        </button>
+        {fileName && <p className="text-sm text-gray-600 mt-2">File terpilih: {fileName}</p>}
+      </div>
 
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".txt" />
-            
-            <div className="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg">
-                <button onClick={triggerFileSelect} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">
-                    Pilih File .txt
-                </button>
-                {fileName && <p className="text-sm text-gray-600 mt-2">File terpilih: {fileName}</p>}
-            </div>
-
-            {fileContent && (
-                <div className="mb-6">
-                    <h3 className="text-lg font-semibold mb-2 text-gray-800">Pratinjau Teks</h3>
-                    <textarea
-                        value={fileContent}
-                        readOnly
-                        className="shadow-inner border rounded-lg w-full p-3 text-sm text-gray-700 bg-gray-100 h-40"
-                    ></textarea>
-                </div>
-            )}
-            
-            {fileContent && (
-                 <div className="mt-6 pt-6 border-t border-gray-200">
-                    <button 
-                        onClick={handleAnalysis} 
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300"
-                        disabled={isLoading}
-                    >
-                        {isLoading ? 'Menganalisis...' : '✨ Lakukan Analisis Tematik'}
-                    </button>
-                </div>
-            )}
-            
-            {isLoading && !projectData.analisisKualitatifHasil && (
-                <div className="mt-6 flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    <p className="ml-3 text-gray-600">AI sedang melakukan analisis tematik...</p>
-                </div>
-            )}
-
-            {projectData.analisisKualitatifHasil && (
-                <div className="mt-8">
-                    <h3 className="text-xl font-bold mb-4 text-gray-800">Hasil Analisis Tematik AI</h3>
-                    <div className="space-y-6">
-                        {projectData.analisisKualitatifHasil.map((theme, index) => (
-                            <div key={index} className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                                <h4 className="text-lg font-semibold text-blue-800 mb-2">{theme.tema}</h4>
-                                <p className="text-gray-700 mb-3">{theme.deskripsi}</p>
-                                <div>
-                                    <h5 className="text-sm font-bold text-gray-600 mb-2">Kutipan Pendukung Representatif:</h5>
-                                    <div className="space-y-2">
-                                        {theme.kutipan_pendukung.map((quote, qIndex) => (
-                                            <blockquote key={qIndex} className="border-l-4 border-blue-300 pl-4 text-sm italic text-gray-600">
-                                                "{quote}"
-                                            </blockquote>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                     <div className="mt-8">
-                        <h3 className="text-xl font-bold mb-4 text-gray-800">Draf Narasi Analisis</h3>
-                        <p className="text-sm text-gray-600 mb-2">Gunakan hasil di atas untuk menyusun narasi analisis Anda di bawah ini, atau klik simpan untuk membuat draf awal.</p>
-                        <textarea
-                            value={projectData.analisisKualitatifDraft}
-                            onChange={(e) => setProjectData(p => ({ ...p, analisisKualitatifDraft: e.target.value }))}
-                            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                            rows="15"
-                            placeholder="Susun narasi temuan Anda di sini..."
-                        ></textarea>
-                        <button onClick={handleSaveAnalysis} className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg">
-                            Simpan Draf Narasi
-                        </button>
-                    </div>
-                </div>
-            )}
+      {dataPreview && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2 text-gray-800">Pratinjau Data (5 baris pertama)</h3>
+          <div className="overflow-x-auto border rounded-lg">
+            <table className="w-full text-sm text-left text-gray-500">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+                <tr>
+                  {Object.keys(dataPreview[0]).map(header => 
+                    <th key={header} className="px-4 py-2">{header}</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {dataPreview.map((row, index) => (
+                  <tr key={index} className="bg-white border-b hover:bg-gray-50">
+                    {Object.values(row).map((cell, i) => 
+                      <td key={i} className="px-4 py-2">{cell}</td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-    );
+      )}
+
+      {parsedData && (
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <h3 className="text-lg font-semibold mb-3 text-gray-800">Pilih Jenis Analisis:</h3>
+          <div className="flex flex-wrap gap-4">
+            <button 
+              onClick={() => handleGenerateAnalisis(parsedData, 'konfirmatif')} 
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Menganalisis...' : 'Analisis Konfirmatif (Uji Hipotesis)'}
+            </button>
+            <button 
+              onClick={() => handleGenerateAnalisis(parsedData, 'eksploratif')} 
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-green-300"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Menganalisis...' : 'Analisis Eksploratif (Temukan Wawasan)'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isLoading && !projectData.analisisKuantitatifHasil && (
+        <div className="mt-6 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="ml-3 text-gray-600">AI sedang menganalisis data Anda...</p>
+        </div>
+      )}
+
+      {projectData.analisisKuantitatifHasil && (
+        <div className="mt-8">
+          <h3 className="text-xl font-bold mb-4 text-gray-800">Hasil Analisis Sementara</h3>
+          <textarea
+            value={projectData.analisisKuantitatifHasil}
+            onChange={(e) => setProjectData(p => ({ ...p, analisisKuantitatifHasil: e.target.value }))}
+            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+            rows="10"
+          ></textarea>
+          
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button 
+              onClick={handleAddToDraft}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg"
+            >
+              Tambahkan ke Draf Gabungan
+            </button>
+            <button 
+              onClick={() => setProjectData(p => ({ ...p, analisisKuantitatifHasil: '' }))}
+              className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"
+            >
+              Abaikan Hasil
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* DRAF GABUNGAN */}
+      <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-300">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold text-gray-800">Draf Gabungan Analisis Kuantitatif</h3>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => handleCopyToClipboard(projectData.analisisKuantitatifDraft)}
+              className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1 px-3 rounded-lg"
+            >
+              Salin
+            </button>
+            <button 
+              onClick={handleClearDraft}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-3 rounded-lg"
+            >
+              Bersihkan
+            </button>
+          </div>
+        </div>
+        
+        <textarea
+          value={projectData.analisisKuantitatifDraft || ''}
+          onChange={(e) => setProjectData(p => ({ ...p, analisisKuantitatifDraft: e.target.value }))}
+          className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+          rows="15"
+          placeholder="Hasil analisis yang ditambahkan akan muncul di sini..."
+        ></textarea>
+      </div>
+    </div>
+  );
 };
 
+// ================ ANALISIS KUALITATIF (DOKUMEN) ================
+const AnalisisKualitatif = ({ 
+  projectData, 
+  setProjectData, 
+  handleGenerateAnalisisKualitatif, 
+  isLoading, 
+  showInfoModal,
+  handleCopyToClipboard
+}) => {
+  const [fileName, setFileName] = useState('');
+  const [fileContent, setFileContent] = useState('');
+  const [draftSementara, setDraftSementara] = useState('');
+  const fileInputRef = useRef(null);
 
-// --- Komponen untuk Analisis Visual (Gambar) ---
-const AnalisisVisual = ({ projectData, setProjectData, handleGenerateAnalisisVisual, isLoading, showInfoModal }) => {
-    const [imageFile, setImageFile] = useState(null);
-    const [imagePreview, setImagePreview] = useState('');
-    const [analysisFocus, setAnalysisFocus] = useState('');
-    const fileInputRef = useRef(null);
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file && file.name.endsWith('.txt')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result;
+        setFileContent(text);
+        setFileName(file.name);
+      };
+      reader.onerror = () => {
+        showInfoModal("Gagal membaca file.");
+      };
+      reader.readAsText(file);
+    } else {
+      showInfoModal("Harap pilih file dengan format .txt");
+    }
+    event.target.value = null;
+  };
 
-    const handleFileChange = (event) => {
-        const file = event.target.files[0];
-        if (file && (file.type === 'image/png' || file.type === 'image/jpeg')) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setImagePreview(reader.result);
-                // Menyimpan file dan data base64
-                const base64Data = reader.result.split(',')[1];
-                setImageFile({
-                    mimeType: file.type,
-                    data: base64Data
-                });
-            };
-            reader.onerror = () => showInfoModal("Gagal membaca file gambar.");
-            reader.readAsDataURL(file);
-        } else {
-            showInfoModal("Harap pilih file dengan format .png atau .jpg/.jpeg");
-        }
-        event.target.value = null;
-    };
+  const triggerFileSelect = () => {
+    fileInputRef.current.click();
+  };
+  
+  // Hasilkan narasi dari hasil analisis tematik
+  useEffect(() => {
+    if (projectData.analisisKualitatifHasil) {
+      const narrative = projectData.analisisKualitatifHasil.map(theme => 
+        `### ${theme.tema}\n\n${theme.deskripsi}\n\n**Kutipan Pendukung:**\n${theme.kutipan_pendukung.map(q => `- "${q}"`).join('\n')}`
+      ).join('\n\n---\n\n');
+      
+      setDraftSementara(narrative);
+    }
+  }, [projectData.analisisKualitatifHasil]);
+  
+  const handleAnalysis = () => {
+    if (!fileContent) {
+      showInfoModal("Tidak ada konten untuk dianalisis. Unggah file .txt terlebih dahulu.");
+      return;
+    }
+    handleGenerateAnalisisKualitatif(fileContent);
+  };
 
-    const triggerFileSelect = () => {
-        fileInputRef.current.click();
-    };
+  // Tambahkan ke draf gabungan
+  const handleAddToDraft = () => {
+    if (!draftSementara) {
+      showInfoModal("Tidak ada draf untuk ditambahkan.");
+      return;
+    }
 
-    const handleAnalysis = () => {
-        if (!imageFile) {
-            showInfoModal("Unggah file gambar terlebih dahulu.");
-            return;
-        }
-        handleGenerateAnalisisVisual(imageFile, analysisFocus);
-    };
+    const separator = `\n\n---\n[Analisis untuk: ${fileName || 'Dokumen Tanpa Nama'} - ${new Date().toLocaleDateString()}]\n---\n`;
+    const newContent = separator + draftSementara;
 
-    const handleSaveAnalysis = () => {
-        const narrative = `Deskripsi Gambar:\n${projectData.deskripsiVisualisasi}\n\nInterpretasi & Analisis:\n${projectData.interpretasiData}`;
-        setProjectData(p => ({ ...p, analisisVisualDraft: narrative }));
-        showInfoModal("Hasil analisis visual berhasil disimpan ke draf proyek.");
-    };
+    setProjectData(p => ({
+      ...p,
+      analisisKualitatifDraft: (p.analisisKualitatifDraft || '') + newContent,
+      analisisKualitatifHasil: null
+    }));
 
-    return (
-        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Analisis Visual (Gambar)</h2>
-            <p className="text-gray-700 mb-4">Unggah gambar (.png, .jpg) seperti peta VOSviewer, grafik, atau diagram. AI akan membantu mendeskripsikan dan menginterpretasikannya dalam konteks penelitian Anda.</p>
-            
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/png, image/jpeg" />
-            
-            <div className="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg">
-                <button onClick={triggerFileSelect} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">
-                    Pilih File Gambar
-                </button>
-            </div>
+    // Reset state
+    setFileName('');
+    setFileContent('');
+    setDraftSementara('');
+    
+    showInfoModal("Hasil analisis berhasil ditambahkan ke draf gabungan!");
+  };
 
-            {imagePreview && (
-                <div className="mb-6">
-                    <h3 className="text-lg font-semibold mb-2 text-gray-800">Pratinjau Gambar</h3>
-                    <div className="border rounded-lg p-2 flex justify-center bg-gray-100">
-                        <img src={imagePreview} alt="Pratinjau" className="max-w-full max-h-80 object-contain" />
-                    </div>
-                </div>
-            )}
+  // Bersihkan draf gabungan
+  const handleClearDraft = () => {
+    setProjectData(p => ({ ...p, analisisKualitatifDraft: '' }));
+  };
 
-            {imagePreview && (
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                    <div className="mb-4">
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Fokus Analisis Spesifik (Opsional):</label>
-                        <input 
-                            type="text"
-                            value={analysisFocus}
-                            onChange={(e) => setAnalysisFocus(e.target.value)}
-                            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                            placeholder="Contoh: Fokus pada klaster merah dan hubungannya dengan 'inovasi'."
-                        />
-                    </div>
-                    <button 
-                        onClick={handleAnalysis} 
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300"
-                        disabled={isLoading}
-                    >
-                        {isLoading ? 'Menganalisis...' : '✨ Analisis Gambar dengan AI'}
-                    </button>
-                </div>
-            )}
+  return (
+    <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+      <h2 className="text-2xl font-bold mb-6 text-gray-800">Analisis Data Kualitatif (Dokumen)</h2>
 
-            {isLoading && !projectData.deskripsiVisualisasi && (
-                <div className="mt-6 flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    <p className="ml-3 text-gray-600">AI sedang menganalisis gambar...</p>
-                </div>
-            )}
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".txt" />
+      
+      <div className="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg">
+        <button onClick={triggerFileSelect} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">
+          Pilih File .txt
+        </button>
+        {fileName && <p className="text-sm text-gray-600 mt-2">File terpilih: {fileName}</p>}
+      </div>
 
-            {projectData.deskripsiVisualisasi && (
-                <div className="mt-8">
-                    <h3 className="text-xl font-bold mb-4 text-gray-800">Hasil Analisis Visual AI</h3>
-                    <div className="space-y-6">
-                        <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Deskripsi Gambar:</label>
-                            <textarea
-                                value={projectData.deskripsiVisualisasi}
-                                onChange={(e) => setProjectData(p => ({ ...p, deskripsiVisualisasi: e.target.value }))}
-                                className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                                rows="5"
-                            ></textarea>
-                        </div>
-                        <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Interpretasi & Analisis:</label>
-                            <textarea
-                                value={projectData.interpretasiData}
-                                onChange={(e) => setProjectData(p => ({ ...p, interpretasiData: e.target.value }))}
-                                className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                                rows="8"
-                            ></textarea>
-                        </div>
-                        <button onClick={handleSaveAnalysis} className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg">
-                            Simpan Hasil Analisis
-                        </button>
-                    </div>
-                </div>
-            )}
+      {fileContent && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2 text-gray-800">Pratinjau Teks</h3>
+          <textarea
+            value={fileContent}
+            readOnly
+            className="shadow-inner border rounded-lg w-full p-3 text-sm text-gray-700 bg-gray-100 h-40"
+          ></textarea>
         </div>
-    );
+      )}
+      
+      {fileContent && (
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <button 
+            onClick={handleAnalysis} 
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Menganalisis...' : '✨ Lakukan Analisis Tematik'}
+          </button>
+        </div>
+      )}
+      
+      {isLoading && !projectData.analisisKualitatifHasil && (
+        <div className="mt-6 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="ml-3 text-gray-600">AI sedang melakukan analisis tematik...</p>
+        </div>
+      )}
+
+      {projectData.analisisKualitatifHasil && (
+        <div className="mt-8">
+          <h3 className="text-xl font-bold mb-4 text-gray-800">Hasil Analisis Tematik AI</h3>
+          <div className="space-y-6">
+            {projectData.analisisKualitatifHasil.map((theme, index) => (
+              <div key={index} className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="text-lg font-semibold text-blue-800 mb-2">{theme.tema}</h4>
+                <p className="text-gray-700 mb-3">{theme.deskripsi}</p>
+                <div>
+                  <h5 className="text-sm font-bold text-gray-600 mb-2">Kutipan Pendukung Representatif:</h5>
+                  <div className="space-y-2">
+                    {theme.kutipan_pendukung.map((quote, qIndex) => (
+                      <blockquote key={qIndex} className="border-l-4 border-blue-300 pl-4 text-sm italic text-gray-600">
+                        "{quote}"
+                      </blockquote>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(projectData.analisisKualitatifHasil || draftSementara) && (
+        <div className="mt-8">
+          <h3 className="text-xl font-bold mb-4 text-gray-800">Draf Narasi Sementara</h3>
+          <textarea
+            value={draftSementara}
+            onChange={(e) => setDraftSementara(e.target.value)}
+            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+            rows="15"
+            placeholder="Susun narasi temuan Anda di sini..."
+          ></textarea>
+          
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button 
+              onClick={handleAddToDraft}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg"
+            >
+              Tambahkan ke Draf Gabungan
+            </button>
+            <button 
+              onClick={() => {
+                setDraftSementara('');
+                setProjectData(p => ({ ...p, analisisKualitatifHasil: null }));
+              }}
+              className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"
+            >
+              Abaikan Hasil
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* DRAF GABUNGAN */}
+      <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-300">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold text-gray-800">Draf Gabungan Analisis Kualitatif</h3>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => handleCopyToClipboard(projectData.analisisKualitatifDraft)}
+              className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1 px-3 rounded-lg"
+            >
+              Salin
+            </button>
+            <button 
+              onClick={handleClearDraft}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-3 rounded-lg"
+            >
+              Bersihkan
+            </button>
+          </div>
+        </div>
+        
+        <textarea
+          value={projectData.analisisKualitatifDraft || ''}
+          onChange={(e) => setProjectData(p => ({ ...p, analisisKualitatifDraft: e.target.value }))}
+          className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+          rows="15"
+          placeholder="Hasil analisis yang ditambahkan akan muncul di sini..."
+        ></textarea>
+      </div>
+    </div>
+  );
+};
+
+// ================ MODUL ANALISIS VISUAL (GAMBAR)================
+const AnalisisVisual = ({ 
+  projectData, 
+  setProjectData, 
+  handleGenerateAnalisisVisual, 
+  isLoading, 
+  showInfoModal,
+  handleCopyToClipboard // Wajib ditambahkan dari parent
+}) => {
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [fileName, setFileName] = useState(''); // Tambahkan state untuk nama file
+  const [analysisFocus, setAnalysisFocus] = useState('');
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file && (file.type === 'image/png' || file.type === 'image/jpeg')) {
+      setFileName(file.name); // Simpan nama file
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+        // Menyimpan file dan data base64
+        const base64Data = reader.result.split(',')[1];
+        setImageFile({
+          mimeType: file.type,
+          data: base64Data
+        });
+      };
+      reader.onerror = () => showInfoModal("Gagal membaca file gambar.");
+      reader.readAsDataURL(file);
+    } else {
+      showInfoModal("Harap pilih file dengan format .png atau .jpg/.jpeg");
+    }
+    event.target.value = null;
+  };
+
+  const triggerFileSelect = () => {
+    fileInputRef.current.click();
+  };
+
+  const handleAnalysis = () => {
+    if (!imageFile) {
+      showInfoModal("Unggah file gambar terlebih dahulu.");
+      return;
+    }
+    handleGenerateAnalisisVisual(imageFile, analysisFocus);
+  };
+
+  // Fungsi untuk menyimpan analisis ke draf gabungan
+  const handleSaveAnalysis = () => {
+    if (!projectData.deskripsiVisualisasi || !projectData.interpretasiData) {
+      showInfoModal("Tidak ada hasil analisis untuk disimpan.");
+      return;
+    }
+
+    // Format konten dengan separator dan metadata
+    const separator = `\n\n---\n[Analisis Visual: ${fileName || 'Gambar Tanpa Nama'} - ${new Date().toLocaleDateString()}]\n---\n`;
+    const kontenVisual = `**Deskripsi Gambar:**\n${projectData.deskripsiVisualisasi}\n\n**Interpretasi & Analisis:**\n${projectData.interpretasiData}`;
+    const newContent = separator + kontenVisual;
+
+    // Tambahkan ke draf gabungan dan reset state
+    setProjectData(p => ({
+      ...p,
+      analisisVisualDraft: (p.analisisVisualDraft || '') + newContent,
+      deskripsiVisualisasi: '',
+      interpretasiData: ''
+    }));
+
+    // Reset state gambar
+    setImageFile(null);
+    setImagePreview('');
+    setFileName('');
+    setAnalysisFocus('');
+    
+    showInfoModal("Hasil analisis berhasil ditambahkan ke draf gabungan!");
+  };
+
+  // Fungsi untuk membersihkan draf gabungan
+  const handleClearVisualDraft = () => {
+    setProjectData(p => ({ ...p, analisisVisualDraft: '' }));
+    showInfoModal("Draf gabungan telah dibersihkan!");
+  };
+
+  // Fungsi untuk me-reset analisis saat ini
+  const handleResetCurrent = () => {
+    setImageFile(null);
+    setImagePreview('');
+    setFileName('');
+    setAnalysisFocus('');
+    setProjectData(p => ({
+      ...p,
+      deskripsiVisualisasi: '',
+      interpretasiData: ''
+    }));
+  };
+
+  return (
+    <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+      <h2 className="text-2xl font-bold mb-6 text-gray-800">Analisis Visual (Gambar)</h2>
+      <p className="text-gray-700 mb-4">Unggah gambar (.png, .jpg) seperti peta VOSviewer, grafik, atau diagram. AI akan membantu mendeskripsikan dan menginterpretasikannya dalam konteks penelitian Anda.</p>
+      
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/png, image/jpeg" />
+      
+      <div className="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg">
+        <button onClick={triggerFileSelect} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">
+          Pilih File Gambar
+        </button>
+        {fileName && <p className="text-sm text-gray-600 mt-2">File terpilih: {fileName}</p>}
+      </div>
+
+      {imagePreview && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2 text-gray-800">Pratinjau Gambar</h3>
+          <div className="border rounded-lg p-2 flex justify-center bg-gray-100">
+            <img src={imagePreview} alt="Pratinjau" className="max-w-full max-h-80 object-contain" />
+          </div>
+        </div>
+      )}
+
+      {imagePreview && (
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2">Fokus Analisis Spesifik (Opsional):</label>
+            <input 
+              type="text"
+              value={analysisFocus}
+              onChange={(e) => setAnalysisFocus(e.target.value)}
+              className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+              placeholder="Contoh: Fokus pada klaster merah dan hubungannya dengan 'inovasi'."
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button 
+              onClick={handleAnalysis} 
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Menganalisis...' : '✨ Analisis Gambar dengan AI'}
+            </button>
+            <button 
+              onClick={handleResetCurrent}
+              className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isLoading && !projectData.deskripsiVisualisasi && (
+        <div className="mt-6 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="ml-3 text-gray-600">AI sedang menganalisis gambar...</p>
+        </div>
+      )}
+
+      {projectData.deskripsiVisualisasi && (
+        <div className="mt-8">
+          <h3 className="text-xl font-bold mb-4 text-gray-800">Hasil Analisis Visual AI (Sementara)</h3>
+          <div className="space-y-6">
+            <div>
+              <label className="block text-gray-700 text-sm font-bold mb-2">Deskripsi Gambar:</label>
+              <textarea
+                value={projectData.deskripsiVisualisasi}
+                onChange={(e) => setProjectData(p => ({ ...p, deskripsiVisualisasi: e.target.value }))}
+                className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+                rows="5"
+              ></textarea>
+            </div>
+            <div>
+              <label className="block text-gray-700 text-sm font-bold mb-2">Interpretasi & Analisis:</label>
+              <textarea
+                value={projectData.interpretasiData}
+                onChange={(e) => setProjectData(p => ({ ...p, interpretasiData: e.target.value }))}
+                className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+                rows="8"
+              ></textarea>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              <button 
+                onClick={handleSaveAnalysis} 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg"
+              >
+                Tambahkan ke Draf Gabungan
+              </button>
+              <button 
+                onClick={handleResetCurrent}
+                className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"
+              >
+                Abaikan Hasil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- AREA DRAF GABUNGAN --- */}
+      <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-300">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold text-gray-800">Draf Gabungan Analisis Visual</h3>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => handleCopyToClipboard(projectData.analisisVisualDraft)}
+              className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1 px-3 rounded-lg"
+            >
+              Salin
+            </button>
+            <button 
+              onClick={handleClearVisualDraft}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1 px-3 rounded-lg"
+            >
+              Bersihkan
+            </button>
+          </div>
+        </div>
+        
+        <p className="text-sm text-gray-600 mb-2">
+          Semua hasil analisis visual yang Anda simpan akan terkumpul di sini.
+        </p>
+        <textarea
+          value={projectData.analisisVisualDraft || ''}
+          onChange={(e) => setProjectData(p => ({ ...p, analisisVisualDraft: e.target.value }))}
+          className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+          rows="15"
+          placeholder="Hasil analisis yang disimpan akan muncul di sini..."
+        ></textarea>
+      </div>
+    </div>
+  );
 };
 
 
@@ -2089,6 +2309,48 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
     );
 };
 
+// --- Komponen untuk Donasi ---
+const Donasi = ({ handleCopyToClipboard }) => {
+    const accountNumber = '7193560789';
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-2 text-gray-800">Donasi Pembangunan Masjid Al Ikhlas</h2>
+            <p className="text-gray-600 mb-6">Dukungan Anda sangat berarti untuk penyelesaian rumah ibadah. Terima kasih.</p>
+            
+            <div className="space-y-4 text-gray-700">
+                <div>
+                    <h3 className="font-semibold text-lg">Lokasi:</h3>
+                    <p>Grand Bukit Dago, Casablanca Blok E No.1, Rawakalong, Kec. Gn. Sindur, Kabupaten Bogor, Jawa Barat 16340</p>
+                </div>
+                <div>
+                    <h3 className="font-semibold text-lg">Informasi & Progres:</h3>
+                    <a href="https://www.instagram.com/yayasanalikhlascasablanca/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        Instagram: @yayasanalikhlascasablanca
+                    </a>
+                </div>
+                 <div>
+                    <h3 className="font-semibold text-lg">Dokumentasi Pembangunan:</h3>
+                    <a href="https://maps.app.goo.gl/98aM6NhDfDbrhxRq8" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        Lihat Lokasi di Google Maps
+                    </a>
+                </div>
+                <div className="pt-4 mt-4 border-t">
+                    <h3 className="font-semibold text-lg">Rekening Donasi:</h3>
+                    <p>Bank Syariah Indonesia (BSI)</p>
+                    <p className="font-bold text-xl my-2 tracking-wider">{accountNumber}</p>
+                    <p>Atas nama: <strong>Yayasan Al Ikhlas Casablanca</strong></p>
+                    <button 
+                        onClick={() => handleCopyToClipboard(accountNumber)}
+                        className="mt-3 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center gap-2"
+                    >
+                        <CopyIcon /> Salin No. Rekening
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // ============================================================================
 // KOMPONEN UTAMA: App
@@ -2101,6 +2363,8 @@ const initialProjectData = {
     jenisKaryaTulisLainnya: '',
     topikTema: '',
     pendekatan: '',
+    faktaMasalahDraft: '', // Dipindahkan ke sini
+    tujuanPenelitianDraft: '', // Dipindahkan ke sini
     metode: '',
     periode: '',
     basisData: '',
@@ -2135,9 +2399,7 @@ const initialProjectData = {
     analisisVisualDraft: '',
 
     // Data Draf Bab
-    faktaMasalahDraft: '',
-    tujuanPenelitianDraft: '',
-    teoriPenelitianDraft: '',
+    teoriPenelitianDraft: '', // Tetap di sini untuk penggunaan lain
     outlineDraft: null,
     pendahuluanDraft: '',
     metodeDraft: '',
@@ -2492,21 +2754,23 @@ Berikan jawaban hanya dalam format JSON.`;
 
     const handleImportFromText = async () => {
         setIsLoading(true);
-        const prompt = `Urai teks referensi berikut dan kembalikan dalam format JSON. Kunci JSON harus: title, author, year, journal, volume, issue, pages, doi. Jika sebuah informasi tidak ada, biarkan string kosong.
+        // --- PERBAIKAN PROMPT ---
+        const prompt = `Anda adalah API parser yang sangat akurat. Tugas Anda adalah mengurai teks referensi akademis menjadi format JSON yang ketat. JANGAN memberikan penjelasan atau teks tambahan apa pun. Respons Anda HARUS HANYA berupa objek JSON yang valid.
 
-Teks: "${freeTextRef}"`;
+Urai teks berikut:
+"${freeTextRef}"`;
         
         const schema = {
             type: "OBJECT",
             properties: {
-                title: { type: "STRING" },
-                author: { type: "STRING" },
-                year: { type: "STRING" },
-                journal: { type: "STRING" },
-                volume: { type: "STRING" },
-                issue: { type: "STRING" },
-                pages: { type: "STRING" },
-                doi: { type: "STRING" }
+                title: { type: "STRING", description: "Judul lengkap artikel atau karya tulis." },
+                author: { type: "STRING", description: "Semua penulis, dipisahkan oleh 'and' atau koma." },
+                year: { type: "STRING", description: "Tahun publikasi." },
+                journal: { type: "STRING", description: "Nama jurnal atau publikasi." },
+                volume: { type: "STRING", description: "Nomor volume jurnal." },
+                issue: { type: "STRING", description: "Nomor isu atau edisi jurnal." },
+                pages: { type: "STRING", description: "Rentang halaman." },
+                doi: { type: "STRING", description: "Digital Object Identifier, tanpa https://doi.org/." }
             },
             required: ["title", "author", "year"]
         };
@@ -2607,41 +2871,6 @@ Publisher Name: ${ref.publisher || ''}`;
         setLastCopiedQuery({ query: queryText });
         showInfoModal("Kueri disalin ke clipboard!");
     };
-
-
-    const handleGeneratePokokIsi = async () => {
-        setIsLoading(true);
-        const kutipanString = projectData.allReferences
-            .filter(ref => ref.isiKutipan)
-            .map(ref => `- Dari "${ref.title}" oleh ${ref.author}: "${ref.isiKutipan}"`)
-            .join('\n');
-
-        const prompt = `Buat draf singkat untuk Fakta/Masalah, Tujuan Penelitian, dan Teori Penelitian untuk KTI berjudul "${projectData.judulKTI}". Gunakan kutipan/catatan dari referensi berikut sebagai dasar utama. Tulis semua sebagai teks biasa tanpa format.\n\n${kutipanString || "Tidak ada kutipan spesifik yang diberikan."}`;
-        
-        const schema = {
-            type: "OBJECT",
-            properties: {
-                fakta_masalah: { type: "STRING" },
-                tujuan_penelitian: { type: "STRING" },
-                teori_penelitian: { type: "STRING" }
-            },
-            required: ["fakta_masalah", "tujuan_penelitian", "teori_penelitian"]
-        };
-        try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema);
-            setProjectData(prev => ({
-                ...prev,
-                faktaMasalahDraft: result.fakta_masalah,
-                tujuanPenelitianDraft: result.tujuan_penelitian,
-                teoriPenelitianDraft: result.teori_penelitian,
-            }));
-            showInfoModal("Draf Pokok Isi KTI berhasil dibuat!");
-        } catch (error) {
-            showInfoModal(`Gagal membuat draf: ${error.message}`);
-        } finally {
-            setIsLoading(false);
-        }
-    };
     
     const handleGenerateReferenceClues = async () => {
         setIsLoading(true);
@@ -2741,15 +2970,17 @@ ${context}
 
 **Konteks Proyek:**
 - Judul: "${projectData.judulKTI}"
-- Catatan dari Referensi:
+- Pokok Masalah: "${projectData.faktaMasalahDraft}"
+- Tujuan Penelitian: "${projectData.tujuanPenelitianDraft}"
+- Catatan dari Referensi (untuk mendukung latar belakang):
 ${kutipanString || "Tidak ada catatan spesifik."}
-- Outline KTI:
+- Outline KTI (untuk sistematika penulisan):
 ${outlineString || "Outline belum dibuat."}
 
 **Struktur Bab Pendahuluan yang Harus Anda Hasilkan:**
-1.  **1.1 Latar Belakang:** Sintesis catatan referensi menjadi sebuah narasi yang mengalir, dimulai dari konteks umum dan mengerucut ke pentingnya topik ini.
-2.  **1.2 Rumusan Masalah:** Identifikasi celah penelitian (research gap) dari catatan yang ada, tulis satu paragraf pengantar singkat, lalu daftarkan pertanyaan penelitian dalam format bernomor.
-3.  **1.3 Tujuan Penelitian:** Turunkan tujuan penelitian secara langsung dari rumusan masalah yang telah Anda buat, biasanya dalam format poin-poin bernomor.
+1.  **1.1 Latar Belakang:** Gunakan "Pokok Masalah" sebagai ide sentral. Bangun narasi yang kuat di sekitarnya, didukung oleh "Catatan dari Referensi" untuk memberikan konteks dan justifikasi mengapa masalah ini penting untuk diteliti.
+2.  **1.2 Rumusan Masalah:** Berdasarkan "Pokok Masalah", buat satu paragraf pengantar singkat, lalu daftarkan pertanyaan penelitian spesifik dalam format bernomor.
+3.  **1.3 Tujuan Penelitian:** Turunkan tujuan penelitian secara langsung dari "Tujuan Penelitian" yang sudah diberikan pengguna, format dalam poin-poin bernomor.
 4.  **1.4 Sistematika Penulisan:** Tulis satu paragraf standar yang menjelaskan isi dari setiap bab berikutnya, berdasarkan outline yang diberikan.
 
 Pastikan ada kesinambungan dan alur yang logis antar sub-bab.`;
@@ -3497,8 +3728,6 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                 return <AnalisisKualitatif {...{ projectData, setProjectData, handleGenerateAnalisisKualitatif, isLoading, showInfoModal }} />;
             case 'analisisVisual':
                 return <AnalisisVisual {...{ projectData, setProjectData, handleGenerateAnalisisVisual, isLoading, showInfoModal }} />;
-            case 'pokokIsi':
-                return <PokokIsi {...{ projectData, setProjectData, handleGeneratePokokIsi, isLoading }} />;
             case 'outline':
                 return <Outline {...{ projectData, setProjectData, handleGenerateOutline, isLoading }} />;
             case 'pendahuluan':
@@ -3513,6 +3742,8 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                  return <Kesimpulan {...{ projectData, setProjectData, handleGenerateKesimpulan, isLoading, handleCopyToClipboard, handleModifyText }} />;
             case 'dashboard':
                 return <DashboardProyek {...{ projectData, setCurrentSection }} />;
+            case 'donasi':
+                return <Donasi {...{ handleCopyToClipboard }} />;
             default:
                 return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
         }
@@ -3531,7 +3762,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             perencanaan: {
                 title: "Perencanaan & Ide",
                 items: [
-                    { id: 'ideKTI', name: 'Ide KTI' },
+                    { id: 'ideKTI', name: 'Ide KTI & Fondasi' },
                     { id: 'referensi', name: 'Literatur & Referensi' }
                 ]
             },
@@ -3552,7 +3783,6 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             penulisan: {
                 title: "Penulisan KTI",
                 items: [
-                    { id: 'pokokIsi', name: 'Pokok Isi KTI'},
                     { id: 'outline', name: 'Outline KTI'},
                     { id: 'pendahuluan', name: 'Pendahuluan' },
                     { id: 'studiLiteratur', name: 'Studi Literatur' },
@@ -3570,6 +3800,12 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     { id: 'resetProyek', name: 'Reset Proyek', action: () => setIsResetConfirmOpen(true) }
                 ]
             },
+            donasi: {
+                title: "Donasi",
+                items: [
+                    { id: 'donasi', name: 'Pembangunan Masjid' }
+                ]
+            }
         };
 
         const pendekatan = projectData.pendekatan;
