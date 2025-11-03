@@ -1,6 +1,54 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 // ============================================================================
+// HOOKS: Logika yang dapat digunakan kembali, seperti antrean permintaan
+// ============================================================================
+const useRequestQueue = (processTask, delay = 1100) => {
+    const [queue, setQueue] = useState([]);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [currentItem, setCurrentItem] = useState(null);
+
+    useEffect(() => {
+        const executeNext = async () => {
+            if (isProcessing || queue.length === 0) {
+                if (queue.length === 0) {
+                    setCurrentItem(null); // Hapus item saat ini jika antrean kosong
+                }
+                return;
+            }
+            setIsProcessing(true);
+            const taskToProcess = queue[0];
+            setCurrentItem(taskToProcess); // Tetapkan item yang sedang diproses
+
+            try {
+                // Jalankan fungsi pemrosesan tugas yang sebenarnya
+                await processTask(taskToProcess);
+            } catch (error) {
+                console.error("Sebuah tugas dalam antrean gagal:", error, taskToProcess);
+                // Di masa depan, kita bisa menambahkan notifikasi error di sini
+            } finally {
+                // Jeda sebelum memproses tugas berikutnya, bahkan jika ada error
+                await new Promise(resolve => setTimeout(resolve, delay));
+                
+                // Hapus tugas yang sudah selesai dan buka kembali antrean
+                setQueue(prev => prev.slice(1));
+                setIsProcessing(false);
+            }
+        };
+
+        executeNext();
+    }, [queue, isProcessing, processTask, delay]);
+
+    // Fungsi untuk komponen lain menambahkan tugas ke antrean
+    const addTask = (task) => {
+        setQueue(prev => [...prev, task]);
+    };
+
+    return { addTask, queueSize: queue.length, isProcessing, currentItem };
+};
+
+
+// ============================================================================
 // ICONS: Simple SVG icons for the UI
 // ============================================================================
 const ChevronDownIcon = ({ isOpen }) => (
@@ -21,6 +69,12 @@ const CloseIcon = () => (
     </svg>
 );
 
+const DownloadIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+);
+
 const CopyIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -33,12 +87,34 @@ const DeleteIcon = () => (
     </svg>
 );
 
+// --- LANGKAH 3.1 DIMULAI DI SINI ---
+const QueueStatusIndicator = ({ queueSize }) => {
+    if (queueSize === 0) {
+        return null;
+    }
+
+    return (
+        <div className="mt-4 p-2 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-center text-sm animate-fade-in">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600 mr-2"></div>
+            <span className="text-purple-800 font-semibold">
+                Antrean Review AI: {queueSize} tugas sedang menunggu...
+            </span>
+        </div>
+    );
+};
+// --- LANGKAH 3.1 BERAKHIR DI SINI ---
+
 // ============================================================================
 // SERVICES: Centralized API Logic
 // ============================================================================
 
 const geminiService = {
-    run: async (prompt, apiKey, schema = null, image = null) => {
+    run: async (prompt, apiKey, options = {}, image = null) => {
+        const MAX_RETRIES = 5; // Total maksimum percobaan
+        const INITIAL_BACKOFF_MS = 1000; // Waktu tunggu awal (1 detik)
+        const FALLBACK_MODEL = 'gemini-2.5-flash-preview-09-2025'; // Model cadangan
+        const FALLBACK_ATTEMPT_THRESHOLD = 2; // Coba fallback setelah 2 kegagalan
+
         if (!apiKey) {
             throw new Error("Kunci API Google AI belum dimasukkan.");
         }
@@ -54,58 +130,296 @@ const geminiService = {
         }
 
         let chatHistory = [{ role: "user", parts: parts }];
-        const payload = { contents: chatHistory };
+        const payload = {
+            contents: chatHistory,
+            generationConfig: {}, // Initialize generationConfig
+        };
 
-        if (schema) {
-            payload.generationConfig = {
-                responseMimeType: "application/json",
-                responseSchema: schema
-            };
+        const { useGrounding = false, schema = null } = options;
+
+        if (useGrounding) {
+            payload.tools = [{ "google_search": {} }];
         }
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+        if (schema) {
+            payload.generationConfig.responseMimeType = "application/json";
+            payload.generationConfig.responseSchema = schema;
+        }
+
+        // --- LANGKAH 3 DIMULAI DI SINI: Definisikan currentModel di luar loop ---
+        let currentModel = 'gemini-2.5-pro'; // Model yang digunakan untuk percobaan saat ini
+        // --- LANGKAH 3 BERAKHIR DI SINI ---
+
+        let lastError = null; // Simpan error terakhir jika semua percobaan gagal
+
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            // --- LANGKAH 3: Gunakan currentModel untuk apiUrl ---
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+
+            try {
+                 console.log(`Mencoba panggilan API ke ${currentModel}, percobaan ke-${attempt + 1}`); // Update log
+                 // --- Hapus deklarasi apiUrl lama ---
+                 // const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                 const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                 });
+
+                 if (!response.ok) {
+                    // --- Ambil body error, coba parse sebagai JSON, jika gagal gunakan teks ---
+                    let errorBodyText = '';
+                    try {
+                        const errorBodyJson = await response.json();
+                        errorBodyText = errorBodyJson.error?.message || JSON.stringify(errorBodyJson);
+                    } catch (e) {
+                        errorBodyText = await response.text(); // Fallback jika bukan JSON
+                    }
+                    console.error(`API Error Body (Attempt ${attempt + 1}):`, errorBodyText);
+                    
+                    // --- Pindahkan definisi error agar bisa digunakan di bawah ---
+                    lastError = new Error(`HTTP error! status: ${response.status} - ${errorBodyText}`);
+
+                    // --- LANGKAH 4 DIMULAI DI SINI: Logika Fallback ---
+                    // Hanya coba ulang (dan fallback) untuk error 429 (Rate Limit) dan 503 (Overload/Unavailable)
+                    if ((response.status === 429 || response.status === 503) && attempt < MAX_RETRIES - 1) {
+                        
+                        // Cek apakah perlu beralih ke model fallback
+                        if (attempt + 1 >= FALLBACK_ATTEMPT_THRESHOLD && 
+                            currentModel !== FALLBACK_MODEL) 
+                        {
+                            console.warn(`Model ${currentModel} gagal ${attempt + 1} kali. Mencoba beralih ke fallback ${FALLBACK_MODEL} pada percobaan berikutnya.`);
+                            currentModel = FALLBACK_MODEL; // Beralih model untuk iterasi loop berikutnya
+                        }
+                        
+                        // --- LANGKAH 5 DIMULAI DI SINI: Exponential Backoff ---
+                        const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 1000; // Hitung jeda
+                        console.log(`Menunggu ${Math.round(delay / 1000)} detik sebelum mencoba lagi...`);
+                        await new Promise(resolve => setTimeout(resolve, delay)); // Terapkan jeda
+                        // --- LANGKAH 5 BERAKHIR DI SINI ---
+                        
+                    } else {
+                        // Jika error bukan 429/503 atau percobaan sudah maksimal, lempar error
+                        throw lastError; 
+                    }
+                    // --- LANGKAH 4 BERAKHIR DI SINI ---
+                    
+                    // Baris throw di bawah dihapus karena sudah ditangani di atas
+                    // throw new Error(`HTTP error! status: ${response.status} - ${errorBody.error?.message || 'Unknown error'}`);
+                 }
+
+                 const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    
+                    const rawText = result.candidates[0].content.parts[0].text;
+                    if (schema) {
+                        try {
+                            const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                            return JSON.parse(cleanedText); // Jika sukses, keluar dari fungsi
+                        } catch (parseError) {
+                            console.error("Gagal mem-parsing JSON dari AI:", parseError, "\nRespons Mentah:", rawText);
+                            // Anggap sebagai error yang bisa dicoba ulang (misal: respons terpotong)
+                             lastError = new Error("Respons AI bukan JSON yang valid.");
+                             // --- LANGKAH 5: Terapkan Backoff juga untuk error parsing JSON ---
+                             if (attempt < MAX_RETRIES - 1) {
+                                const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 1000;
+                                console.log(`Error parsing JSON, menunggu ${Math.round(delay / 1000)} detik sebelum mencoba lagi...`);
+                                await new Promise(resolve => setTimeout(resolve, delay));
+                             }
+                        }
+                    } else {
+                       return rawText; // Jika sukses (non-schema), keluar dari fungsi
+                    }
+                } else {
+                    console.warn("Respons AI kosong atau tidak valid:", result);
+                     lastError = new Error("Respons dari AI kosong.");
+                    // --- Logika retry/backoff akan ditambahkan di Langkah 5 ---
+                }
+
+                 // Jika response.ok, proses hasil dan return (keluar dari loop dan fungsi)
+                 // ... (kode penanganan respons sukses yang sudah ada) ...
+                 // return processedResult; // <-- Ini akan menghentikan loop jika sukses
+
+            } catch (error) {
+                console.error(`Percobaan ${attempt + 1} gagal:`, error);
+                lastError = error; // Simpan error untuk percobaan ini
+                
+                // --- LANGKAH 5: Terapkan Backoff untuk error jaringan/lainnya ---
+                if (attempt < MAX_RETRIES - 1) {
+                    const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 1000;
+                    console.log(`Error jaringan/lainnya, menunggu ${Math.round(delay / 1000)} detik sebelum mencoba lagi...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+                // --- AKHIR LANGKAH 5 ---
+            }
+
+            // --- Hapus jeda sementara ---
+            // if (attempt < MAX_RETRIES - 1) {
+            //     await new Promise(resolve => setTimeout(resolve, 500)); // Jeda singkat
+            // }
+        } // Akhir dari for loop
+
+        // --- LANGKAH 6 DIMULAI DI SINI: Penanganan Error Final ---
+        // Jika loop selesai tanpa return (semua percobaan gagal)
+        console.error("Semua percobaan API gagal setelah", MAX_RETRIES, "percobaan.");
+        throw lastError; // Lemparkan error terakhir yang disimpan
+        // --- LANGKAH 6 BERAKHIR DI SINI ---
+    }
+};
+
+const semanticScholarService = {
+    search: async (query, apiKey) => {
+        if (!apiKey) {
+            throw new Error("Kunci API Semantic Scholar belum dimasukkan.");
+        }
+        // PERBAIKAN: Mengganti 'doi' dengan 'externalIds' dan menambahkan tldr, abstract
+        const fields = 'title,authors,year,journal,publicationVenue,externalIds,url,tldr,abstract';
+        const encodedQuery = encodeURIComponent(query);
+        const apiUrl = `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodedQuery}&fields=${fields}&limit=20`;
 
         try {
             const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                method: 'GET',
+                headers: {
+                    'x-api-key': apiKey
+                }
             });
 
             if (!response.ok) {
+                // Menangani rate limiting secara spesifik
+                if (response.status === 429) {
+                    throw new Error("Terlalu banyak permintaan. Harap tunggu beberapa detik sebelum mencoba lagi.");
+                }
                 const errorBody = await response.json();
-                console.error("API Error Body:", errorBody);
-                throw new Error(`HTTP error! status: ${response.status} - ${errorBody.error?.message || 'Unknown error'}`);
+                console.error("Semantic Scholar API Error:", errorBody);
+                throw new Error(`HTTP error! status: ${response.status} - ${errorBody.message || 'Unknown error'}`);
             }
 
             const result = await response.json();
+            // API pencarian mengembalikan daftar di bawah key 'data'
+            return result.data || [];
 
-            if (result.candidates && result.candidates.length > 0 &&
-                result.candidates[0].content && result.candidates[0].content.parts &&
-                result.candidates[0].content.parts.length > 0) {
-                
-                const rawText = result.candidates[0].content.parts[0].text;
-                if (schema) {
-                    try {
-                        // Membersihkan respons mentah sebelum parsing
-                        const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-                        return JSON.parse(cleanedText);
-                    } catch (parseError) {
-                        console.error("Gagal mem-parsing JSON dari AI:", parseError, "\nRespons Mentah:", rawText);
-                        throw new Error("Respons AI bukan JSON yang valid.");
-                    }
-                }
-                return rawText;
-            } else {
-                console.warn("Respons AI kosong atau tidak valid:", result);
-                throw new Error("Respons dari AI kosong.");
-            }
         } catch (error) {
-            console.error("Kesalahan saat memanggil Gemini API:", error);
+            console.error("Kesalahan saat memanggil Semantic Scholar API:", error);
             throw error;
         }
     }
 };
+
+const scopusService = {
+    search: async (query, apiKey, theme = '') => {
+        if (!apiKey) {
+            throw new Error("Kunci API Scopus belum dimasukkan.");
+        }
+        
+        let finalQuery;
+        // PERBAIKAN: Cek apakah kueri sudah merupakan string boolean Scopus yang kompleks
+        if (query.toUpperCase().includes('TITLE-ABS-KEY') || query.toUpperCase().includes('TITLE(') || query.toUpperCase().includes('AUTHOR-NAME')) {
+            finalQuery = query; // Gunakan kueri apa adanya
+        } else {
+            // Perilaku fallback untuk pencarian manual sederhana
+            if (theme && theme.trim() !== '') {
+                finalQuery = `TITLE-ABS-KEY((${query}) AND (${theme}))`;
+            } else {
+                finalQuery = `TITLE-ABS-KEY(${query})`;
+            }
+        }
+
+        const encodedQuery = encodeURIComponent(finalQuery);
+        const apiUrl = `https://api.elsevier.com/content/search/scopus?query=${encodedQuery}&view=COMPLETE`;
+
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-ELS-APIKey': apiKey,
+                }
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                const errorMessage = result?.['service-error']?.status?.statusText || `HTTP error! status: ${response.status}`;
+                throw new Error(errorMessage);
+            }
+
+            const entries = result?.['search-results']?.entry || [];
+            
+            // Map Scopus response to our internal format
+            return entries.map(entry => ({
+                paperId: entry['dc:identifier'] || `scopus-${entry['eid']}`,
+                // PERBAIKAN: Mengakses sub-properti '$' untuk mendapatkan teks judul.
+                title: entry['dc:title'] || 'Judul tidak tersedia',
+                // PERBAIKAN: Mengakses sub-properti '$' untuk nama penulis.
+                authors: (entry.author || []).map(a => a.authname).join(', '),
+                year: entry['prism:coverDate'] ? new Date(entry['prism:coverDate']).getFullYear().toString() : 'N/A',
+                // PERBAIKAN: Mengakses sub-properti '$' untuk nama jurnal.
+                journal: { name: entry['prism:publicationName'] || 'Venue tidak diketahui' },
+                publicationVenue: { name: entry['prism:publicationName'] || 'Venue tidak diketahui' },
+                externalIds: { DOI: entry['prism:doi'] || null },
+                url: entry.link?.find(l => l['@ref'] === 'scopus')?.['@href'] || '',
+                // PERBAIKAN: Mengakses sub-properti '$' untuk abstrak.
+                abstract: entry['dc:description'] || null,
+                tldr: null // Scopus doesn't provide TLDR
+            }));
+
+        } catch (error) {
+            console.error("Kesalahan saat memanggil Scopus API:", error);
+            throw error;
+        }
+    }
+};
+
+
+// ============================================================================
+// KOMPONEN: Pembatas Error (Error Boundary)
+// ============================================================================
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null, errorInfo: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        // Update state agar render berikutnya akan menampilkan UI fallback.
+        return { hasError: true, error: error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        // Anda juga bisa me-log error ke layanan pelaporan error
+        this.setState({ errorInfo: errorInfo });
+        console.error("Uncaught error:", error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            // Anda bisa merender UI fallback apa pun
+            return (
+                <div className="p-6 bg-red-50 border-l-4 border-red-500 text-red-800">
+                    <h2 className="text-xl font-bold mb-4">Oops! Terjadi Kesalahan</h2>
+                    <p className="mb-2">Aplikasi mengalami error yang tidak terduga. Silakan coba muat ulang halaman (refresh).</p>
+                    <p className="mb-4">Jika masalah berlanjut, Anda dapat melaporkan detail teknis di bawah ini kepada pengembang.</p>
+                    <details className="bg-white p-3 rounded-lg border text-sm">
+                        <summary className="font-semibold cursor-pointer">Detail Teknis Error</summary>
+                        <pre className="mt-2 whitespace-pre-wrap font-mono text-xs text-red-900">
+                            {this.state.error && this.state.error.toString()}
+                            <br />
+                            <br />
+                            <strong>Component Stack:</strong>
+                            {this.state.errorInfo && this.state.errorInfo.componentStack}
+                        </pre>
+                    </details>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
 
 
 // ============================================================================
@@ -368,9 +682,110 @@ const Referensi = ({
     isLoading, 
     openNoteModal,
     triggerReferencesImport,
-    handleExportReferences
+    handleExportReferences,
+    // Props untuk Semantic Scholar
+    handleSearchSemanticScholar,
+    searchQuery,
+    setSearchQuery,
+    searchResults,
+    isS2Searching,
+    handleAddReferenceFromSearch,
+    handleAiReview,
+    showInfoModal,
+    openMethod,
+    setOpenMethod,
+    // Props untuk Pencarian Konsep
+    handleConceptSearch,
+    conceptQuery,
+    setConceptQuery,
+    isConceptSearching,
+    conceptSearchResult,
+    // Props baru untuk Scopus
+    handleSearchScopus,
+    isScopusSearching,
+    scopusSearchResults,
+    scopusApiKey,
+    setScopusApiKey,
+    isRegulationSearching,
+    regulationSearchResults,
+    handleRegulationSearch,
+    handleAddRegulationToReference,
+    handleClueSearchRegulation,
+    conceptSearchMode,
+    setConceptSearchMode
 }) => {
     const [manualMode, setManualMode] = useState('template');
+    const [expandedAbstractId, setExpandedAbstractId] = useState(null);
+    const [aiReviews, setAiReviews] = useState({});
+
+    // Fungsi "pekerja" untuk antrean. Memberitahu antrean bagaimana cara memproses satu tugas.
+    const processAiReviewTask = React.useCallback(async (task) => {
+        const { paper, context } = task;
+        if (!paper.abstract) {
+            // Kita tidak bisa melempar error di sini karena akan menghentikan antrean.
+            // Cukup catat dan lanjutkan.
+            console.warn(`Melewati review untuk "${paper.title}" karena tidak ada abstrak.`);
+            setAiReviews(prev => ({ ...prev, [paper.paperId]: { error: "Abstrak tidak tersedia." } }));
+            return;
+        }
+
+        try {
+            const result = await handleAiReview(paper, context);
+             // Tambahkan cek untuk memastikan 'result' tidak 'undefined' (jika error ditangani di handleAiReview)
+            if (result) {
+                setAiReviews(prev => ({ ...prev, [paper.paperId]: result }));
+            } else {
+                setAiReviews(prev => ({ ...prev, [paper.paperId]: { error: "Gagal mendapatkan review dari AI. Cek API Key Anda." } }));
+            }
+        } catch (error) {
+            console.error(`Gagal mereview paper "${paper.title}":`, error);
+            setAiReviews(prev => ({ ...prev, [paper.paperId]: { error: error.message } }));
+        }
+    }, [handleAiReview]);
+
+    // Inisialisasi hook antrean
+    const { addTask: addReviewTask, queueSize: reviewQueueSize, currentItem: currentlyReviewingTask } = useRequestQueue(processAiReviewTask, 1100);
+
+    // Dapatkan ID paper yang sedang direview dari state antrean
+    const reviewingId = currentlyReviewingTask ? currentlyReviewingTask.paper.paperId : null;
+
+
+    const toggleMethod = (method) => {
+        setOpenMethod(prev => (prev === method ? null : method));
+    };
+
+    const toggleAbstract = (paperId) => {
+        setExpandedAbstractId(prevId => (prevId === paperId ? null : paperId));
+    };
+
+    const getRelevanceStyles = (category) => {
+        switch (category) {
+            case 'Sangat Relevan':
+                return {
+                    container: 'bg-green-50 border-green-300',
+                    header: 'text-green-800',
+                    badge: 'bg-green-100 text-green-800'
+                };
+            case 'Relevan':
+                return {
+                    container: 'bg-yellow-50 border-yellow-300',
+                    header: 'text-yellow-800',
+                    badge: 'bg-yellow-100 text-yellow-800'
+                };
+            case 'Tidak Relevan':
+                return {
+                    container: 'bg-red-50 border-red-300',
+                    header: 'text-red-800',
+                    badge: 'bg-red-100 text-red-800'
+                };
+            default:
+                return {
+                    container: 'bg-gray-50 border-gray-300',
+                    header: 'text-gray-800',
+                    badge: 'bg-gray-100 text-gray-800'
+                };
+        }
+    };
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
@@ -380,76 +795,564 @@ const Referensi = ({
             {/* Bagian 1: Membangun Perpustakaan Proyek */}
             <h3 className="text-xl font-bold mb-4 text-gray-800">Bangun Perpustakaan Referensi Proyek</h3>
             
-            <div className="mb-8 p-4 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50">
-                <h4 className="text-lg font-semibold mb-2 text-blue-800">Metode 1: Pencarian Terpandu AI</h4>
-                <p className="text-sm text-blue-700 mb-4">Gunakan AI untuk membuat peta jalan pencarian (clues), lalu gunakan peta jalan tersebut untuk mencari referensi di mesin pencari akademis.</p>
-                
-                {/* Fitur Clue Referensi */}
-                <div className="mb-4 p-3 bg-blue-100 rounded-lg border border-blue-200">
-                    <p className="text-sm font-semibold text-blue-800 mb-2">Langkah 1: Hasilkan Peta Jalan Pencarian (Clues)</p>
-                    <button onClick={handleGenerateReferenceClues} className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm disabled:bg-teal-300" disabled={isLoading || !projectData.topikTema}>
-                        {isLoading ? 'Mencari...' : '🔍 Dapatkan Clue Referensi'}
+            <div className="space-y-4 mb-8">
+                {/* Metode 1: Pencarian Terpandu AI */}
+                <div className="border border-gray-200 rounded-lg">
+                    <button 
+                        onClick={() => toggleMethod('method1')} 
+                        className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method1' ? 'bg-blue-100' : 'bg-blue-50 hover:bg-blue-100'}`}
+                    >
+                        <span className="font-semibold text-gray-800">Metode 1: Pencarian Terpandu AI</span>
+                        <ChevronDownIcon isOpen={openMethod === 'method1'} />
                     </button>
-                </div>
-                {projectData.aiReferenceClues && (
-                    <div className="mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800">
-                        <h5 className="font-bold mb-2">Clue Referensi Kunci untuk Riset Mandiri:</h5>
-                        {projectData.aiReferenceClues.map((cat, index) => (
-                            <div key={index} className="mb-2">
-                                <p className="font-semibold">{cat.category}:</p>
-                                <ul className="list-disc list-inside ml-4 text-sm">
-                                    {cat.clues.map((clue, i) => <li key={i}>{clue}</li>)}
-                                </ul>
+                    {openMethod === 'method1' && (
+                        <div className="p-4 border-t border-gray-200 animate-fade-in">
+                            <p className="text-sm text-gray-700 mb-4">Gunakan AI untuk membuat peta jalan pencarian (clues), lalu gunakan peta jalan tersebut untuk mencari referensi di mesin pencari akademis.</p>
+                            
+                            {/* Fitur Clue Referensi */}
+                            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                <p className="text-sm font-semibold text-blue-800 mb-2">Langkah 1: Hasilkan Peta Jalan Pencarian (Clues)</p>
+                                <button onClick={handleGenerateReferenceClues} className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm disabled:bg-teal-300" disabled={isLoading || !projectData.topikTema}>
+                                    {isLoading ? 'Mencari...' : '🔍 Dapatkan Clue Referensi'}
+                                </button>
                             </div>
-                        ))}
-                    </div>
-                )}
+                            {projectData.aiReferenceClues && (
+                                <div className="mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800">
+                                    <h5 className="font-bold mb-2">Clue Referensi Kunci untuk Riset Mandiri:</h5>
+                                    {projectData.aiReferenceClues.map((cat, index) => (
+                                        <div key={index} className="mb-3">
+                                            <p className="font-semibold">{cat.category}:</p>
+                                            <ul className="list-none ml-4 text-sm space-y-2">
+                                                {cat.clues.map((clueObj, i) => (
+                                                <li key={i}>
+                                                        <span className="font-bold text-gray-700">{clueObj.clue}</span>
+                                                        <p className="italic text-yellow-900 text-xs pl-2 border-l-2 border-yellow-300 ml-1">
+                                                            {clueObj.explanation}
+                                                        </p>
+                                                </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
 
-                <div className="mt-6">
-                     <p className="text-sm font-semibold text-blue-800 mb-2">Langkah 2: Buka Peta Jalan & Mulai Pencarian</p>
-                    <button onClick={handleShowSearchPrompts} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-purple-300" disabled={isLoading || !projectData.aiReferenceClues}>
-                        {isLoading ? 'Memproses...' : '🗺️ Buka Peta Jalan Pencarian'}
+                            <div className="mt-6">
+                                    <p className="text-sm font-semibold text-blue-800 mb-2">Langkah 2: Buka Peta Jalan & Mulai Pencarian</p>
+                                <button onClick={handleShowSearchPrompts} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-purple-300" disabled={isLoading || !projectData.aiReferenceClues}>
+                                    {isLoading ? 'Memproses...' : '🗺️ Buka Peta Jalan Pencarian'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Metode 2: Cari via Semantic Scholar */}
+                <div className="border border-gray-200 rounded-lg">
+                    <button 
+                        onClick={() => toggleMethod('method2')} 
+                        className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method2' ? 'bg-purple-100' : 'bg-purple-50 hover:bg-purple-100'}`}
+                    >
+                        <span className="font-semibold text-gray-800">Metode 2: Cari via Semantic Scholar</span>
+                        <ChevronDownIcon isOpen={openMethod === 'method2'} />
                     </button>
-                </div>
-            </div>
+                    {openMethod === 'method2' && (
+                        <div className="p-4 border-t border-gray-200 animate-fade-in">
+                            <p className="text-sm text-gray-700 mb-4">Cari artikel secara langsung dan tambahkan ke perpustakaan Anda. Membutuhkan API Key Semantic Scholar.</p>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <input 
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                                    placeholder="Masukkan topik atau judul..."
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => handleSearchSemanticScholar(searchQuery)} 
+                                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-purple-300 whitespace-nowrap" 
+                                    disabled={isS2Searching || !searchQuery}
+                                >
+                                    {isS2Searching ? 'Mencari...' : 'Cari'}
+                                </button>
+                            </div>
 
-            <div className="mb-6 p-4 border-2 border-dashed border-green-300 rounded-lg bg-green-50">
-                <h4 className="text-lg font-semibold mb-3 text-green-800">Metode 2: Tambah Manual</h4>
-                <div className="flex border-b border-green-300 mb-4">
-                    <button onClick={() => setManualMode('template')} className={`py-2 px-4 text-sm font-medium ${manualMode === 'template' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>Isi Template</button>
-                    <button onClick={() => setManualMode('text')} className={`py-2 px-4 text-sm font-medium ${manualMode === 'text' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>Impor dari Teks <span className="text-xs bg-yellow-200 text-yellow-800 rounded-full px-2 py-1">Eksperimental</span></button>
+                            {/* --- LANGKAH 3.2 DIMULAI DI SINI (UNTUK SEMANTIC SCHOLAR) --- */}
+                            <QueueStatusIndicator queueSize={reviewQueueSize} />
+                            {/* --- LANGKAH 3.2 BERAKHIR DI SINI --- */}
+
+                            {isS2Searching && searchResults === null && (
+                                <div className="mt-6 flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                                    <p className="ml-3 text-gray-600">Menghubungi Semantic Scholar...</p>
+                                </div>
+                            )}
+
+                            {searchResults && (
+                                <div className="mt-6">
+                                    <h5 className="font-bold text-gray-800 mb-2">Hasil Pencarian ({searchResults.length}):</h5>
+                                    {searchResults.length > 0 ? (
+                                        <div className="space-y-3 max-h-96 overflow-y-auto pr-2 border-t pt-4 mt-4 border-purple-200">
+                                            {searchResults.map(paper => (
+                                                <div key={paper.paperId} className="bg-white p-3 rounded-lg border border-gray-200 flex flex-col items-start gap-2">
+                                                    <div className="w-full flex justify-between items-start">
+                                                        <div>
+                                                            <p className="font-semibold text-gray-800">{paper.title}</p>
+                                                            <p className="text-xs text-gray-600">
+                                                                {(paper.authors || []).map(a => a.name).join(', ')} ({paper.year || 'N/A'})
+                                                            </p>
+                                                            <p className="text-xs text-gray-500 italic">
+                                                                {paper.journal?.name || paper.publicationVenue?.name || 'Venue tidak diketahui'}
+                                                            </p>
+                                                            {paper.externalIds?.DOI && (
+                                                                <p className="text-xs text-blue-600 mt-1">
+                                                                    DOI: <a href={`https://doi.org/${paper.externalIds.DOI}`} target="_blank" rel="noopener noreferrer" className="hover:underline">{paper.externalIds.DOI}</a>
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => {
+                                                                const review = aiReviews[paper.paperId];
+                                                                handleAddReferenceFromSearch(paper, review);
+                                                            }}
+                                                            className="ml-4 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-2 rounded-lg flex-shrink-0"
+                                                            title="Tambah ke Perpustakaan Proyek"
+                                                        >
+                                                            + Tambah
+                                                        </button>
+                                                    </div>
+                                                    {paper.tldr && paper.tldr.text && (
+                                                        <div className="mt-2 p-2 bg-yellow-50 border-l-4 border-yellow-300 w-full">
+                                                            <p className="text-xs font-semibold text-yellow-800">TLDR:</p>
+                                                            <p className="text-xs text-gray-700 italic">"{paper.tldr.text}"</p>
+                                                        </div>
+                                                    )}
+                                                    {paper.abstract && (
+                                                        <div className="mt-2 w-full">
+                                                            <div className="flex items-center gap-4">
+                                                                <button onClick={() => toggleAbstract(paper.paperId)} className="text-xs text-blue-600 hover:underline font-semibold">
+                                                                    {expandedAbstractId === paper.paperId ? 'Sembunyikan Abstrak' : 'Tampilkan Abstrak'}
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => addReviewTask({ paper: paper, context: searchQuery })} 
+                                                                    className="text-xs text-purple-600 hover:underline font-semibold disabled:text-gray-400 disabled:no-underline"
+                                                                    disabled={reviewingId === paper.paperId}
+                                                                >
+                                                                    {reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI'}
+                                                                </button>
+                                                            </div>
+                                                            {expandedAbstractId === paper.paperId && (
+                                                                <p className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded-md border">
+                                                                    {paper.abstract}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {/* AI Review Result Display */}
+                                                    {reviewingId === paper.paperId && !aiReviews[paper.paperId] && (
+                                                        <div className="mt-3 flex items-center text-xs text-gray-500">
+                                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600 mr-2"></div>
+                                                            AI sedang mereview...
+                                                        </div>
+                                                    )}
+                                                    {aiReviews[paper.paperId] && (
+                                                        aiReviews[paper.paperId].error ? (
+                                                            <div className="mt-3 p-3 border-l-4 rounded-r-lg bg-red-50 border-red-300 text-red-800 text-xs">
+                                                                <p className="font-bold">Gagal Mereview</p>
+                                                                <p>{aiReviews[paper.paperId].error}</p>
+                                                            </div>
+                                                        ) : (
+                                                            <div className={`mt-3 p-3 border-l-4 rounded-r-lg ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).container}`}>
+                                                                <div className="flex justify-between items-center">
+                                                                    <h6 className={`text-sm font-bold ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).header}`}>
+                                                                        AI Review
+                                                                    </h6>
+                                                                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).badge}`}>
+                                                                        {aiReviews[paper.paperId].kategori_relevansi}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="mt-2 text-xs text-gray-700 space-y-2">
+                                                                    <div>
+                                                                        <p className="font-semibold">Temuan Kunci:</p>
+                                                                        <p className="italic">"{aiReviews[paper.paperId].finding}"</p>
+                                                                    </div>
+                                                                        <div>
+                                                                        <p className="font-semibold">Analisis Relevansi:</p>
+                                                                        <p>{aiReviews[paper.paperId].relevansi}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 italic mt-4 text-center">Tidak ada hasil yang ditemukan untuk kueri Anda.</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
-                
-                {manualMode === 'template' && (
-                    <div>
-                        <p className="text-sm text-green-700 mb-4">Isi detail referensi menggunakan template di bawah. Paling andal.</p>
-                        <textarea
-                            value={manualRef.text}
-                            onChange={(e) => setManualRef({ ...manualRef, text: e.target.value })}
-                            className="shadow-sm border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed font-mono text-sm"
-                            rows="12"
-                        ></textarea>
-                        <button onClick={handleSaveManualReference} className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">
-                            {manualRef.id ? 'Perbarui Referensi' : 'Tambah ke Proyek'}
-                        </button>
+
+                {/* Metode 3: Cari via Scopus */}
+                <div className="border border-gray-200 rounded-lg">
+                    <button 
+                        onClick={() => toggleMethod('method3')} 
+                        className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method3' ? 'bg-orange-100' : 'bg-orange-50 hover:bg-orange-100'}`}
+                    >
+                        <span className="font-semibold text-gray-800">Metode 3: Cari via Scopus <span className="text-xs bg-yellow-200 text-yellow-800 rounded-full px-2 py-1 ml-2">Berlangganan</span></span>
+                        <ChevronDownIcon isOpen={openMethod === 'method3'} />
+                    </button>
+                    {openMethod === 'method3' && (
+                        <div className="p-4 border-t border-gray-200 animate-fade-in">
+                            <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                <label htmlFor="scopusApiKey" className="block text-gray-700 text-sm font-bold mb-2">Scopus API Key Anda:</label>
+                                <input
+                                    type="password"
+                                    id="scopusApiKey"
+                                    value={scopusApiKey}
+                                    onChange={(e) => setScopusApiKey(e.target.value)}
+                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                                    placeholder="Masukkan Scopus API Key Anda..."
+                                />
+                                {/* --- PERUBAHAN DI SINI: Mengembalikan teks ke versi semula --- */}
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Dapatkan kunci dari <a href="https://dev.elsevier.com/apikey/manage" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold">Elsevier Developer Portal</a> (khusus institusi yang berlangganan Scopus).
+                                </p>
+                            </div>
+                            <p className="text-sm text-gray-700 mb-4">Cari artikel langsung dari database Scopus.</p>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <input 
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                                    placeholder="Masukkan topik atau judul..."
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => handleSearchScopus(searchQuery)} 
+                                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-orange-300 whitespace-nowrap" 
+                                    disabled={isScopusSearching || !searchQuery}
+                                >
+                                    {isScopusSearching ? 'Mencari...' : 'Cari di Scopus'}
+                                </button>
+                            </div>
+
+                            {/* --- LANGKAH 3.2 DIMULAI DI SINI (UNTUK SCOPUS) --- */}
+                            <QueueStatusIndicator queueSize={reviewQueueSize} />
+                            {/* --- LANGKAH 3.2 BERAKHIR DI SINI --- */}
+
+                            {isScopusSearching && scopusSearchResults === null && (
+                                <div className="mt-6 flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
+                                    <p className="ml-3 text-gray-600">Menghubungi Scopus...</p>
+                                </div>
+                            )}
+
+                            {scopusSearchResults && (
+                                <div className="mt-6">
+                                    <h5 className="font-bold text-gray-800 mb-2">Hasil Pencarian ({scopusSearchResults.length}):</h5>
+                                    {scopusSearchResults.length > 0 ? (
+                                        <div className="space-y-3 max-h-96 overflow-y-auto pr-2 border-t pt-4 mt-4 border-orange-200">
+                                            {scopusSearchResults.map(paper => (
+                                                <div key={paper.paperId} className="bg-white p-3 rounded-lg border border-gray-200 flex flex-col items-start gap-2">
+                                                    <div className="w-full flex justify-between items-start">
+                                                        <div>
+                                                            <p className="font-semibold text-gray-800">{paper.title}</p>
+                                                            <p className="text-xs text-gray-600">{paper.authors} ({paper.year || 'N/A'})</p>
+                                                            <p className="text-xs text-gray-500 italic">{paper.journal?.name || 'Venue tidak diketahui'}</p>
+                                                            {paper.externalIds?.DOI && (
+                                                                <p className="text-xs text-blue-600 mt-1">
+                                                                    DOI: <a href={`https://doi.org/${paper.externalIds.DOI}`} target="_blank" rel="noopener noreferrer" className="hover:underline">{paper.externalIds.DOI}</a>
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => handleAddReferenceFromSearch(paper, aiReviews[paper.paperId])}
+                                                            className="ml-4 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-2 rounded-lg flex-shrink-0"
+                                                            title="Tambah ke Perpustakaan Proyek"
+                                                        >
+                                                            + Tambah
+                                                        </button>
+                                                    </div>
+                                                    {paper.abstract && (
+                                                        <div className="mt-2 w-full">
+                                                            <div className="flex items-center gap-4">
+                                                                <button onClick={() => toggleAbstract(paper.paperId)} className="text-xs text-blue-600 hover:underline font-semibold">
+                                                                    {expandedAbstractId === paper.paperId ? 'Sembunyikan Abstrak' : 'Tampilkan Abstrak'}
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => addReviewTask({ paper: paper, context: searchQuery })} 
+                                                                    className="text-xs text-purple-600 hover:underline font-semibold disabled:text-gray-400 disabled:no-underline"
+                                                                    disabled={reviewingId === paper.paperId}
+                                                                >
+                                                                    {reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI'}
+                                                                </button>
+                                                            </div>
+                                                            {expandedAbstractId === paper.paperId && (
+                                                                <p className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded-md border">{paper.abstract}</p>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {reviewingId === paper.paperId && !aiReviews[paper.paperId] && (
+                                                        <div className="mt-3 flex items-center text-xs text-gray-500">
+                                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600 mr-2"></div>
+                                                            AI sedang mereview...
+                                                        </div>
+                                                    )}
+                                                    {aiReviews[paper.paperId] && (
+                                                        aiReviews[paper.paperId].error ? (
+                                                             <div className="mt-3 p-3 border-l-4 rounded-r-lg bg-red-50 border-red-300 text-red-800 text-xs">
+                                                                <p className="font-bold">Gagal Mereview</p>
+                                                                <p>{aiReviews[paper.paperId].error}</p>
+                                                            </div>
+                                                        ) : (
+                                                            <div className={`mt-3 p-3 border-l-4 rounded-r-lg ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).container}`}>
+                                                                <div className="flex justify-between items-center">
+                                                                    <h6 className={`text-sm font-bold ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).header}`}>
+                                                                        AI Review
+                                                                    </h6>
+                                                                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).badge}`}>
+                                                                        {aiReviews[paper.paperId].kategori_relevansi}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="mt-2 text-xs text-gray-700 space-y-2">
+                                                                    <div>
+                                                                        <p className="font-semibold">Temuan Kunci:</p>
+                                                                        <p className="italic">"{aiReviews[paper.paperId].finding}"</p>
+                                                                    </div>
+                                                                        <div>
+                                                                        <p className="font-semibold">Analisis Relevansi:</p>
+                                                                        <p>{aiReviews[paper.paperId].relevansi}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 italic mt-4 text-center">Tidak ada hasil yang ditemukan di Scopus untuk kueri Anda.</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Metode 4: Tambah Manual */}
+                <div className="border border-gray-200 rounded-lg">
+                    <button 
+                        onClick={() => toggleMethod('method4')} 
+                        className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method4' ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100'}`}
+                    >
+                        <span className="font-semibold text-gray-800">Metode 4: Tambah Manual</span>
+                        <ChevronDownIcon isOpen={openMethod === 'method4'} />
+                    </button>
+                    {openMethod === 'method4' && (
+                        <div className="p-4 border-t border-gray-200 animate-fade-in">
+                            <div className="flex border-b border-green-300 mb-4">
+                                <button onClick={() => setManualMode('template')} className={`py-2 px-4 text-sm font-medium ${manualMode === 'template' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>Isi Template</button>
+                                <button onClick={() => setManualMode('text')} className={`py-2 px-4 text-sm font-medium ${manualMode === 'text' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>Impor dari Teks <span className="text-xs bg-yellow-200 text-yellow-800 rounded-full px-2 py-1">Eksperimental</span></button>
+                            </div>
+                            
+                            {manualMode === 'template' && (
+                                <div>
+                                    <p className="text-sm text-green-700 mb-4">Isi detail referensi menggunakan template di bawah. Paling andal.</p>
+                                    <textarea
+                                        value={manualRef.text}
+                                        onChange={(e) => setManualRef({ ...manualRef, text: e.target.value })}
+                                        className="shadow-sm border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed font-mono text-sm"
+                                        rows="12"
+                                    ></textarea>
+                                    <button onClick={handleSaveManualReference} className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">
+                                        {manualRef.id ? 'Perbarui Referensi' : 'Tambah ke Proyek'}
+                                    </button>
+                                </div>
+                            )}
+
+                            {manualMode === 'text' && (
+                                <div>
+                                    <p className="text-sm text-green-700 mb-4">Tempelkan satu referensi yang sudah diformat (misal: dari PDF). AI akan mencoba mengurainya. Hasilnya mungkin perlu diperiksa.</p>
+                                    <textarea
+                                        value={freeTextRef}
+                                        onChange={(e) => setFreeTextRef(e.target.value)}
+                                        className="shadow-sm border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed font-mono text-sm"
+                                        rows="5"
+                                        placeholder="Contoh: M. Aria and C. Cuccurullo, “bibliometrix: An R-tool for comprehensive science mapping analysis,” J Informetr, vol. 11, no. 4, pp. 959–975, 2017..."
+                                    ></textarea>
+                                    <button onClick={handleImportFromText} className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg" disabled={isLoading || !freeTextRef}>
+                                    {isLoading ? 'Mengimpor...' : 'Impor & Tambah ke Proyek'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Metode 5: Pencarian Berbasis Konsep */}
+                <div className="border border-gray-200 rounded-lg">
+                    <button 
+                        onClick={() => toggleMethod('method5')} 
+                        className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method5' ? 'bg-teal-100' : 'bg-teal-50 hover:bg-teal-100'}`}
+                    >
+                        <span className="font-semibold text-gray-800">Metode 5: Pencarian Konsep / Peraturan <span className="text-xs bg-yellow-200 text-yellow-800 rounded-full px-2 py-1 ml-2">Eksperimental</span></span>
+                        <ChevronDownIcon isOpen={openMethod === 'method5'} />
+                    </button>
+                    {openMethod === 'method5' && (
+                        <div className="p-4 border-t border-gray-200 animate-fade-in">
+                        {/* --- LANGKAH 3 DIMULAI DI SINI --- */}
+                       <div className="mb-4">
+                           <p className="text-sm font-semibold text-gray-700 mb-2">Pilih jenis pencarian:</p>
+                           <div className="flex gap-4">
+                               <label className="flex items-center cursor-pointer">
+                                   <input 
+                                       type="radio" 
+                                       name="conceptSearchMode" 
+                                       value="concept" 
+                                       checked={conceptSearchMode === 'concept'} 
+                                       onChange={() => setConceptSearchMode('concept')}
+                                       className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300"
+                                   />
+                                   <span className="ml-2 text-sm text-gray-700">Konsep / Teori</span>
+                               </label>
+                               <label className="flex items-center cursor-pointer">
+                                   <input 
+                                       type="radio" 
+                                       name="conceptSearchMode" 
+                                       value="regulation" 
+                                       checked={conceptSearchMode === 'regulation'} 
+                                       onChange={() => setConceptSearchMode('regulation')}
+                                       className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300"
+                                   />
+                                   <span className="ml-2 text-sm text-gray-700">Peraturan Terkait</span>
+                               </label>
+                           </div>
+                       </div>
+                       <p className="text-sm text-gray-700 mb-4">
+                           {conceptSearchMode === 'concept' 
+                               ? 'Masukkan sebuah konsep atau teori (misal: "Technology Acceptance Model"). AI akan mencari referensi fundamental dan kutipan kuncinya.'
+                               : 'Masukkan topik atau kata kunci peraturan (misal: "perlindungan data pribadi"). AI akan menggunakan Google Search untuk mencari peraturan terkait dan menganalisis relevansinya.'
+                           }
+                       </p>
+                       {/* --- LANGKAH 3 BERAKHIR DI SINI --- */}    
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <input 
+                                    type="text"
+                                    value={conceptQuery}
+                                    onChange={(e) => setConceptQuery(e.target.value)}
+                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                                    placeholder={conceptSearchMode === 'concept' ? "Masukkan konsep atau teori..." : "Masukkan topik peraturan..."}
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={conceptSearchMode === 'concept' ? handleConceptSearch : () => handleRegulationSearch(conceptQuery)}
+                                    className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-teal-300 whitespace-nowrap" 
+                                    disabled={(conceptSearchMode === 'concept' ? isConceptSearching : isRegulationSearching) || !conceptQuery}
+                                >
+                                    {(conceptSearchMode === 'concept' ? isConceptSearching : isRegulationSearching) ? 'Mencari...' : (conceptSearchMode === 'concept' ? 'Cari Konsep' : 'Cari Peraturan')}
+                                </button>
+                            </div>
+                            {/* --- LANGKAH D DIMULAI DI SINI: Tampilkan Hasil Pencarian Peraturan --- */}
+                {isRegulationSearching && regulationSearchResults === null && (
+                    <div className="mt-6 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
+                        <p className="ml-3 text-gray-600">AI sedang mencari peraturan...</p>
                     </div>
                 )}
 
-                {manualMode === 'text' && (
-                    <div>
-                        <p className="text-sm text-green-700 mb-4">Tempelkan satu referensi yang sudah diformat (misal: dari PDF). AI akan mencoba mengurainya. Hasilnya mungkin perlu diperiksa.</p>
-                        <textarea
-                            value={freeTextRef}
-                            onChange={(e) => setFreeTextRef(e.target.value)}
-                            className="shadow-sm border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed font-mono text-sm"
-                            rows="5"
-                            placeholder="Contoh: M. Aria and C. Cuccurullo, “bibliometrix: An R-tool for comprehensive science mapping analysis,” J Informetr, vol. 11, no. 4, pp. 959–975, 2017..."
-                        ></textarea>
-                        <button onClick={handleImportFromText} className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg" disabled={isLoading || !freeTextRef}>
-                           {isLoading ? 'Mengimpor...' : 'Impor & Tambah ke Proyek'}
-                        </button>
+                {conceptSearchMode === 'regulation' && regulationSearchResults && Array.isArray(regulationSearchResults) && ( // <-- Tambahkan Array.isArray()
+                    <div className="mt-6">
+                        <h5 className="font-bold text-gray-800 mb-2">Hasil Pencarian Peraturan ({regulationSearchResults.length}):</h5>
+                        {regulationSearchResults.length > 0 ? (
+                            <div className="space-y-4 border-t pt-4 mt-4 border-teal-200 max-h-96 overflow-y-auto pr-2">
+                                {regulationSearchResults.map((result, index) => (
+                                    <div key={index} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                                        <div className="flex justify-between items-start">
+                                            <h6 className="font-semibold text-gray-800 flex-grow pr-2">{result.judul}</h6>
+                                            {/* Tombol Tambah (Logika belum diimplementasikan) */}
+                                            <button 
+                                                onClick={() => handleAddRegulationToReference(result)} 
+                                                className="ml-4 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-2 rounded-lg flex-shrink-0"
+                                                title="Tambah ke Perpustakaan Proyek"
+                                            >
+                                                + Tambah
+                                            </button>
+                                        </div>
+                                        {result.url && (
+                                            <a 
+                                                href={result.url} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer" 
+                                                className="text-xs text-blue-600 hover:underline break-all block mt-1"
+                                            >
+                                                {result.url}
+                                            </a>
+                                        )}
+                                        <div className="mt-3 p-2 bg-yellow-50 border-l-4 border-yellow-300 w-full">
+                                            <p className="text-xs font-semibold text-yellow-800">Analisis Relevansi dari AI:</p>
+                                            <p className="text-xs text-gray-700 italic">"{result.analisis_relevansi}"</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500 italic mt-4 text-center">Tidak ada peraturan relevan yang ditemukan.</p>
+                        )}
                     </div>
                 )}
+                {/* --- LANGKAH D BERAKHIR DI SINI --- */}
+
+                            {isConceptSearching && conceptSearchResult === null && (
+                                <div className="mt-6 flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
+                                    <p className="ml-3 text-gray-600">AI sedang mencari konsep...</p>
+                                </div>
+                            )}
+
+                            {conceptSearchResult && (
+                                <div className="mt-6">
+                                    <h5 className="font-bold text-gray-800 mb-2">Hasil Pencarian Konsep ({conceptSearchResult.length}):</h5>
+                                    {conceptSearchResult.length > 0 ? (
+                                        <div className="space-y-3 border-t pt-4 mt-4 border-teal-200">
+                                            {conceptSearchResult.map(({ paper, kutipanKunci }, index) => (
+                                                <div key={index} className="bg-white p-3 rounded-lg border border-gray-200">
+                                                    <div className="w-full flex justify-between items-start">
+                                                        <div>
+                                                            <p className="font-semibold text-gray-800">{paper.title}</p>
+                                                            <p className="text-xs text-gray-600">
+                                                                {(paper.authors || []).map(a => a.name).join(', ')} ({paper.year || 'N/A'})
+                                                            </p>
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => handleAddReferenceFromSearch(paper, null, kutipanKunci)}
+                                                            className="ml-4 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-2 rounded-lg flex-shrink-0"
+                                                            title="Tambah ke Perpustakaan Proyek"
+                                                        >
+                                                            + Tambah
+                                                        </button>
+                                                    </div>
+                                                    <div className="mt-2 p-2 bg-yellow-50 border-l-4 border-yellow-300 w-full">
+                                                        <p className="text-xs font-semibold text-yellow-800">Kutipan Kunci dari AI:</p>
+                                                        <p className="text-xs text-gray-700 italic">"{kutipanKunci}"</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 italic mt-4 text-center">Tidak ada referensi fundamental yang ditemukan untuk konsep ini.</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+
             </div>
 
             <div className="mt-10">
@@ -612,6 +1515,17 @@ const Pendahuluan = ({
                     Buat Versi Panjang
                 </button>
             </div>
+            {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
+<button 
+    onClick={() => handleModifyText('humanize', 'pendahuluanDraft')}
+    disabled={isLoading || !projectData.pendahuluanDraft}
+    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+>
+    Parafrasa (Humanisasi)
+</button>
+{/* --- AKHIR TOMBOL BARU --- */}
+
+
         </div>
     </div>
 );
@@ -672,6 +1586,15 @@ const MetodePenelitian = ({ projectData, setProjectData, handleGenerateMetode, i
                             Buat Versi Panjang
                         </button>
                     </div>
+                    {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
+<button 
+    onClick={() => handleModifyText('humanize', 'metodeDraft')}
+    disabled={isLoading || !projectData.metodeDraft}
+    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+>
+    Parafrasa (Humanisasi)
+</button>
+{/* --- AKHIR TOMBOL BARU --- */}
                 </div>
             </div>
         )}
@@ -734,6 +1657,15 @@ const StudiLiteratur = ({ projectData, setProjectData, handleGenerateStudiLitera
                             Buat Versi Panjang
                         </button>
                     </div>
+                    {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
+<button 
+    onClick={() => handleModifyText('humanize', 'studiLiteraturDraft')}
+    disabled={isLoading || !projectData.studiLiteraturDraft}
+    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+>
+    Parafrasa (Humanisasi)
+</button>
+{/* --- AKHIR TOMBOL BARU --- */}
                 </div>
             </div>
         )}
@@ -751,34 +1683,58 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
     const readyDrafts = availableDrafts.filter(d => projectData[d.key] && projectData[d.key].trim() !== '');
     const isReady = readyDrafts.length > 0;
 
+    // --- PERUBAHAN (LOGIKA INTEGRASI SLR) DIMULAI DI SINI ---
+    const isSLR = projectData.metode && (
+        projectData.metode.toLowerCase().includes('slr') ||
+        projectData.metode.toLowerCase().includes('systematic literature review') ||
+        projectData.metode.toLowerCase().includes('bibliometric')
+    );
+    // --- PERUBAHAN BERAKHIR DI SINI ---
+
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Hasil & Pembahasan</h2>
             
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h3 className="text-lg font-semibold text-blue-800 mb-3">Daftar Periksa Kesiapan</h3>
-                <p className="text-sm text-gray-700 mb-4">Fitur ini akan menyintesis draf analisis yang telah Anda simpan. Pastikan setidaknya satu draf analisis sudah selesai sebelum melanjutkan.</p>
-                <ul className="space-y-2">
-                    {availableDrafts.map(draft => {
-                        const hasContent = projectData[draft.key] && projectData[draft.key].trim() !== '';
-                        return (
-                            <li key={draft.key} className="flex items-center text-sm">
-                                <span className={`mr-2 ${hasContent ? 'text-green-500' : 'text-red-500'}`}>{hasContent ? '✅' : '❌'}</span>
-                                {draft.name}
-                            </li>
-                        );
-                    })}
-                </ul>
-            </div>
+            {/* --- PERUBAHAN (LOGIKA INTEGRASI SLR) DIMULAI DI SINI --- */}
+            {isSLR ? (
+                <div className="mb-6 p-4 bg-teal-50 border-l-4 border-teal-400 rounded-lg">
+                    <h3 className="text-lg font-semibold text-teal-800 mb-3">Integrasi Alur Kerja SLR</h3>
+                    <p className="text-sm text-gray-700">
+                        Untuk riset SLR/Bibliometrik, draf <strong>Hasil & Pembahasan</strong> Anda dibuat dari modul <strong>'Ekstraksi & Sintesis Data'</strong>.
+                    </p>
+                    <p className="text-sm text-gray-700 mt-2">
+                        Silakan buka tab tersebut, isi tabel sintesis, lalu klik tombol '✨ Tulis Draf Sintesis Naratif'. Draf yang dihasilkan akan otomatis muncul di kotak teks di bawah ini.
+                    </p>
+                </div>
+            ) : (
+                <>
+                    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <h3 className="text-lg font-semibold text-blue-800 mb-3">Daftar Periksa Kesiapan</h3>
+                        <p className="text-sm text-gray-700 mb-4">Fitur ini akan menyintesis draf analisis yang telah Anda simpan. Pastikan setidaknya satu draf analisis sudah selesai sebelum melanjutkan.</p>
+                        <ul className="space-y-2">
+                            {availableDrafts.map(draft => {
+                                const hasContent = projectData[draft.key] && projectData[draft.key].trim() !== '';
+                                return (
+                                    <li key={draft.key} className="flex items-center text-sm">
+                                        <span className={`mr-2 ${hasContent ? 'text-green-500' : 'text-red-500'}`}>{hasContent ? '✅' : '❌'}</span>
+                                        {draft.name}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
 
-            <button 
-                onClick={handleGenerateHasilPembahasan} 
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed"
-                disabled={isLoading || !isReady}
-            >
-                {isLoading ? 'Memproses...' : '✨ Tulis Draf Bab Hasil & Pembahasan'}
-            </button>
-            {!isReady && <p className="text-xs text-red-600 mt-2">Tombol dinonaktifkan karena belum ada draf analisis yang disimpan.</p>}
+                    <button 
+                        onClick={handleGenerateHasilPembahasan} 
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed"
+                        disabled={isLoading || !isReady}
+                    >
+                        {isLoading ? 'Memproses...' : '✨ Tulis Draf Bab Hasil & Pembahasan'}
+                    </button>
+                    {!isReady && <p className="text-xs text-red-600 mt-2">Tombol dinonaktifkan karena belum ada draf analisis yang disimpan.</p>}
+                </>
+            )}
+            {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
 
 
             {isLoading && !projectData.hasilPembahasanDraft && (
@@ -828,6 +1784,15 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                                 Buat Versi Panjang
                             </button>
                         </div>
+                        {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
+<button 
+    onClick={() => handleModifyText('humanize', 'hasilPembahasanDraft')}
+    disabled={isLoading || !projectData.hasilPembahasanDraft}
+    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+>
+    Parafrasa (Humanisasi)
+</button>
+{/* --- AKHIR TOMBOL BARU --- */}
                     </div>
                 </div>
             )}
@@ -1367,68 +2332,224 @@ const GeneratorLogKueri = ({
     handleCopyQuery, 
     handleDeleteLog,
     includeIndonesianQuery,
-    setIncludeIndonesianQuery
+    setIncludeIndonesianQuery,
+    // Props baru untuk PICOS
+    handleGenerateQueriesFromPicos,
+    geminiApiKey,
+    handleInputChange // Tambahkan prop ini
 }) => {
+    // State management
     const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [logEntry, setLogEntry] = useState({
         resultsCount: '',
         searchDate: new Date().toISOString().slice(0, 10)
     });
+    const [editingLog, setEditingLog] = useState(null);
+    const today = new Date().toISOString().slice(0, 10);
 
+    // State baru untuk PICOS
+    const [picos, setPicos] = useState({
+        population: '',
+        intervention: '',
+        comparison: '',
+        outcome: '',
+        studyDesign: ''
+    });
+    const [generatedRQ, setGeneratedRQ] = useState('');
+    const [isPicosLoading, setIsPicosLoading] = useState(false);
+
+    const handlePicosChange = (e) => {
+        const { name, value } = e.target;
+        setProjectData(prev => ({
+            ...prev,
+            picos: {
+                ...prev.picos,
+                [name]: value
+            }
+        }));
+    };
+
+    const handleAiFillPicos = async () => {
+        // Cek prasyarat: AI butuh konteks dari topik atau judul
+        if (!projectData.topikTema && !projectData.judulKTI) {
+            showInfoModal("Harap isi 'Topik atau Tema' di tab 'Ide KTI' terlebih dahulu agar AI memiliki konteks.");
+            return;
+        }
+
+        setIsPicosLoading(true); // Mulai proses loading
+
+        const context = projectData.topikTema || projectData.judulKTI;
+
+        const prompt = `You are an expert research assistant. Based on the following research topic, break it down into the PICOS components (Population/Problem, Intervention, Comparison, Outcome, Study Design). Provide concise and relevant answers in English.
+
+Research Topic: "${context}"
+
+Provide the answer ONLY in a strict JSON format. If a component is not relevant (e.g., Comparison), leave the string empty.`;
+
+        // Skema ini 'memaksa' AI untuk memberikan output JSON yang kita inginkan
+        const schema = {
+            type: "OBJECT",
+            properties: {
+                population: { type: "STRING" },
+                intervention: { type: "STRING" },
+                comparison: { type: "STRING" },
+                outcome: { type: "STRING" },
+                studyDesign: { type: "STRING" }
+            },
+            required: ["population", "intervention", "comparison", "outcome", "studyDesign"]
+        };
+
+        try {
+            // Panggil service AI dengan prompt dan skema
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            
+            // Isi hasil dari AI ke dalam state picos utama
+            setProjectData(p => ({
+                ...p,
+                picos: result
+            }));
+            
+            showInfoModal("PICOS berhasil diisi oleh AI! Silakan tinjau dan sesuaikan.");
+
+        } catch (error) {
+            showInfoModal(`Gagal mengisi PICOS dengan AI: ${error.message}`);
+        } finally {
+            setIsPicosLoading(false); // Selesaikan proses loading
+        }
+    };
+
+    // Handler: Buka modal log
     const handleOpenLogModal = () => {
         if (!lastCopiedQuery.query) {
             showInfoModal("Silakan salin sebuah kueri terlebih dahulu untuk dicatat ke dalam log.");
             return;
         }
-        setLogEntry(prev => ({
-            ...prev,
-            searchDate: new Date().toISOString().slice(0, 10) // Reset tanggal setiap buka modal
-        }));
+        setLogEntry({ resultsCount: '', searchDate: today });
         setIsLogModalOpen(true);
     };
 
+    // Handler: Buka modal edit
+    const handleOpenEditModal = (log) => {
+        setEditingLog({
+            ...log,
+            resultsCount: String(log.resultsCount)
+        });
+        setIsEditModalOpen(true);
+    };
+
+    // Simpan log baru
     const handleSaveLog = () => {
-        if (!logEntry.resultsCount) {
-            showInfoModal("Jumlah dokumen ditemukan tidak boleh kosong.");
+        const { resultsCount, searchDate } = logEntry;
+        const count = parseInt(resultsCount, 10);
+
+        if (!resultsCount || isNaN(count) || count < 0) {
+            showInfoModal("Jumlah dokumen harus berupa angka positif.");
             return;
         }
+        if (!searchDate) {
+            showInfoModal("Tanggal penelusuran wajib diisi.");
+            return;
+        }
+
         const newLog = {
-            id: Date.now(),
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             query: lastCopiedQuery.query,
             database: projectData.queryGeneratorTargetDB,
-            resultsCount: parseInt(logEntry.resultsCount, 10),
-            searchDate: logEntry.searchDate
+            resultsCount: count,
+            searchDate
         };
+
         setProjectData(p => ({
             ...p,
             searchLog: [...p.searchLog, newLog]
         }));
+
         setIsLogModalOpen(false);
-        setLogEntry({ resultsCount: '', searchDate: new Date().toISOString().slice(0, 10) }); // Reset form
+        setLogEntry({ resultsCount: '', searchDate: today });
     };
+
+    // Simpan perubahan edit
+    const handleUpdateLog = () => {
+        const { resultsCount, query, database, searchDate } = editingLog;
+        const count = parseInt(resultsCount, 10);
+
+        if (!resultsCount || isNaN(count) || count < 0) {
+            showInfoModal("Jumlah dokumen harus angka positif.");
+            return;
+        }
+        if (!query.trim()) {
+            showInfoModal("Kueri tidak boleh kosong.");
+            return;
+        }
+        if (!searchDate) {
+            showInfoModal("Tanggal penelusuran wajib diisi.");
+            return;
+        }
+
+        setProjectData(p => ({
+            ...p,
+            searchLog: p.searchLog.map(log =>
+                log.id === editingLog.id
+                    ? { ...editingLog, resultsCount: count }
+                    : log
+            )
+        }));
+
+        setIsEditModalOpen(false);
+        setEditingLog(null);
+    };
+
+    // Format tanggal DD/MM/YYYY
+    const formatDate = (dateStr) => {
+        const [year, month, day] = dateStr.split('-');
+        return `${day}/${month}/${year}`;
+    };
+
+    // Sort log: terbaru dulu
+    const sortedLogs = [...projectData.searchLog].sort(
+        (a, b) => new Date(b.searchDate) - new Date(a.searchDate)
+    );
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            {/* Modal Tambah Log */}
             {isLogModalOpen && (
                 <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
-                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full flex flex-col">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full">
                         <h3 className="text-xl font-semibold mb-4 text-gray-800">Tambah Entri Log Penelusuran</h3>
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-gray-700 text-sm font-bold mb-2">Kueri:</label>
-                                <p className="text-sm bg-gray-100 p-2 rounded-md font-mono">{lastCopiedQuery.query}</p>
+                                <p className="text-sm bg-gray-100 p-2 rounded-md font-mono break-words">
+                                    {lastCopiedQuery.query}
+                                </p>
                             </div>
                             <div>
                                 <label className="block text-gray-700 text-sm font-bold mb-2">Database:</label>
-                                <p className="text-sm bg-gray-100 p-2 rounded-md">{projectData.queryGeneratorTargetDB}</p>
+                                <p className="text-sm bg-gray-100 p-2 rounded-md">
+                                    {projectData.queryGeneratorTargetDB}
+                                </p>
                             </div>
-                             <div>
+                            <div>
                                 <label className="block text-gray-700 text-sm font-bold mb-2">Jumlah Dokumen Ditemukan:</label>
-                                <input type="number" value={logEntry.resultsCount} onChange={e => setLogEntry({...logEntry, resultsCount: e.target.value})} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" />
+                                <input 
+                                    type="number" 
+                                    min="0"
+                                    value={logEntry.resultsCount} 
+                                    onChange={e => setLogEntry({...logEntry, resultsCount: e.target.value})} 
+                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" 
+                                />
                             </div>
-                             <div>
+                            <div>
                                 <label className="block text-gray-700 text-sm font-bold mb-2">Tanggal Penelusuran:</label>
-                                <input type="date" value={logEntry.searchDate} onChange={e => setLogEntry({...logEntry, searchDate: e.target.value})} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" />
+                                <input 
+                                    type="date" 
+                                    value={logEntry.searchDate} 
+                                    onChange={e => setLogEntry({...logEntry, searchDate: e.target.value})} 
+                                    max={today}
+                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" 
+                                />
                             </div>
                         </div>
                         <div className="mt-6 flex justify-end gap-2">
@@ -1439,9 +2560,139 @@ const GeneratorLogKueri = ({
                 </div>
             )}
 
+            {/* Modal Edit Log */}
+            {isEditModalOpen && editingLog && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full">
+                        <h3 className="text-xl font-semibold mb-1 text-gray-800">Edit Entri Log Penelusuran</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Database: <strong>{editingLog.database}</strong> • Tanggal: {formatDate(editingLog.searchDate)}
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Kueri:</label>
+                                <textarea 
+                                    value={editingLog.query} 
+                                    onChange={e => setEditingLog({...editingLog, query: e.target.value})}
+                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 min-h-[100px] font-mono text-sm"
+                                    maxLength={2000}
+                                />
+                                <p className="text-xs text-gray-500 mt-1 text-right">
+                                    {editingLog.query.length}/2000 karakter
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Database:</label>
+                                <select 
+                                    value={editingLog.database} 
+                                    onChange={e => setEditingLog({...editingLog, database: e.target.value})}
+                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                                >
+                                    <option value="Scopus">Scopus</option>
+                                    <option value="Web of Science">Web of Science</option>
+                                    <option value="Google Scholar">Google Scholar</option>
+                                    <option value="Lainnya">Lainnya (Umum)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Jumlah Dokumen Ditemukan:</label>
+                                <input 
+                                    type="number" 
+                                    min="0"
+                                    value={editingLog.resultsCount} 
+                                    onChange={e => setEditingLog({...editingLog, resultsCount: e.target.value})} 
+                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Tanggal Penelusuran:</label>
+                                <input 
+                                    type="date" 
+                                    value={editingLog.searchDate} 
+                                    onChange={e => setEditingLog({...editingLog, searchDate: e.target.value})} 
+                                    max={today}
+                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" 
+                                />
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setIsEditModalOpen(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Batal</button>
+                            <button onClick={handleUpdateLog} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Simpan Perubahan</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* UI Utama */}
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Generator & Log Kueri</h2>
             <p className="text-gray-700 mb-4">Alat ini membantu Anda membuat dan mendokumentasikan kueri pencarian secara sistematis, sebuah syarat wajib untuk penelitian SLR/Bibliometrik yang valid.</p>
             
+            {/* BAGIAN BARU: Asisten Pertanyaan Penelitian (PICOS) */}
+            <div className="p-4 border-2 border-dashed border-teal-300 rounded-lg bg-teal-50 mb-8">
+                <h3 className="text-lg font-semibold mb-3 text-teal-800">Asisten Pertanyaan Penelitian (PICOS)</h3>
+                <p className="text-sm text-teal-700 mb-4">Definisikan lingkup SLR Anda menggunakan kerangka PICOS untuk menghasilkan Pertanyaan Penelitian (RQ) dan kueri pencarian yang lebih akurat.</p>
+                
+                {/* --- KODE BARU DIMULAI DI SINI --- */}
+                <div className="mb-6">
+                    <button
+                        onClick={handleAiFillPicos}
+                        disabled={isLoading || isPicosLoading || (!projectData.topikTema && !projectData.judulKTI)}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-purple-300 disabled:cursor-not-allowed"
+                    >
+                        {isPicosLoading ? 'Memproses...' : '✨ Isi Otomatis dengan AI'}
+                    </button>
+                </div>
+                {/* --- KODE BARU BERAKHIR DI SINI --- */}
+
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-gray-700 text-sm font-bold mb-2">P: Population / Problem</label>
+                        <textarea name="population" value={projectData.picos.population} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: siswa, mahasiswa" rows="2"></textarea>
+                    </div>
+                    <div>
+                        <label className="block text-gray-700 text-sm font-bold mb-2">I: Intervention</label>
+                        <textarea name="intervention" value={projectData.picos.intervention} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: pembelajaran berbasis AI" rows="2"></textarea>
+                    </div>
+                    <div>
+                        <label className="block text-gray-700 text-sm font-bold mb-2">C: Comparison</label>
+                        <textarea name="comparison" value={projectData.picos.comparison} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: pembelajaran tradisional" rows="2"></textarea>
+                    </div>
+                    <div>
+                        <label className="block text-gray-700 text-sm font-bold mb-2">O: Outcome</label>
+                        <textarea name="outcome" value={projectData.picos.outcome} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: performa siswa, motivasi" rows="2"></textarea>
+                    </div>
+                    <div>
+                        <label className="block text-gray-700 text-sm font-bold mb-2">S: Study Design</label>
+                        <textarea name="studyDesign" value={projectData.picos.studyDesign} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: penelitian empiris, kuantitatif" rows="2"></textarea>
+                    </div>
+                </div>
+                 <button 
+                    onClick={() => handleGenerateQueriesFromPicos(projectData.picos, 'rq')}
+                    className="mt-4 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-teal-300" 
+                    disabled={isLoading || !projectData.picos.population || !projectData.picos.intervention || !projectData.picos.outcome}
+                >
+                    {isLoading ? 'Memproses...' : 'Formulasikan Pertanyaan Penelitian'}
+                </button>
+                
+                {/* --- KOTAK PERTANYAAN PENELITIAN BARU --- */}
+                <div className="mt-6">
+                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                        Pertanyaan Penelitian (Research Questions):
+                    </label>
+                    <textarea 
+                        name="rumusanMasalahDraft"
+                        value={projectData.rumusanMasalahDraft}
+                        onChange={handleInputChange}
+                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                        placeholder="Hasil formulasi AI akan muncul di sini, atau Anda bisa mengetik langsung. Pisahkan setiap pertanyaan dengan baris baru."
+                        rows="4"
+                    ></textarea>
+                </div>
+                {/* --- AKHIR KOTAK BARU --- */}
+            </div>
+
+
             <div className="p-4 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 mb-8">
                 <h3 className="text-lg font-semibold mb-3 text-blue-800">Langkah 1: Hasilkan Kueri Berjenjang</h3>
                 <div className="mb-4">
@@ -1457,7 +2708,6 @@ const GeneratorLogKueri = ({
                         <option value="Lainnya">Lainnya (Umum)</option>
                     </select>
                 </div>
-                {/* PERUBAHAN: Checkbox untuk Bahasa Indonesia */}
                 <div className="mb-4">
                     <label className="flex items-center">
                         <input 
@@ -1470,8 +2720,21 @@ const GeneratorLogKueri = ({
                     </label>
                     <p className="text-xs text-gray-500 mt-1 pl-6">Catatan: Opsi ini dapat mengurangi presisi hasil pada database internasional.</p>
                 </div>
-                <button onClick={handleGenerateQueries} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300" disabled={isLoading || !projectData.judulKTI}>
-                    {isLoading ? 'Memproses...' : '✨ Hasilkan Kueri Berjenjang'}
+                <button 
+                    onClick={handleGenerateQueries} 
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300" 
+                    disabled={isLoading || !projectData.judulKTI}
+                    aria-label="Hasilkan kueri berjenjang"
+                >
+                    {isLoading ? 'Memproses...' : '✨ Hasilkan Kueri (dari Judul)'}
+                </button>
+                 <button 
+                    onClick={() => handleGenerateQueriesFromPicos(projectData.picos, 'query')}
+                    className="ml-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-green-300" 
+                    disabled={isLoading || !projectData.picos.population || !projectData.picos.intervention || !projectData.picos.outcome}
+                    aria-label="Hasilkan kueri dari PICOS"
+                >
+                    {isLoading ? 'Memproses...' : '✨ Hasilkan Kueri (dari PICOS)'}
                 </button>
             </div>
 
@@ -1501,9 +2764,18 @@ const GeneratorLogKueri = ({
                                         <td className="px-4 py-3 text-xs">{q.penjelasan}</td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-start justify-between gap-2">
-                                                <code className="text-xs bg-gray-200 p-2 rounded-md block whitespace-pre-wrap">{q.kueri}</code>
-                                                <button onClick={() => handleCopyQuery(q.kueri)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold p-2 rounded-lg flex-shrink-0">
-                                                    <CopyIcon />
+                                                <code className="text-xs bg-gray-200 p-2 rounded-md block whitespace-pre-wrap break-words font-mono">
+                                                    {q.kueri}
+                                                </code>
+                                                <button 
+                                                    onClick={() => handleCopyQuery(q.kueri)} 
+                                                    className="bg-gray-500 hover:bg-gray-600 text-white font-bold p-2 rounded-lg flex-shrink-0"
+                                                    aria-label="Salin kueri"
+                                                    title="Salin kueri"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                    </svg>
                                                 </button>
                                             </div>
                                         </td>
@@ -1519,14 +2791,19 @@ const GeneratorLogKueri = ({
             <div className="mt-10 pt-8 border-t-2 border-dashed border-gray-300">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-xl font-bold text-gray-800">Langkah 2: Log Penelusuran (Logbook)</h3>
-                    <button onClick={handleOpenLogModal} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">
+                    <button 
+                        onClick={handleOpenLogModal} 
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg"
+                        aria-label="Tambah log baru"
+                    >
                         + Tambah Log Baru
                     </button>
                 </div>
-                 {projectData.searchLog.length > 0 ? (
+
+                {projectData.searchLog.length > 0 ? (
                     <div className="overflow-x-auto border rounded-lg">
                         <table className="w-full text-sm text-left text-gray-500">
-                             <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-100">
                                 <tr>
                                     <th className="px-4 py-2">Tanggal</th>
                                     <th className="px-4 py-2">Database</th>
@@ -1536,28 +2813,51 @@ const GeneratorLogKueri = ({
                                 </tr>
                             </thead>
                             <tbody>
-                                {projectData.searchLog.map(log => (
+                                {sortedLogs.map(log => (
                                     <tr key={log.id} className="bg-white border-b hover:bg-gray-50">
-                                        <td className="px-4 py-3">{log.searchDate}</td>
+                                        <td className="px-4 py-3 text-nowrap">{formatDate(log.searchDate)}</td>
                                         <td className="px-4 py-3">{log.database}</td>
-                                        <td className="px-4 py-3"><code className="text-xs bg-gray-100 p-1 rounded">{log.query}</code></td>
+                                        <td className="px-4 py-3 max-w-xs">
+                                            <code className="text-xs bg-gray-100 p-1 rounded break-words font-mono">
+                                                {log.query}
+                                            </code>
+                                        </td>
                                         <td className="px-4 py-3 font-semibold">{log.resultsCount}</td>
                                         <td className="px-4 py-3">
-                                            <button onClick={() => handleDeleteLog(log.id)} className="text-red-500 hover:text-red-700 p-1">
-                                                <DeleteIcon />
-                                            </button>
+                                            <div className="flex space-x-2">
+                                                <button 
+                                                    onClick={() => handleOpenEditModal(log)}
+                                                    className="text-blue-500 hover:text-blue-700 p-1"
+                                                    aria-label="Edit log"
+                                                    title="Edit Log"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDeleteLog(log.id)} 
+                                                    className="text-red-500 hover:text-red-700 p-1"
+                                                    aria-label="Hapus log"
+                                                    title="Hapus Log"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
-                 ) : (
+                ) : (
                     <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
                         <p>Log penelusuran Anda masih kosong.</p>
                         <p className="text-sm">Hasilkan kueri, jalankan, lalu catat hasilnya di sini.</p>
                     </div>
-                 )}
+                )}
             </div>
         </div>
     );
@@ -1575,6 +2875,8 @@ const AnalisisKuantitatif = ({
   const [fileName, setFileName] = useState('');
   const [dataPreview, setDataPreview] = useState(null);
   const [parsedData, setParsedData] = useState(null);
+  const [quantitativeFocus, setQuantitativeFocus] = useState(''); // <-- BARU
+  const [targetDraft, setTargetDraft] = useState('analisisKuantitatifDraft'); // <-- TAMBAHKAN INI
   const fileInputRef = useRef(null);
 
   // Handle file upload
@@ -1609,7 +2911,7 @@ const AnalisisKuantitatif = ({
   };
 
   // Tambahkan hasil ke draf gabungan
-  const handleAddToDraft = () => {
+  const handleAddToDraft = (targetDraftKey) => { // <-- PERUBAHAN
     if (!projectData.analisisKuantitatifHasil) {
       showInfoModal("Tidak ada hasil analisis untuk ditambahkan.");
       return;
@@ -1618,18 +2920,24 @@ const AnalisisKuantitatif = ({
     const separator = `\n\n---\n[Analisis untuk: ${fileName || 'Data Tanpa Nama'} - ${new Date().toLocaleDateString()}]\n---\n`;
     const newContent = separator + projectData.analisisKuantitatifHasil;
 
-    setProjectData(p => ({
-      ...p,
-      analisisKuantitatifDraft: (p.analisisKuantitatifDraft || '') + newContent,
-      analisisKuantitatifHasil: '' // Reset hasil sementara
-    }));
+    setProjectData(p => { // <-- PERUBAHAN LOGIKA
+      // Dapatkan konten draf lama dari target yang dipilih
+      const oldDraftContent = p[targetDraftKey] || '';
+      return {
+          ...p,
+          [targetDraftKey]: oldDraftContent + newContent, // <-- Update draf yang ditargetkan
+          analisisKuantitatifHasil: '' // Reset hasil sementara
+      };
+    });
 
     // Reset state file
     setFileName('');
     setDataPreview(null);
     setParsedData(null);
+    setQuantitativeFocus(''); // <-- BARU: Reset fokus
+    setTargetDraft('analisisKuantitatifDraft'); // <-- TAMBAHKAN INI
     
-    showInfoModal("Hasil analisis berhasil ditambahkan ke draf gabungan!");
+    showInfoModal("Hasil analisis berhasil ditambahkan ke draf yang dipilih!"); // <-- PERUBAHAN
   };
 
   // Bersihkan draf gabungan
@@ -1678,17 +2986,32 @@ const AnalisisKuantitatif = ({
 
       {parsedData && (
         <div className="mt-6 pt-6 border-t border-gray-200">
+          {/* --- BARU --- */}
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              Fokus Analisis Spesifik (Opsional):
+            </label>
+            <input 
+              type="text"
+              value={quantitativeFocus}
+              onChange={(e) => setQuantitativeFocus(e.target.value)}
+              className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+              placeholder="Contoh: Fokus pada korelasi 'Variabel A' vs 'Variabel B', atau 'Analisis kelompok usia > 30'"
+            />
+          </div>
+          {/* --- AKHIR BARU --- */}
+
           <h3 className="text-lg font-semibold mb-3 text-gray-800">Pilih Jenis Analisis:</h3>
           <div className="flex flex-wrap gap-4">
             <button 
-              onClick={() => handleGenerateAnalisis(parsedData, 'konfirmatif')} 
+              onClick={() => handleGenerateAnalisis(parsedData, 'konfirmatif', quantitativeFocus)} // <-- PERUBAHAN
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300"
               disabled={isLoading}
             >
               {isLoading ? 'Menganalisis...' : 'Analisis Konfirmatif (Uji Hipotesis)'}
             </button>
             <button 
-              onClick={() => handleGenerateAnalisis(parsedData, 'eksploratif')} 
+              onClick={() => handleGenerateAnalisis(parsedData, 'eksploratif', quantitativeFocus)} // <-- PERUBAHAN
               className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-green-300"
               disabled={isLoading}
             >
@@ -1715,13 +3038,33 @@ const AnalisisKuantitatif = ({
             rows="10"
           ></textarea>
           
+          {/* --- PERUBAHAN DIMULAI DI SINI --- */}
+          <div className="mt-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              Tambahkan ke Draf Bab:
+            </label>
+            <select
+              value={targetDraft}
+              onChange={(e) => setTargetDraft(e.target.value)}
+              className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 mb-4"
+            >
+              <option value="analisisKuantitatifDraft">Analisis Kuantitatif (Draf Gabungan)</option>
+              <option value="pendahuluanDraft">Pendahuluan</option>
+              <option value="studiLiteraturDraft">Studi Literatur</option>
+              <option value="metodeDraft">Metode Penelitian</option>
+              <option value="hasilPembahasanDraft">Hasil & Pembahasan</option>
+              <option value="kesimpulanDraft">Kesimpulan</option>
+            </select>
+          </div>
+          
           <div className="mt-4 flex flex-wrap gap-2">
             <button 
-              onClick={handleAddToDraft}
+              onClick={() => handleAddToDraft(targetDraft)} // <-- PERUBAHAN
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg"
             >
-              Tambahkan ke Draf Gabungan
+              Tambahkan ke Draf yang Dipilih
             </button>
+            {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
             <button 
               onClick={() => setProjectData(p => ({ ...p, analisisKuantitatifHasil: '' }))}
               className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"
@@ -1776,6 +3119,8 @@ const AnalisisKualitatif = ({
   const [fileName, setFileName] = useState('');
   const [fileContent, setFileContent] = useState('');
   const [draftSementara, setDraftSementara] = useState('');
+  const [targetDraft, setTargetDraft] = useState('analisisKualitatifDraft'); // <-- BARU
+  const [qualitativeFocus, setQualitativeFocus] = useState(''); // <-- BARU
   const fileInputRef = useRef(null);
 
   const handleFileChange = (event) => {
@@ -1817,11 +3162,11 @@ const AnalisisKualitatif = ({
       showInfoModal("Tidak ada konten untuk dianalisis. Unggah file .txt terlebih dahulu.");
       return;
     }
-    handleGenerateAnalisisKualitatif(fileContent);
+    handleGenerateAnalisisKualitatif(fileContent, qualitativeFocus); // <-- PERUBAHAN
   };
 
   // Tambahkan ke draf gabungan
-  const handleAddToDraft = () => {
+  const handleAddToDraft = (targetDraftKey) => { // <-- PERUBAHAN
     if (!draftSementara) {
       showInfoModal("Tidak ada draf untuk ditambahkan.");
       return;
@@ -1830,16 +3175,22 @@ const AnalisisKualitatif = ({
     const separator = `\n\n---\n[Analisis untuk: ${fileName || 'Dokumen Tanpa Nama'} - ${new Date().toLocaleDateString()}]\n---\n`;
     const newContent = separator + draftSementara;
 
-    setProjectData(p => ({
-      ...p,
-      analisisKualitatifDraft: (p.analisisKualitatifDraft || '') + newContent,
-      analisisKualitatifHasil: null
-    }));
+    setProjectData(p => { // <-- PERUBAHAN LOGIKA
+      // Dapatkan konten draf lama dari target yang dipilih
+      const oldDraftContent = p[targetDraftKey] || '';
+      return {
+          ...p,
+          [targetDraftKey]: oldDraftContent + newContent, // <-- Update draf yang ditargetkan
+          analisisKualitatifHasil: null
+      };
+    });
 
     // Reset state
     setFileName('');
     setFileContent('');
     setDraftSementara('');
+    setTargetDraft('analisisKualitatifDraft'); // <-- BARU
+    setQualitativeFocus(''); // <-- BARU
     
     showInfoModal("Hasil analisis berhasil ditambahkan ke draf gabungan!");
   };
@@ -1875,6 +3226,20 @@ const AnalisisKualitatif = ({
       
       {fileContent && (
         <div className="mt-6 pt-6 border-t border-gray-200">
+          {/* --- PERUBAHAN DIMULAI DI SINI --- */}
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              Fokus Analisis Spesifik (Opsional):
+            </label>
+            <input 
+              type="text"
+              value={qualitativeFocus}
+              onChange={(e) => setQualitativeFocus(e.target.value)}
+              className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+              placeholder="Contoh: Fokus pada tema 'tantangan implementasi', atau 'pandangan manajer senior'"
+            />
+          </div>
+          {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
           <button 
             onClick={handleAnalysis} 
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300"
@@ -1927,13 +3292,33 @@ const AnalisisKualitatif = ({
             placeholder="Susun narasi temuan Anda di sini..."
           ></textarea>
           
+          {/* --- PERUBAHAN DIMULAI DI SINI --- */}
+          <div className="mt-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              Tambahkan ke Draf Bab:
+            </label>
+            <select
+              value={targetDraft}
+              onChange={(e) => setTargetDraft(e.target.value)}
+              className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 mb-4"
+            >
+              <option value="analisisKualitatifDraft">Analisis Kualitatif (Draf Gabungan)</option>
+              <option value="pendahuluanDraft">Pendahuluan</option>
+              <option value="studiLiteraturDraft">Studi Literatur</option>
+              <option value="metodeDraft">Metode Penelitian</option>
+              <option value="hasilPembahasanDraft">Hasil & Pembahasan</option>
+              <option value="kesimpulanDraft">Kesimpulan</option>
+            </select>
+          </div>
+          
           <div className="mt-4 flex flex-wrap gap-2">
             <button 
-              onClick={handleAddToDraft}
+              onClick={() => handleAddToDraft(targetDraft)} // <-- PERUBAHAN
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg"
             >
-              Tambahkan ke Draf Gabungan
+              Tambahkan ke Draf yang Dipilih
             </button>
+            {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
             <button 
               onClick={() => {
                 setDraftSementara('');
@@ -1992,6 +3377,7 @@ const AnalisisVisual = ({
   const [imagePreview, setImagePreview] = useState('');
   const [fileName, setFileName] = useState(''); // Tambahkan state untuk nama file
   const [analysisFocus, setAnalysisFocus] = useState('');
+  const [targetDraft, setTargetDraft] = useState('analisisVisualDraft'); // <-- State baru untuk dropdown
   const fileInputRef = useRef(null);
 
   const handleFileChange = (event) => {
@@ -2030,7 +3416,7 @@ const AnalisisVisual = ({
   };
 
   // Fungsi untuk menyimpan analisis ke draf gabungan
-  const handleSaveAnalysis = () => {
+  const handleSaveAnalysis = (targetDraftKey) => { // <-- Terima target draft
     if (!projectData.deskripsiVisualisasi || !projectData.interpretasiData) {
       showInfoModal("Tidak ada hasil analisis untuk disimpan.");
       return;
@@ -2042,20 +3428,26 @@ const AnalisisVisual = ({
     const newContent = separator + kontenVisual;
 
     // Tambahkan ke draf gabungan dan reset state
-    setProjectData(p => ({
-      ...p,
-      analisisVisualDraft: (p.analisisVisualDraft || '') + newContent,
-      deskripsiVisualisasi: '',
-      interpretasiData: ''
-    }));
+    setProjectData(p => {
+      // Dapatkan konten draf lama dari target yang dipilih
+      const oldDraftContent = p[targetDraftKey] || '';
+      return {
+          ...p,
+          [targetDraftKey]: oldDraftContent + newContent, // <-- Update draf yang ditargetkan secara dinamis
+          // Reset hasil sementara
+          deskripsiVisualisasi: '',
+          interpretasiData: ''
+      };
+    });
 
     // Reset state gambar
     setImageFile(null);
     setImagePreview('');
     setFileName('');
     setAnalysisFocus('');
+    setTargetDraft('analisisVisualDraft'); // <-- Reset dropdown ke default
     
-    showInfoModal("Hasil analisis berhasil ditambahkan ke draf gabungan!");
+    showInfoModal("Hasil analisis berhasil ditambahkan ke draf yang dipilih!"); // <-- Update pesan
   };
 
   // Fungsi untuk membersihkan draf gabungan
@@ -2095,7 +3487,7 @@ const AnalisisVisual = ({
         <div className="mb-6">
           <h3 className="text-lg font-semibold mb-2 text-gray-800">Pratinjau Gambar</h3>
           <div className="border rounded-lg p-2 flex justify-center bg-gray-100">
-            <img src={imagePreview} alt="Pratinjau" className="max-w-full max-h-80 object-contain" />
+            <img src={imagePreview} alt="Pratinjau" className="max-w-full object-contain" />
           </div>
         </div>
       )}
@@ -2160,13 +3552,33 @@ const AnalisisVisual = ({
               ></textarea>
             </div>
             
+            {/* --- PERUBAHAN DIMULAI DI SINI --- */}
+            <div className="mt-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2">
+                Tambahkan ke Draf Bab:
+              </label>
+              <select
+                value={targetDraft}
+                onChange={(e) => setTargetDraft(e.target.value)}
+                className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 mb-4"
+              >
+                <option value="analisisVisualDraft">Analisis Visual (Draf Gabungan)</option>
+                <option value="pendahuluanDraft">Pendahuluan</option>
+                <option value="studiLiteraturDraft">Studi Literatur</option>
+                <option value="metodeDraft">Metode Penelitian</option>
+                <option value="hasilPembahasanDraft">Hasil & Pembahasan</option>
+                <option value="kesimpulanDraft">Kesimpulan</option>
+              </select>
+            </div>
+
             <div className="flex flex-wrap gap-2">
               <button 
-                onClick={handleSaveAnalysis} 
+                onClick={() => handleSaveAnalysis(targetDraft)} // <-- Kirim target draft
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg"
               >
-                Tambahkan ke Draf Gabungan
+                Tambahkan ke Draf yang Dipilih
               </button>
+              {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
               <button 
                 onClick={handleResetCurrent}
                 className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"
@@ -2302,6 +3714,15 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
                                 Buat Versi Panjang
                             </button>
                         </div>
+                        {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
+<button 
+    onClick={() => handleModifyText('humanize', 'kesimpulanDraft')}
+    disabled={isLoading || !projectData.kesimpulanDraft}
+    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+>
+    Parafrasa (Humanisasi)
+</button>
+{/* --- AKHIR TOMBOL BARU --- */}
                     </div>
                 </div>
             )}
@@ -2309,47 +3730,1483 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
     );
 };
 
+// --- Komponen baru untuk PRISMA SLR ---
+const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview }) => {
+    // FIX: Panggil semua hooks di level atas tanpa kondisional.
+    const { prismaState } = projectData || {}; // Destructuring aman jika projectData belum ada
+    const [currentStage, setCurrentStage] = useState('setup');
+    const [exclusionModal, setExclusionModal] = useState({ isOpen: false, studyId: null, screeningType: '' });
+    const [exclusionReason, setExclusionReason] = useState('');
+    const [customReason, setCustomReason] = useState('');
+    const [expandedAbstractId, setExpandedAbstractId] = useState(null);
+    const [aiReviews, setAiReviews] = useState({});
+    const [reviewingId, setReviewingId] = useState(null);
+    const svgRef = useRef(null); // Tambahkan ref untuk SVG
+    const [showSvgHelp, setShowSvgHelp] = useState(false); // FIX: Pindahkan state hook ke level atas komponen
+    const [reviewingList, setReviewingList] = useState(null); // State baru untuk tab review
+
+    // Efek untuk inisialisasi state PRISMA jika belum ada.
+    useEffect(() => {
+        if (!projectData.prismaState) {
+            setProjectData(p => ({
+                ...p,
+                prismaState: initialProjectData.prismaState
+            }));
+        }
+    }, [projectData.prismaState, setProjectData]);
+
+    // Efek untuk mengatur stage saat ini.
+    useEffect(() => {
+        // Gunakan optional chaining (?.) untuk mencegah error jika prismaState masih null/undefined
+        if (prismaState?.isInitialized) {
+            const hasUnscreenedAbstracts = prismaState.studies.some(s => s.screeningStatus === 'unscreened');
+            const hasUnscreenedFulltexts = prismaState.studies.some(s => s.screeningStatus === 'abstract_included');
+
+            if (hasUnscreenedAbstracts) {
+                setCurrentStage('abstract_screening');
+            } else if (hasUnscreenedFulltexts) {
+                setCurrentStage('fulltext_screening');
+            } else {
+                setCurrentStage('results');
+            }
+        } else {
+            setCurrentStage('setup');
+        }
+    }, [prismaState?.isInitialized, prismaState?.studies]);
+
+    // FIX: Kondisional return dilakukan SETELAH semua hooks dipanggil.
+    if (!prismaState) {
+        return <div className="p-6 text-center">Menginisialisasi Modul PRISMA...</div>;
+    }
+
+    const handleRevertDecision = (studyId, targetStage) => {
+        setProjectData(p => {
+            const updatedStudies = p.prismaState.studies.map(study => {
+                if (study.id === studyId) {
+                    return { ...study, screeningStatus: targetStage, exclusionReason: '' };
+                }
+                return study;
+            });
+            return { ...p, prismaState: { ...p.prismaState, studies: updatedStudies } };
+        });
+        showInfoModal("Keputusan telah diubah. Artikel akan muncul kembali di antrean screening yang sesuai.");
+    };
+
+    const toggleAbstract = (paperId) => {
+        setExpandedAbstractId(prevId => (prevId === paperId ? null : paperId));
+    };
+
+    const runAiReview = async (paper) => {
+        if (reviewingId) return; 
+        const abstractText = paper.abstract || paper.isiKutipan;
+        if (!abstractText) {
+            showInfoModal("Review AI memerlukan abstrak. Abstrak atau catatan tidak tersedia untuk paper ini.");
+            return;
+        }
+        setReviewingId(paper.id);
+        try {
+            const searchContext = projectData.topikTema || projectData.judulKTI;
+            const paperForReview = {
+                ...paper,
+                abstract: abstractText,
+                paperId: paper.id 
+            };
+            const result = await handleAiReview(paperForReview, searchContext);
+            setAiReviews(prev => ({ ...prev, [paper.id]: result }));
+        } catch (error) {
+            showInfoModal(error.message);
+        } finally {
+            setReviewingId(null);
+        }
+    };
+
+    const handleDownloadSVG = () => {
+        if (!svgRef.current) {
+            showInfoModal("Elemen diagram tidak ditemukan.");
+            return;
+        }
+
+        // Menambahkan style inline agar ekspor tetap konsisten
+        const styleEl = svgRef.current.querySelector('style');
+        const styleContent = styleEl ? styleEl.innerHTML : '';
+        const svgClone = svgRef.current.cloneNode(true);
+        
+        // Menambahkan latar belakang putih pada SVG yang diekspor
+        const backgroundRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        backgroundRect.setAttribute('width', '100%');
+        backgroundRect.setAttribute('height', '100%');
+        backgroundRect.setAttribute('fill', 'white');
+        svgClone.insertBefore(backgroundRect, svgClone.firstChild);
+
+        const newStyleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
+        newStyleEl.textContent = styleContent;
+        svgClone.insertBefore(newStyleEl, svgClone.firstChild.nextSibling);
+
+        const svgData = new XMLSerializer().serializeToString(svgClone);
+        const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "prisma_flow_diagram.svg";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleDownloadPNG = () => {
+        if (!svgRef.current) {
+            showInfoModal("Elemen diagram tidak ditemukan.");
+            return;
+        }
+
+        // Clone SVG dan tambahkan style/latar belakang untuk ekspor
+        const styleEl = svgRef.current.querySelector('style');
+        const styleContent = styleEl ? styleEl.innerHTML : '';
+        const svgClone = svgRef.current.cloneNode(true);
+        const backgroundRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        backgroundRect.setAttribute('width', '100%');
+        backgroundRect.setAttribute('height', '100%');
+        backgroundRect.setAttribute('fill', 'white');
+        svgClone.insertBefore(backgroundRect, svgClone.firstChild);
+        const newStyleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
+        newStyleEl.textContent = styleContent;
+        svgClone.insertBefore(newStyleEl, svgClone.firstChild.nextSibling);
+
+        const svgData = new XMLSerializer().serializeToString(svgClone);
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const viewBox = svgRef.current.viewBox.baseVal;
+            // Untuk resolusi lebih tinggi, kita bisa menskalakan kanvas
+            const scale = 2;
+            canvas.width = viewBox.width * scale;
+            canvas.height = viewBox.height * scale;
+            
+            const ctx = canvas.getContext('2d');
+            
+            // FIX FUNDAMENTAL: Menggambar gambar dengan paksa agar sesuai dengan ukuran kanvas penuh.
+            // Ini akan memastikan tidak ada bagian yang terpotong.
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            const pngUrl = canvas.toDataURL('image/png');
+
+            const link = document.createElement('a');
+            link.download = 'prisma_flow_diagram.png';
+            link.href = pngUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url); // Membersihkan blob URL
+        };
+        img.onerror = () => {
+            showInfoModal("Gagal memuat gambar SVG untuk konversi.");
+            URL.revokeObjectURL(url); // Membersihkan blob URL
+        }
+        img.src = url;
+    };
+
+    const getRelevanceStyles = (category) => {
+        switch (category) {
+            case 'Sangat Relevan':
+                return { container: 'bg-green-50 border-green-300', header: 'text-green-800', badge: 'bg-green-100 text-green-800' };
+            case 'Relevan':
+                return { container: 'bg-yellow-50 border-yellow-300', header: 'text-yellow-800', badge: 'bg-yellow-100 text-yellow-800' };
+            case 'Tidak Relevan':
+                return { container: 'bg-red-50 border-red-300', header: 'text-red-800', badge: 'bg-red-100 text-red-800' };
+            default:
+                return { container: 'bg-gray-50 border-gray-300', header: 'text-gray-800', badge: 'bg-gray-100 text-gray-800' };
+        }
+    };
+
+    const handleInitialize = () => {
+        const initialRecordCount = projectData.searchLog.reduce((sum, log) => sum + log.resultsCount, 0);
+        
+        if (initialRecordCount === 0 && projectData.allReferences.length === 0) {
+            showInfoModal("Tidak ada data untuk memulai. Harap isi Log Penelusuran atau Perpustakaan Referensi terlebih dahulu.");
+            return;
+        }
+
+        const studies = projectData.allReferences.map(ref => ({
+            ...ref,
+            screeningStatus: 'unscreened', // unscreened, abstract_included, abstract_excluded, fulltext_included, fulltext_excluded
+            exclusionReason: '',
+        }));
+
+        setProjectData(p => ({
+            ...p,
+            prismaState: {
+                ...p.prismaState,
+                isInitialized: true,
+                studies: studies,
+                initialRecordCount: initialRecordCount > 0 ? initialRecordCount : studies.length,
+            }
+        }));
+        showInfoModal("Proses Screening PRISMA dimulai!");
+    };
+
+    const handleScreeningDecision = (studyId, newStatus, reason = '') => {
+        setProjectData(p => ({
+            ...p,
+            prismaState: {
+                ...p.prismaState,
+                studies: p.prismaState.studies.map(study =>
+                    study.id === studyId ? { ...study, screeningStatus: newStatus, exclusionReason: reason } : study
+                )
+            }
+        }));
+    };
+    
+    const openExclusionModal = (studyId, screeningType) => {
+        setExclusionReason('');
+        setCustomReason('');
+        setExclusionModal({ isOpen: true, studyId, screeningType });
+    };
+
+    const handleConfirmExclusion = () => {
+        const finalReason = exclusionReason === 'Lainnya' ? customReason : exclusionReason;
+        if (!finalReason) {
+            showInfoModal("Alasan pengecualian harus diisi.");
+            return;
+        }
+        const newStatus = exclusionModal.screeningType === 'abstract' ? 'abstract_excluded' : 'fulltext_excluded';
+        handleScreeningDecision(exclusionModal.studyId, newStatus, finalReason);
+        setExclusionModal({ isOpen: false, studyId: null, screeningType: '' });
+    };
+
+    const calculateCounts = () => {
+        // FIX: Pastikan semua nilai memiliki default 0 untuk mencegah NaN
+        const { 
+            studies = [], 
+            initialRecordCount = 0, 
+            duplicateCount = 0, 
+            automationIneligible = 0, 
+            otherReasonsRemoved = 0, 
+            reportsNotRetrieved = 0 
+        } = prismaState || {};
+
+        const identification_databases = initialRecordCount;
+        const records_after_duplicates = identification_databases - duplicateCount;
+        const records_screened = records_after_duplicates - automationIneligible - otherReasonsRemoved;
+
+        const records_excluded = studies.filter(s => s.screeningStatus === 'abstract_excluded').length;
+        const reports_sought_for_retrieval = records_screened - records_excluded;
+        
+        const reports_not_retrieved_count = reportsNotRetrieved;
+        const reports_assessed_for_eligibility = reports_sought_for_retrieval - reports_not_retrieved_count;
+        
+        const reports_excluded_fulltext = studies.filter(s => s.screeningStatus === 'fulltext_excluded').length;
+        const studies_included_in_review = reports_assessed_for_eligibility - reports_excluded_fulltext;
+
+        return {
+            identification_databases,
+            duplicateCount,
+            automationIneligible,
+            otherReasonsRemoved,
+            records_screened,
+            records_excluded,
+            reports_sought_for_retrieval,
+            reports_not_retrieved_count,
+            reports_assessed_for_eligibility,
+            reports_excluded_fulltext,
+            studies_included_in_review,
+        };
+    };
+
+    const renderSetup = () => (
+        <div className="text-center">
+            <h3 className="text-xl font-semibold mb-4 text-gray-800">Mulai Proses Screening PRISMA</h3>
+            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">Fitur ini akan memandu Anda melalui proses penyaringan studi untuk Systematic Literature Review (SLR) Anda. Proses ini akan menggunakan data dari **Log Penelusuran** dan **Perpustakaan Referensi**.</p>
+            <div className="p-4 bg-gray-100 rounded-lg inline-block mb-6 space-y-2">
+                 <div className="flex justify-between items-center gap-4">
+                    <span className="text-left">Total record dari database:</span> 
+                    <strong className="text-blue-600">{projectData.searchLog.reduce((sum, log) => sum + log.resultsCount, 0)}</strong>
+                </div>
+                 <div className="flex justify-between items-center gap-4">
+                    <span className="text-left">Total referensi unik diimpor:</span>
+                    <strong className="text-blue-600">{projectData.allReferences.length}</strong>
+                </div>
+            </div>
+
+            <div className="max-w-md mx-auto space-y-4">
+                 <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Jumlah duplikat dihapus (manual):</label>
+                    <input 
+                        type="number"
+                        min="0"
+                        value={prismaState.duplicateCount}
+                        onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, duplicateCount: parseInt(e.target.value, 10) || 0 }}))}
+                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                    />
+                </div>
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Record ditandai tidak eligibel oleh automation tools:</label>
+                    <input 
+                        type="number"
+                        min="0"
+                        value={prismaState.automationIneligible}
+                        onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, automationIneligible: parseInt(e.target.value, 10) || 0 }}))}
+                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                    />
+                </div>
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Record dibuang karena alasan lain:</label>
+                    <input 
+                        type="number"
+                        min="0"
+                        value={prismaState.otherReasonsRemoved}
+                        onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, otherReasonsRemoved: parseInt(e.target.value, 10) || 0 }}))}
+                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                    />
+                </div>
+                 <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Report tidak di-retrieve:</label>
+                    <input 
+                        type="number"
+                        min="0"
+                        value={prismaState.reportsNotRetrieved}
+                        onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, reportsNotRetrieved: parseInt(e.target.value, 10) || 0 }}))}
+                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                    />
+                </div>
+            </div>
+            <button onClick={handleInitialize} className="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg">
+                Mulai Screening
+            </button>
+        </div>
+    );
+    
+    const renderScreening = (type) => {
+        const isAbstract = type === 'abstract';
+        const targetStatus = isAbstract ? 'unscreened' : 'abstract_included';
+        const studyToScreen = prismaState.studies.find(s => s.screeningStatus === targetStatus);
+
+        if (!studyToScreen) {
+            return (
+                <div className="text-center p-8">
+                    <p className="text-lg text-green-600 font-semibold">Tahap screening ini selesai!</p>
+                    <p className="text-gray-600 mt-2">
+                        {isAbstract 
+                            ? "Silakan lanjutkan ke tahap screening full-text." 
+                            : "Semua studi telah disaring. Lihat diagram PRISMA di tab Hasil."
+                        }
+                    </p>
+                </div>
+            );
+        }
+
+        const total = isAbstract 
+            ? prismaState.studies.length
+            : prismaState.studies.filter(s => ['abstract_included', 'fulltext_excluded', 'fulltext_included'].includes(s.screeningStatus)).length;
+        const screened = total - prismaState.studies.filter(s => s.screeningStatus === targetStatus).length;
+
+        return (
+            <div>
+                <h3 className="text-xl font-semibold mb-4 text-gray-800">
+                    {isAbstract ? 'Screening Abstrak' : 'Screening Full-Text'}
+                </h3>
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                    <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${(screened / total) * 100}%` }}></div>
+                </div>
+                <p className="text-sm text-gray-600 mb-4 text-center">Progress: {screened} / {total}</p>
+
+                <div className="p-4 border rounded-lg bg-white">
+                    <h4 className="font-bold text-lg text-gray-800">{studyToScreen.title}</h4>
+                    <p className="text-sm text-gray-600 my-2">{studyToScreen.author} ({studyToScreen.year})</p>
+                    <p className="text-xs italic text-gray-500">{studyToScreen.journal?.name || studyToScreen.journal}</p>
+                    {studyToScreen.doi && <a href={`https://doi.org/${studyToScreen.doi}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">DOI: {studyToScreen.doi}</a>}
+                    
+                    <div className="mt-4">
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => toggleAbstract(studyToScreen.id)} className="text-xs text-blue-600 hover:underline font-semibold">
+                                {expandedAbstractId === studyToScreen.id ? 'Sembunyikan Abstrak / Catatan' : 'Tampilkan Abstrak / Catatan'}
+                            </button>
+                            <button 
+                                onClick={() => runAiReview(studyToScreen)} 
+                                className="text-xs text-purple-600 hover:underline font-semibold disabled:text-gray-400 disabled:no-underline"
+                                disabled={reviewingId === studyToScreen.id}
+                            >
+                                {reviewingId === studyToScreen.id ? 'Mereview...' : '✨ Review AI'}
+                            </button>
+                        </div>
+                        {expandedAbstractId === studyToScreen.id && (
+                            <div className="mt-2 p-3 bg-gray-50 rounded-md border">
+                                <h5 className="font-semibold text-sm mb-2">Abstrak / Catatan</h5>
+                                <p className="text-sm text-gray-700 max-h-40 overflow-y-auto">
+                                    {studyToScreen.abstract || studyToScreen.isiKutipan || "Tidak ada catatan atau abstrak."}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {reviewingId === studyToScreen.id && !aiReviews[studyToScreen.id] && (
+                        <div className="mt-3 flex items-center text-xs text-gray-500">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600 mr-2"></div>
+                            AI sedang mereview...
+                        </div>
+                    )}
+                    {aiReviews[studyToScreen.id] && (
+                        <div className={`mt-3 p-3 border-l-4 rounded-r-lg ${getRelevanceStyles(aiReviews[studyToScreen.id].kategori_relevansi).container}`}>
+                            <div className="flex justify-between items-center">
+                                <h6 className={`text-sm font-bold ${getRelevanceStyles(aiReviews[studyToScreen.id].kategori_relevansi).header}`}>AI Review</h6>
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getRelevanceStyles(aiReviews[studyToScreen.id].kategori_relevansi).badge}`}>
+                                    {aiReviews[studyToScreen.id].kategori_relevansi}
+                                </span>
+                            </div>
+                            <div className="mt-2 text-xs text-gray-700 space-y-2">
+                                <div>
+                                    <p className="font-semibold">Temuan Kunci:</p>
+                                    <p className="italic">"{aiReviews[studyToScreen.id].finding}"</p>
+                                </div>
+                                <div>
+                                    <p className="font-semibold">Analisis Relevansi:</p>
+                                    <p>{aiReviews[studyToScreen.id].relevansi}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="mt-6 flex justify-center gap-4">
+                    <button onClick={() => openExclusionModal(studyToScreen.id, isAbstract ? 'abstract' : 'fulltext')} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg">
+                        Exclude
+                    </button>
+                     <button onClick={() => handleScreeningDecision(studyToScreen.id, isAbstract ? 'abstract_included' : 'fulltext_included')} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg">
+                        Include
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    const renderReview = () => {
+        const reviewLists = [
+            { status: 'abstract_excluded', label: 'Ditolak (Abstrak)', revertTo: 'unscreened' },
+            { status: 'abstract_included', label: 'Diterima (Abstrak)', revertTo: 'unscreened' },
+            { status: 'fulltext_excluded', label: 'Ditolak (Full-Text)', revertTo: 'abstract_included' },
+            { status: 'fulltext_included', label: 'Diterima (Full-Text)', revertTo: 'abstract_included' },
+        ];
+
+        const studiesToList = reviewingList
+            ? prismaState.studies.filter(s => s.screeningStatus === reviewingList.status)
+            : [];
+
+        return (
+            <div>
+                <h3 className="text-xl font-semibold mb-4 text-gray-800">Review & Revisi Keputusan Screening</h3>
+                <p className="text-sm text-gray-600 mb-4">Pilih daftar untuk melihat studi yang telah Anda saring. Anda dapat mengubah keputusan Anda, yang akan mengembalikan studi ke antrean screening sebelumnya.</p>
+                
+                <div className="flex flex-wrap gap-2 mb-6">
+                    {reviewLists.map(list => (
+                        <button
+                            key={list.status}
+                            onClick={() => setReviewingList(list)}
+                            className={`py-2 px-4 rounded-lg text-sm font-semibold ${reviewingList?.status === list.status ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                        >
+                            {list.label} ({prismaState.studies.filter(s => s.screeningStatus === list.status).length})
+                        </button>
+                    ))}
+                </div>
+
+                {reviewingList && (
+                    <div>
+                        <h4 className="font-bold text-lg text-gray-800 mb-2">Daftar: {reviewingList.label}</h4>
+                        {studiesToList.length > 0 ? (
+                            <div className="space-y-3 max-h-96 overflow-y-auto pr-2 border-t pt-4">
+                                {studiesToList.map(study => (
+                                    <div key={study.id} className="bg-white p-3 rounded-lg border border-gray-200">
+                                        <p className="font-semibold text-gray-800">{study.title}</p>
+                                        <p className="text-xs text-gray-600">{study.author} ({study.year})</p>
+                                        {study.screeningStatus.includes('excluded') && study.exclusionReason && (
+                                            <p className="text-xs text-red-600 mt-1">Alasan: {study.exclusionReason}</p>
+                                        )}
+                                        <button
+                                            onClick={() => handleRevertDecision(study.id, reviewingList.revertTo)}
+                                            className="mt-2 bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-bold py-1 px-2 rounded-lg"
+                                        >
+                                            Ubah Keputusan
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500 italic mt-4">Tidak ada studi dalam daftar ini.</p>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderResults = () => {
+        // Jika belum diinisialisasi, jangan render apa pun
+        if (!prismaState.isInitialized) return null;
+
+        const counts = calculateCounts();
+        
+        // Mendapatkan alasan eksklusi yang unik untuk full-text
+        const fulltextExclusionReasons = prismaState.studies
+            .filter(s => s.screeningStatus === 'fulltext_excluded' && s.exclusionReason)
+            .reduce((acc, study) => {
+                acc[study.exclusionReason] = (acc[study.exclusionReason] || 0) + 1;
+                return acc;
+            }, {});
+        
+        // ====================================================================
+        // PENDEKATAN BARU: DEFINISI STRUKTUR DIAGRAM SECARA DEKLARATIF
+        // ====================================================================
+
+        const boxWidth = 350;
+        const sideBoxWidth = 250;
+        const mainX = 150;
+        const sideX = mainX + boxWidth + 100; // Menambah jarak agar tidak terlalu mepet
+        
+        // Hitung tinggi dinamis untuk kotak eksklusi
+        const exclusionBoxHeight = 60 + Object.keys(fulltextExclusionReasons).length * 18;
+
+        // Mendefinisikan semua 'node' (kotak) dalam diagram
+        const nodes = {
+            identification_header: { x: mainX, y: 20, width: boxWidth, height: 70, content: () => <text x={mainX + boxWidth / 2} y={55} textAnchor="middle" className="prisma-text prisma-text-bold">Identifikasi studi via database dan register</text> },
+            db_records: { x: mainX, y: 120, width: boxWidth, height: 50, content: () => <text x={mainX + 10} y={150} className="prisma-text">Jumlah record diidentifikasi dari database (n = {counts.identification_databases})</text> },
+            pre_screening: { x: sideX, y: 150, width: sideBoxWidth, height: 100, content: () => (
+                <text x={sideX + 10} y={170} className="prisma-text">
+                    <tspan className="prisma-text-bold">Record dibuang sebelum screening:</tspan>
+                    <tspan x={sideX + 10} dy="1.5em">- Record duplikat dibuang (n = {counts.duplicateCount})</tspan>
+                    <tspan x={sideX + 10} dy="1.2em">- Record ditandai tidak eligibel oleh</tspan>
+                    <tspan x={sideX + 10} dy="1.2em">  automation tools (n = {counts.automationIneligible})</tspan>
+                    <tspan x={sideX + 10} dy="1.2em">- Record dibuang karena alasan lain (n = {counts.otherReasonsRemoved})</tspan>
+                </text>
+            )},
+            records_screened: { x: mainX, y: 280, width: boxWidth, height: 50, content: () => <text x={mainX + 10} y={310} className="prisma-text">Jumlah record di-screen (n = {counts.records_screened})</text> },
+            records_excluded: { x: sideX, y: 280, width: sideBoxWidth, height: 50, content: () => <text x={sideX + 10} y={310} className="prisma-text">Record dieksklusi (n = {counts.records_excluded})</text> },
+            reports_sought: { x: mainX, y: 360, width: boxWidth, height: 50, content: () => <text x={mainX + 10} y={390} className="prisma-text">Jumlah report dicari untuk retrieval (n = {counts.reports_sought_for_retrieval})</text> },
+            reports_not_retrieved: { x: sideX, y: 360, width: sideBoxWidth, height: 50, content: () => <text x={sideX + 10} y={390} className="prisma-text">Report tidak di-retrieve (n = {counts.reports_not_retrieved_count})</text> },
+            reports_assessed: { x: mainX, y: 440, width: boxWidth, height: 50, content: () => <text x={mainX + 10} y={470} className="prisma-text">Jumlah report dinilai kelayakannya (n = {counts.reports_assessed_for_eligibility})</text> },
+            reports_excluded_fulltext: { x: sideX, y: 440, width: sideBoxWidth, height: exclusionBoxHeight, content: () => (
+                <text x={sideX + 10} y={460} className="prisma-text">
+                    <tspan className="prisma-text-bold">Report dieksklusi (n = {counts.reports_excluded_fulltext}):</tspan>
+                    {Object.entries(fulltextExclusionReasons).map(([reason, count]) => (
+                        <tspan key={reason} x={sideX + 10} dy="1.4em">- {reason} (n={count})</tspan>
+                    ))}
+                </text>
+            )},
+            studies_included: { x: mainX, y: 520, width: boxWidth, height: 70, content: () => (
+                <text x={mainX + boxWidth / 2} y={545} textAnchor="middle" className="prisma-text">
+                    <tspan x={mainX + boxWidth/2} dy="0em" className="prisma-text-bold">Studi diinklusi dalam review</tspan>
+                    <tspan x={mainX + boxWidth/2} dy="1.4em">(n = {counts.studies_included_in_review})</tspan>
+                </text>
+            )},
+            studies_in_synthesis: { x: mainX, y: 620, width: boxWidth, height: 50, isFinal: true, content: () => <text x={mainX + 10} y={650} className="prisma-text">Jumlah studi diinklusi dalam sintesis (n = {counts.studies_included_in_review})</text> },
+        };
+        
+        // Mendefinisikan semua 'edge' (konektor) antar node
+        const edges = [
+            { from: 'identification_header', to: 'db_records', type: 'vertical' },
+            { from: 'db_records', to: 'records_screened', type: 'vertical' },
+            { from: 'records_screened', to: 'reports_sought', type: 'vertical' },
+            { from: 'reports_sought', to: 'reports_assessed', type: 'vertical' },
+            { from: 'reports_assessed', to: 'studies_included', type: 'vertical' },
+            { from: 'studies_included', to: 'studies_in_synthesis', type: 'vertical' },
+            
+            // Side connectors
+            { from: { id: 'db_records', side: 'right' }, to: { id: 'pre_screening', side: 'left' }, type: 'elbow' },
+            { from: { id: 'records_screened', side: 'right' }, to: { id: 'records_excluded', side: 'left' }, type: 'horizontal' },
+            { from: { id: 'reports_sought', side: 'right' }, to: { id: 'reports_not_retrieved', side: 'left' }, type: 'horizontal' },
+            { from: { id: 'reports_assessed', side: 'right' }, to: { id: 'reports_excluded_fulltext', side: 'left' }, type: 'horizontal' },
+        ];
+
+        // Fungsi helper untuk mendapatkan koordinat titik koneksi
+        const getAttachPoint = (nodeId, side) => {
+            const node = nodes[nodeId];
+            if (!node) return { x: 0, y: 0 };
+            switch (side) {
+                case 'top': return { x: node.x + node.width / 2, y: node.y };
+                case 'bottom': return { x: node.x + node.width / 2, y: node.y + node.height };
+                case 'left': return { x: node.x, y: node.y + node.height / 2 };
+                case 'right': return { x: node.x + node.width, y: node.y + node.height / 2 };
+                default: return { x: 0, y: 0 };
+            }
+        };
+
+        return (
+            <div>
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-semibold text-gray-800 text-center flex-grow">Diagram Alir PRISMA 2020</h3>
+                    <div className="flex items-center gap-2">
+                        <button onClick={handleDownloadSVG} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center gap-2">
+                            <DownloadIcon />
+                            Unduh SVG
+                        </button>
+                        <button onClick={handleDownloadPNG} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center gap-2">
+                            <DownloadIcon />
+                            Unduh PNG
+                        </button>
+                    </div>
+                </div>
+                <div className="w-full overflow-x-auto p-4 bg-gray-50 rounded-lg border">
+                    <svg ref={svgRef} viewBox="0 0 950 750" className="font-sans" aria-labelledby="prisma-title">
+                        <title id="prisma-title">Diagram Alir PRISMA 2020</title>
+                        <defs>
+                            <style>{`
+                                .prisma-box { fill: white; stroke: #4B5563; stroke-width: 1; }
+                                .prisma-box-final { fill: #E8F5E9; stroke: #2E7D32; }
+                                .prisma-text { font-size: 13px; fill: #111827; }
+                                .prisma-text-bold { font-weight: bold; }
+                                .prisma-arrow-line { stroke: #4B5563; stroke-width: 1; marker-end: url(#arrowhead); }
+                                .prisma-arrow-line-no-marker { stroke: #4B5563; stroke-width: 1; }
+                                .side-label { font-size: 14px; font-weight: bold; fill: #4B5563; }
+                            `}</style>
+                            <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto" fill="#4B5563">
+                                <polygon points="0 0, 8 3, 0 6" />
+                            </marker>
+                        </defs>
+
+                        {/* Side Labels - FIX: Posisi disesuaikan */}
+                        <text x="60" y={ (nodes.identification_header.y + nodes.db_records.y + nodes.db_records.height)/2 } transform={`rotate(-90, 60, ${(nodes.identification_header.y + nodes.db_records.y + nodes.db_records.height)/2})`} textAnchor="middle" className="side-label">Identifikasi</text>
+                        <text x="60" y={ (nodes.records_screened.y + nodes.reports_assessed.y + nodes.reports_assessed.height)/2 } transform={`rotate(-90, 60, ${(nodes.records_screened.y + nodes.reports_assessed.y + nodes.reports_assessed.height)/2})`} textAnchor="middle" className="side-label">Screening</text>
+                        <text x="60" y={ (nodes.studies_included.y + nodes.studies_in_synthesis.y + nodes.studies_in_synthesis.height)/2 } transform={`rotate(-90, 60, ${(nodes.studies_included.y + nodes.studies_in_synthesis.y + nodes.studies_in_synthesis.height)/2})`} textAnchor="middle" className="side-label">Inklusi</text>
+
+                        {/* Render semua Kotak (Nodes) */}
+                        {Object.values(nodes).map((node, i) => (
+                            <g key={i}>
+                                <rect x={node.x} y={node.y} width={node.width} height={node.height} rx="3" className={node.isFinal ? "prisma-box-final" : "prisma-box"} />
+                                {node.content()}
+                            </g>
+                        ))}
+                        
+                        {/* Render semua Konektor (Edges) secara dinamis */}
+                        {edges.map((edge, i) => {
+                            // FIX: Logika penggambaran garis yang disempurnakan untuk garis lurus sempurna
+                            if (edge.type === 'vertical') {
+                                const start = getAttachPoint(edge.from, 'bottom');
+                                const end = getAttachPoint(edge.to, 'top');
+                                return <line key={i} x1={start.x} y1={start.y} x2={end.x} y2={end.y} className="prisma-arrow-line"/>;
+                            }
+                            if (edge.type === 'horizontal') {
+                                const start = getAttachPoint(edge.from.id, edge.from.side);
+                                const end = getAttachPoint(edge.to.id, edge.to.side);
+                                return <line key={i} x1={start.x} y1={start.y} x2={end.x} y2={start.y} className="prisma-arrow-line"/>;
+                            }
+                            if (edge.type === 'elbow') {
+                                const p1 = getAttachPoint(edge.from.id, edge.from.side);
+                                const p2 = getAttachPoint(edge.to.id, edge.to.side);
+                                
+                                // Titik siku untuk belokan 90 derajat yang sempurna
+                                const elbowPoint = { x: p1.x + 50, y: p1.y };
+                                const elbowPoint2 = { x: p1.x + 50, y: p2.y };
+                                
+                                return (
+                                    <g key={i}>
+                                        {/* Garis Horizontal dari kotak utama */}
+                                        <line x1={p1.x} y1={p1.y} x2={elbowPoint.x} y2={elbowPoint.y} className="prisma-arrow-line-no-marker"/>
+                                        {/* Garis Vertikal turun */}
+                                        <line x1={elbowPoint.x} y1={elbowPoint.y} x2={elbowPoint2.x} y2={elbowPoint2.y} className="prisma-arrow-line-no-marker"/>
+                                        {/* Garis Horizontal ke kotak samping */}
+                                        <line x1={elbowPoint2.x} y1={elbowPoint2.y} x2={p2.x} y2={p2.y} className="prisma-arrow-line"/>
+                                    </g>
+                                );
+                            }
+                            return null;
+                        })}
+                    </svg>
+                </div>
+
+                 {/* BAGIAN BANTUAN SVG BARU */}
+                <div className="mt-8 border border-gray-200 rounded-lg">
+                    <button 
+                        onClick={() => setShowSvgHelp(!showSvgHelp)} 
+                        className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${showSvgHelp ? 'bg-gray-200' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    >
+                        <span className="font-semibold text-gray-800">Bagaimana Cara Menggunakan File SVG?</span>
+                        <ChevronDownIcon isOpen={showSvgHelp} />
+                    </button>
+                    {showSvgHelp && (
+                        <div className="p-6 border-t border-gray-200 animate-fade-in text-gray-700 text-sm space-y-4">
+                            <div>
+                                <h4 className="font-bold text-base mb-2">1. Apa itu SVG?</h4>
+                                <p>SVG (Scalable Vector Graphics) adalah format gambar berbasis vektor. Keunggulannya, gambar tidak akan pecah atau buram saat diperbesar, sehingga sangat ideal untuk publikasi ilmiah.</p>
+                            </div>
+                             <div>
+                                <h4 className="font-bold text-base mb-2">2. Membuka & Menyunting File SVG</h4>
+                                <p>Anda dapat membuka file .svg yang Anda unduh dengan beberapa aplikasi:</p>
+                                <ul className="list-disc list-inside ml-4 mt-2 space-y-1">
+                                    <li><b>Browser Web:</b> Cukup seret file SVG ke browser (Chrome, Firefox) untuk melihatnya.</li>
+                                    <li><b>Inkscape:</b> Editor grafis vektor gratis dan open-source yang sangat powerful. Sangat direkomendasikan.</li>
+                                    <li><b>Adobe Illustrator:</b> Perangkat lunak desain profesional (berbayar).</li>
+                                    <li><b>PowerPoint/Word:</b> Versi terbaru dapat mengimpor SVG dan memungkinkan beberapa pengeditan dasar.</li>
+                                </ul>
+                            </div>
+                             <div>
+                                <h4 className="font-bold text-base mb-2">3. Memasukkan & Mengedit SVG di Word/PowerPoint</h4>
+                                <p className="mb-2">Anda bisa melakukan pengeditan dasar (mengubah teks, warna, posisi) langsung di Word/PowerPoint versi terbaru. Berikut caranya:</p>
+                                <ol className="list-decimal list-inside ml-4 mt-2 space-y-2">
+                                    <li>
+                                        <b>Masukkan Gambar:</b> Di Word/PowerPoint, buka tab <b>Insert</b> &gt; <b>Pictures</b> &gt; <b>This Device...</b> lalu pilih file <code>.svg</code> Anda.
+                                    </li>
+                                    <li>
+                                        <b>Konversi menjadi Bentuk (Shape):</b> Klik pada gambar SVG Anda. Tab baru <b>Graphics Format</b> akan muncul. Di tab tersebut, klik tombol <b>Convert to Shape</b>. Ini adalah langkah paling penting.
+                                        [Gambar tombol "Convert to Shape" di ribbon Microsoft Office]
+                                    </li>
+                                    <li>
+                                        <b>Ungroup Objek (Penting):</b> Setelah dikonversi, gambar menjadi satu grup besar. Klik kanan pada gambar &gt; pilih <b>Group</b> &gt; klik <b>Ungroup</b>. Ulangi langkah ini (klik kanan &gt; Group &gt; Ungroup) sekali lagi. Sekarang setiap elemen terpisah.
+                                    </li>
+                                    <li>
+                                        <b>Mulai Mengedit:</b> Anda kini dapat mengklik teks untuk mengubah isinya, mengklik kotak untuk mengubah warnanya (gunakan <b>Shape Fill</b>), atau memindahkan posisi elemen individual.
+                                    </li>
+                                    <li>
+                                        <b>Group Kembali:</b> Setelah selesai, pilih semua elemen (seret mouse di sekeliling diagram), lalu klik kanan &gt; <b>Group</b> &gt; <b>Group</b>. Ini akan menyatukan kembali diagram Anda.
+                                    </li>
+                                </ol>
+                            </div>
+                             <div>
+                                <h4 className="font-bold text-base mb-2">4. Konversi ke Format Lain (PNG/JPG)</h4>
+                                <p>Jika Anda memerlukan format gambar lain, buka file SVG di Inkscape atau Adobe Illustrator, lalu pilih menu <b>File &gt; Export</b> atau <b>File &gt; Save for Web</b> untuk menyimpannya sebagai file PNG atau JPG dengan resolusi tinggi.</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+    
+    const renderCurrentStage = () => {
+        switch(currentStage) {
+            case 'setup': return renderSetup();
+            case 'abstract_screening': return renderScreening('abstract');
+            case 'fulltext_screening': return renderScreening('fulltext');
+            case 'review': return renderReview();
+            case 'results': return renderResults();
+            default: return renderSetup();
+        }
+    };
+
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Generator PRISMA SLR</h2>
+            
+                <div className="flex border-b mb-6">
+                 {prismaState.isInitialized && ['abstract_screening', 'fulltext_screening', 'review', 'results'].map(stage => (
+                    <button 
+                        key={stage}
+                        onClick={() => setCurrentStage(stage)}
+                        className={`py-2 px-4 text-sm font-medium ${currentStage === stage ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-blue-600'}`}
+                    >
+                        {stage.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </button>
+                 ))}
+            </div>
+
+            {renderCurrentStage()}
+
+            {exclusionModal.isOpen && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full">
+                        <h3 className="text-xl font-semibold mb-4 text-gray-800">Alasan Pengecualian</h3>
+                        <div className="space-y-2">
+                            {(exclusionModal.screeningType === 'abstract' ? prismaState.exclusionReasons.abstract : prismaState.exclusionReasons.fulltext).map(reason => (
+                                <label key={reason} className="flex items-center">
+                                    <input type="radio" name="exclusionReason" value={reason} checked={exclusionReason === reason} onChange={e => setExclusionReason(e.target.value)} className="h-4 w-4 text-blue-600"/>
+                                    <span className="ml-3 text-gray-700">{reason}</span>
+                                </label>
+                            ))}
+                        </div>
+                        {exclusionReason === 'Lainnya' && (
+                             <div className="mt-4">
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Sebutkan alasan lain:</label>
+                                <input type="text" value={customReason} onChange={e => setCustomReason(e.target.value)} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"/>
+                            </div>
+                        )}
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setExclusionModal({ isOpen: false, studyId: null, screeningType: '' })} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Batal</button>
+                            <button onClick={handleConfirmExclusion} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Konfirmasi Exclude</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- Komponen untuk Ekstraksi & Sintesis Data ---
+const SintesisData = ({ projectData, setProjectData, showInfoModal, geminiApiKey, handleCopyToClipboard, setCurrentSection }) => {
+    // State for managing the column definition modal
+    const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
+    const [editingColumn, setEditingColumn] = useState(null); // Can be a new column object or an existing one
+    const [newColumnLabel, setNewColumnLabel] = useState('');
+    // State for selecting a reference to extract
+    const [selectedRefId, setSelectedRefId] = useState('');
+    // State for the extraction modal
+    const [isExtractionModalOpen, setIsExtractionModalOpen] = useState(false);
+    const [currentExtractionData, setCurrentExtractionData] = useState(null); // Holds the data for the paper being extracted
+    const [isExtracting, setIsExtracting] = useState(false); // For AI loading state
+    const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
+
+    const handleExportToCSV = () => {
+        if (!projectData.extractedData || projectData.extractedData.length === 0) {
+            showInfoModal("Tidak ada data untuk diekspor. Harap isi tabel sintesis terlebih dahulu.");
+            return;
+        }
+
+        // Siapkan data dalam format yang diharapkan PapaParse
+        const dataForExport = projectData.extractedData.map(item => {
+            const refDetails = projectData.allReferences.find(ref => String(ref.id) === String(item.refId)) || {};
+            
+            const rowData = {
+                "Author": refDetails.author || '',
+                "Year": refDetails.year || '',
+                "Title": refDetails.title || '',
+            };
+
+            projectData.synthesisTableColumns.forEach(col => {
+                rowData[col.label] = item.data[col.key] || '';
+            });
+
+            return rowData;
+        });
+
+        // Ubah JSON menjadi CSV
+        const csv = window.Papa.unparse(dataForExport);
+
+        // Picu Unduhan
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        const date = new Date().toISOString().slice(0, 10);
+        link.setAttribute("download", `bibliocobra_synthesis_table_${date}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleGenerateNarrative = async () => {
+        setIsNarrativeLoading(true);
+
+        if (projectData.extractedData.length === 0) {
+            showInfoModal("Tidak ada data yang diekstrak untuk disintesis. Harap isi Tabel Sintesis terlebih dahulu.");
+            setIsNarrativeLoading(false);
+            return;
+        }
+
+        // Format the extracted data into a structured string for the prompt
+        const dataForPrompt = projectData.extractedData.map(item => {
+            const refDetails = projectData.allReferences.find(ref => String(ref.id) === String(item.refId));
+            let entryString = `Sumber: ${refDetails ? `${refDetails.author} (${refDetails.year}) - "${refDetails.title}"` : 'Referensi tidak diketahui'}\n`;
+            
+            projectData.synthesisTableColumns.forEach(col => {
+                if (item.data[col.key]) {
+                    entryString += `- ${col.label}: ${item.data[col.key]}\n`;
+                }
+            });
+            return entryString;
+        }).join('\n---\n');
+
+        const prompt = `Anda adalah seorang penulis akademik ahli. Tugas Anda adalah menulis sebuah draf tinjauan pustaka naratif yang koheren HANYA berdasarkan data terstruktur yang diekstrak dari beberapa artikel berikut.
+
+Konteks Penelitian Utama:
+- Judul: "${projectData.judulKTI || projectData.topikTema}"
+
+Data yang Diekstrak:
+---
+${dataForPrompt}
+---
+
+Instruksi Penulisan:
+1.  **Sintesis, Jangan Daftar:** Jangan hanya membuat daftar temuan dari setiap paper. Sintesiskan informasi tersebut. Identifikasi tema, pola, atau hubungan yang muncul di antara berbagai paper.
+2.  **Struktur Narasi:** Buat alur cerita yang logis. Mulailah dengan pengenalan umum, kelompokkan temuan serupa, diskusikan perbedaan atau kontradiksi jika ada, dan akhiri dengan ringkasan singkat.
+3.  **Sebutkan Sumber:** Saat membahas sebuah temuan, sebutkan sumbernya (misalnya, "Menurut Smith (2020)..." atau "...seperti yang ditunjukkan oleh Jones et al. (2021).").
+4.  **Gaya Akademis:** Gunakan bahasa yang formal, objektif, dan jelas.
+5.  **Format:** Hasilkan sebagai teks biasa (plain text) tanpa format markdown atau HTML.
+
+Tuliskan draf narasi sintesisnya.`;
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKey);
+            const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
+
+            const separator = `\n\n---\n[Sintesis Naratif Dihasilkan pada ${new Date().toLocaleString()}]\n---\n`;
+            const newHasilPembahasan = (projectData.hasilPembahasanDraft || '') + separator + cleanResult;
+
+            setProjectData(p => ({ 
+                ...p, 
+                sintesisNaratifDraft: cleanResult,
+                hasilPembahasanDraft: newHasilPembahasan
+            }));
+            
+            showInfoModal("Draf narasi berhasil dibuat dan ditambahkan ke Bab Hasil & Pembahasan. Anda akan diarahkan ke sana sekarang.");
+            setCurrentSection('hasil');
+
+        } catch (error) {
+            showInfoModal(`Gagal membuat sintesis naratif: ${error.message}`);
+        } finally {
+            setIsNarrativeLoading(false);
+        }
+    };
+
+    const handleAiExtract = async () => {
+        if (!currentExtractionData) return;
+        setIsExtracting(true);
+        const refDetails = currentExtractionData.refDetails;
+        const context = `
+Judul: ${refDetails.title}
+Penulis: ${refDetails.author}
+Tahun: ${refDetails.year}
+Abstrak/Catatan: ${refDetails.abstract || refDetails.isiKutipan || "Tidak ada."}
+        `;
+
+        // Dynamically build the schema from the user-defined columns
+        const schemaProperties = projectData.synthesisTableColumns.reduce((acc, col) => {
+            acc[col.key] = { type: "STRING", description: `Ekstrak informasi untuk: ${col.label}` };
+            return acc;
+        }, {});
+
+        const schema = {
+            type: "OBJECT",
+            properties: schemaProperties,
+            required: projectData.synthesisTableColumns.map(col => col.key)
+        };
+
+        const prompt = `Anda adalah asisten peneliti yang sangat teliti. Berdasarkan konteks artikel ilmiah berikut, ekstrak informasi yang relevan dan isi nilai untuk setiap kunci JSON berikut. Jika informasi tidak ditemukan, biarkan string kosong.
+
+Konteks Artikel:
+---
+${context}
+---
+        `;
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            
+            // Merge AI results with existing data without overwriting everything
+            setCurrentExtractionData(prev => ({
+                ...prev,
+                data: {
+                    ...prev.data,
+                    ...result
+                }
+            }));
+
+            showInfoModal("Ekstraksi AI berhasil!");
+
+        } catch (error) {
+            showInfoModal(`Gagal mengekstrak data dengan AI: ${error.message}`);
+        } finally {
+            setIsExtracting(false);
+        }
+    };
+
+
+    const handleStartExtraction = (refIdToExtract) => {
+        const refId = refIdToExtract || selectedRefId;
+        if (!refId) {
+            showInfoModal("Silakan pilih referensi terlebih dahulu.");
+            return;
+        }
+
+        const reference = projectData.allReferences.find(ref => String(ref.id) === String(refId));
+        if (!reference) {
+            showInfoModal("Referensi tidak ditemukan. Mungkin telah dihapus atau ID-nya tidak cocok.");
+            return;
+        }
+
+        // Check if data already exists, if not, create a blank structure
+        const existingData = projectData.extractedData.find(d => String(d.refId) === String(refId));
+        
+        // FIX: Define the initialData object locally before using it
+        const initialData = {
+            refId: refId,
+            refDetails: reference,
+            data: {}
+        };
+        
+        // Ensure all columns from the template exist in the data object
+        projectData.synthesisTableColumns.forEach(col => {
+            initialData.data[col.key] = existingData?.data?.[col.key] || '';
+        });
+        
+        setCurrentExtractionData(initialData);
+        setIsExtractionModalOpen(true);
+    };
+    
+    const handleExtractionDataChange = (key, value) => {
+        setCurrentExtractionData(prev => ({
+            ...prev,
+            data: {
+                ...prev.data,
+                [key]: value
+            }
+        }));
+    };
+
+    const handleSaveExtraction = () => {
+        // Find if an entry for this refId already exists
+        const index = projectData.extractedData.findIndex(d => d.refId === currentExtractionData.refId);
+
+        let newExtractedData = [...projectData.extractedData];
+
+        if (index > -1) {
+            // Update existing data
+            newExtractedData[index] = { ...newExtractedData[index], data: currentExtractionData.data };
+        } else {
+            // Add new data entry
+            newExtractedData.push({ refId: currentExtractionData.refId, data: currentExtractionData.data });
+        }
+
+        setProjectData(p => ({
+            ...p,
+            extractedData: newExtractedData
+        }));
+
+        setIsExtractionModalOpen(false);
+        setCurrentExtractionData(null);
+        showInfoModal("Data ekstraksi berhasil disimpan!");
+    };
+
+
+    const handleAddColumn = () => {
+        setEditingColumn({ isNew: true }); // Mark as new
+        setNewColumnLabel('');
+        setIsColumnModalOpen(true);
+    };
+
+    const handleEditColumn = (column) => {
+        setEditingColumn(column);
+        setNewColumnLabel(column.label);
+        setIsColumnModalOpen(true);
+    };
+
+    const handleDeleteColumn = (keyToDelete) => {
+        setProjectData(p => ({
+            ...p,
+            synthesisTableColumns: p.synthesisTableColumns.filter(col => col.key !== keyToDelete)
+        }));
+    };
+
+    const handleSaveColumn = () => {
+        if (!newColumnLabel.trim()) {
+            showInfoModal("Nama kolom tidak boleh kosong.");
+            return;
+        }
+
+        if (editingColumn.isNew) {
+            // Add new column
+            const newColumn = {
+                key: `custom_${Date.now()}`,
+                label: newColumnLabel.trim(),
+                type: 'textarea' // Default to textarea for custom columns
+            };
+            setProjectData(p => ({
+                ...p,
+                synthesisTableColumns: [...p.synthesisTableColumns, newColumn]
+            }));
+        } else {
+            // Update existing column
+            setProjectData(p => ({
+                ...p,
+                synthesisTableColumns: p.synthesisTableColumns.map(col =>
+                    col.key === editingColumn.key ? { ...col, label: newColumnLabel.trim() } : col
+                )
+            }));
+        }
+
+        setIsColumnModalOpen(false);
+        setEditingColumn(null);
+        setNewColumnLabel('');
+    };
+
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Ekstraksi & Sintesis Data</h2>
+            <p className="text-gray-600 mb-8 -mt-4">
+                Modul ini membantu Anda mengekstrak informasi kunci dari referensi Anda secara sistematis dan mensintesisnya menjadi sebuah narasi.
+            </p>
+
+            {/* Modal for adding/editing columns */}
+            {isColumnModalOpen && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full">
+                        <h3 className="text-xl font-semibold mb-4 text-gray-800">
+                            {editingColumn?.isNew ? 'Tambah Kolom Baru' : 'Edit Nama Kolom'}
+                        </h3>
+                        <div>
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Nama Kolom (Label):</label>
+                            <input
+                                type="text"
+                                value={newColumnLabel}
+                                onChange={(e) => setNewColumnLabel(e.target.value)}
+                                className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                                placeholder="Contoh: Metodologi, Sampel, dll."
+                            />
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={() => setIsColumnModalOpen(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Batal</button>
+                            <button onClick={handleSaveColumn} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Simpan</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* --- MODAL EKSTRAKSI DATA --- */}
+            {isExtractionModalOpen && currentExtractionData && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex justify-center items-center z-50 p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+                        <h3 className="text-xl font-semibold mb-1 text-gray-800">Ekstraksi Data</h3>
+                        <p className="text-sm text-gray-600 mb-4 truncate">Untuk: "{currentExtractionData.refDetails.title}"</p>
+                        
+                        <div className="flex-grow overflow-y-auto pr-2 -mr-2 space-y-6">
+                            {/* Konteks Referensi */}
+                            <div className="p-3 bg-gray-50 border rounded-lg">
+                                <h4 className="font-semibold text-gray-700 mb-2">Konteks Referensi</h4>
+                                <p className="text-sm"><strong>Penulis:</strong> {currentExtractionData.refDetails.author} ({currentExtractionData.refDetails.year})</p>
+                                <div className="mt-2">
+                                    <p className="text-sm font-semibold"><strong>Abstrak / Catatan:</strong></p>
+                                    <p className="text-sm text-gray-600 bg-gray-100 p-2 rounded-md max-h-28 overflow-y-auto">
+                                        {currentExtractionData.refDetails.abstract || currentExtractionData.refDetails.isiKutipan || "Tidak ada abstrak atau catatan."}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            {/* Form Ekstraksi */}
+                            <div className="space-y-4">
+                                {projectData.synthesisTableColumns.map(col => (
+                                    <div key={col.key}>
+                                        <label className="block text-gray-700 text-sm font-bold mb-2">{col.label}:</label>
+                                        <textarea
+                                            value={currentExtractionData.data[col.key] || ''}
+                                            onChange={(e) => handleExtractionDataChange(col.key, e.target.value)}
+                                            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                            rows={col.type === 'textarea' ? 4 : 2}
+                                            placeholder={`Masukkan ${col.label}...`}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t flex justify-between items-center">
+                            <button
+                                onClick={handleAiExtract} // To be implemented in the next step
+                                disabled={isExtracting}
+                                className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-purple-300"
+                            >
+                                {isExtracting ? 'Mengekstrak...' : '✨ Ekstrak dengan AI'}
+                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={() => setIsExtractionModalOpen(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Batal</button>
+                                <button onClick={handleSaveExtraction} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Simpan</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
+            {/* Section 1: Manage Table Template */}
+            <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 mb-8">
+                <h3 className="text-lg font-semibold mb-3 text-gray-800">1. Template Tabel Ekstraksi Data</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                    Kelola kolom-kolom yang akan Anda gunakan untuk mengekstrak data dari setiap referensi. Template default telah disediakan berdasarkan panduan SLR.
+                </p>
+                <div className="mb-4">
+                    {projectData.synthesisTableColumns.map(col => (
+                        <div key={col.key} className="flex items-center justify-between p-2 mb-1 bg-white border rounded-md">
+                            <span className="text-gray-700">{col.label}</span>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleEditColumn(col)} className="text-blue-500 hover:text-blue-700 text-xs font-semibold">Edit</button>
+                                <button onClick={() => handleDeleteColumn(col.key)} className="text-red-500 hover:text-red-700 text-xs font-semibold">Hapus</button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <button onClick={handleAddColumn} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">
+                    + Tambah Kolom
+                </button>
+            </div>
+
+            {/* Section 2: Data Extraction from References */}
+            <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 mb-8">
+                <h3 className="text-lg font-semibold mb-3 text-gray-800">2. Ekstraksi Data dari Referensi</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                    Pilih sebuah referensi dari perpustakaan Anda untuk memulai proses ekstraksi data berbantuan AI.
+                </p>
+                {projectData.allReferences.length > 0 ? (
+                    <div className="flex flex-col sm:flex-row items-center gap-2">
+                        <select
+                            value={selectedRefId}
+                            onChange={(e) => setSelectedRefId(e.target.value)}
+                            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        >
+                            <option value="" disabled>Pilih referensi...</option>
+                            {projectData.allReferences.map(ref => {
+                                const isExtracted = projectData.extractedData.some(d => String(d.refId) === String(ref.id));
+                                const truncatedTitle = ref.title.length > 100 ? `${ref.title.substring(0, 100)}...` : ref.title;
+                                return (
+                                    <option key={ref.id} value={ref.id}>
+                                        {isExtracted ? '✓ ' : '○ '}{truncatedTitle}
+                                    </option>
+                                );
+                            })}
+                        </select>
+                        <button
+                            onClick={() => handleStartExtraction()}
+                            disabled={!selectedRefId}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-full sm:w-auto flex-shrink-0 disabled:bg-blue-300 disabled:cursor-not-allowed"
+                        >
+                            Mulai Ekstraksi
+                        </button>
+                    </div>
+                ) : (
+                    <p className="text-sm text-gray-500 italic">Perpustakaan referensi Anda kosong. Silakan tambahkan referensi terlebih dahulu.</p>
+                )}
+            </div>
+
+
+            {/* Section 3: Centralized Synthesis Table */}
+            <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-300">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold text-gray-800">3. Tabel Sintesis Terpusat</h3>
+                    <button
+                        onClick={handleExportToCSV}
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm disabled:bg-green-300"
+                        disabled={projectData.extractedData.length === 0}
+                    >
+                        Ekspor ke Sheets (.csv)
+                    </button>
+                </div>
+                {projectData.extractedData.length > 0 ? (
+                    <div className="overflow-x-auto border rounded-lg">
+                        <table className="w-full text-sm text-left text-gray-500">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0">
+                                <tr>
+                                    <th className="px-4 py-3">Referensi</th>
+                                    {projectData.synthesisTableColumns.map(col => (
+                                        <th key={col.key} className="px-4 py-3">{col.label}</th>
+                                    ))}
+                                    <th className="px-4 py-3">Tindakan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {projectData.extractedData.map(item => {
+                                    const refDetails = projectData.allReferences.find(ref => String(ref.id) === String(item.refId));
+                                    return (
+                                        <tr key={item.refId} className="bg-white border-b hover:bg-gray-50">
+                                            <td className="px-4 py-3 font-medium text-gray-900 max-w-xs truncate">
+                                                {refDetails ? refDetails.title : 'Referensi tidak ditemukan'}
+                                            </td>
+                                            {projectData.synthesisTableColumns.map(col => (
+                                                <td key={col.key} className="px-4 py-3 max-w-sm">
+                                                    <p className="line-clamp-3 hover:line-clamp-none transition-all duration-200">
+                                                        {item.data[col.key] || '-'}
+                                                    </p>
+                                                </td>
+                                            ))}
+                                            <td className="px-4 py-3">
+                                                <button
+                                                    onClick={() => handleStartExtraction(item.refId)}
+                                                    className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-3 rounded-lg text-xs"
+                                                >
+                                                    Edit
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                        <p>Belum ada data yang diekstrak.</p>
+                        <p className="text-sm">Gunakan fitur di atas untuk mulai mengekstrak data dari referensi Anda.</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Placeholder for Narrative Synthesis */}
+            <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-300">
+                 <h3 className="text-xl font-bold mb-4 text-gray-800">4. Sintesis Naratif</h3>
+                 <div className="p-4 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg mb-6">
+                    <p className="text-sm text-blue-700 mb-4">Setelah data terkumpul di tabel sintesis, klik tombol di bawah untuk meminta AI menyintesis semua informasi menjadi sebuah narasi yang koheren.</p>
+                    <button
+                        onClick={handleGenerateNarrative}
+                        disabled={isNarrativeLoading || projectData.extractedData.length === 0}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed"
+                    >
+                        {isNarrativeLoading ? 'Memproses...' : '✨ Tulis Draf Sintesis Naratif'}
+                    </button>
+                 </div>
+
+                 {isNarrativeLoading && !projectData.sintesisNaratifDraft && (
+                    <div className="mt-6 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <p className="ml-3 text-gray-600">AI sedang menyusun narasi...</p>
+                    </div>
+                )}
+
+                 {projectData.sintesisNaratifDraft && (
+                    <div className="mt-6">
+                        <div className="flex justify-between items-center mb-2">
+                            <h4 className="text-lg font-semibold text-gray-800">Draf Narasi:</h4>
+                            <button onClick={() => handleCopyToClipboard(projectData.sintesisNaratifDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1 px-3 rounded-lg">Salin Teks</button>
+                        </div>
+                        <textarea
+                            value={projectData.sintesisNaratifDraft}
+                            onChange={(e) => setProjectData(p => ({ ...p, sintesisNaratifDraft: e.target.value }))}
+                            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+                            rows="15"
+                            placeholder="Hasil sintesis naratif akan muncul di sini..."
+                        ></textarea>
+                    </div>
+                 )}
+            </div>
+        </div>
+    );
+};
+
+
 // --- Komponen untuk Donasi ---
 const Donasi = ({ handleCopyToClipboard }) => {
     const accountNumber = '7193560789';
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-2 text-gray-800">Donasi Pembangunan Masjid Al Ikhlas</h2>
-            <p className="text-gray-600 mb-6">Dukungan Anda sangat berarti untuk penyelesaian rumah ibadah. Terima kasih.</p>
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Dukungan & Donasi</h2>
             
-            <div className="space-y-4 text-gray-700">
-                <div>
-                    <h3 className="font-semibold text-lg">Lokasi:</h3>
-                    <p>Grand Bukit Dago, Casablanca Blok E No.1, Rawakalong, Kec. Gn. Sindur, Kabupaten Bogor, Jawa Barat 16340</p>
-                </div>
-                <div>
-                    <h3 className="font-semibold text-lg">Informasi & Progres:</h3>
-                    <a href="https://www.instagram.com/yayasanalikhlascasablanca/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                        Instagram: @yayasanalikhlascasablanca
-                    </a>
-                </div>
-                 <div>
-                    <h3 className="font-semibold text-lg">Dokumentasi Pembangunan:</h3>
-                    <a href="https://maps.app.goo.gl/98aM6NhDfDbrhxRq8" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                        Lihat Lokasi di Google Maps
-                    </a>
-                </div>
-                <div className="pt-4 mt-4 border-t">
-                    <h3 className="font-semibold text-lg">Rekening Donasi:</h3>
-                    <p>Bank Syariah Indonesia (BSI)</p>
-                    <p className="font-bold text-xl my-2 tracking-wider">{accountNumber}</p>
-                    <p>Atas nama: <strong>Yayasan Al Ikhlas Casablanca</strong></p>
-                    <button 
-                        onClick={() => handleCopyToClipboard(accountNumber)}
-                        className="mt-3 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center gap-2"
-                    >
-                        <CopyIcon /> Salin No. Rekening
-                    </button>
+            {/* Dukungan Aplikasi Section */}
+            <div className="mb-8 p-4 border-2 border-dashed border-green-300 rounded-lg bg-green-50">
+                <h3 className="text-xl font-bold mb-2 text-green-800">Dukungan Aplikasi</h3>
+                <p className="text-green-700 mb-4">Jika aplikasi ini bermanfaat, Anda dapat memberikan dukungan kepada pengembang untuk pengembangan fitur selanjutnya melalui Saweria.</p>
+                <a 
+                    href="https://saweria.co/ibracobra25"
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105"
+                >
+                    Dukung di Saweria
+                </a>
+            </div>
+
+            {/* Donasi Masjid Section */}
+            <div className="p-4 border-2 border-dashed border-teal-300 rounded-lg bg-teal-50">
+                <h3 className="text-xl font-bold mb-2 text-teal-800">Donasi Pembangunan Masjid Al Ikhlas</h3>
+                <p className="text-teal-700 mb-6">Dukungan Anda juga sangat berarti untuk penyelesaian rumah ibadah. Terima kasih.</p>
+                
+                <div className="space-y-4 text-gray-700">
+                    <div>
+                        <h3 className="font-semibold text-lg">Lokasi:</h3>
+                        <p>Grand Bukit Dago, Casablanca Blok E No.1, Rawakalong, Kec. Gn. Sindur, Kabupaten Bogor, Jawa Barat 16340</p>
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-lg">Informasi & Progres:</h3>
+                        <a href="https://www.instagram.com/yayasanalikhlascasablanca/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            Instagram: @yayasanalikhlascasablanca
+                        </a>
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-lg">Dokumentasi Pembangunan:</h3>
+                        <a href="https://maps.app.goo.gl/98aM6NhDfDbrhxRq8" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            Lihat Lokasi di Google Maps
+                        </a>
+                    </div>
+                    <div className="pt-4 mt-4 border-t border-teal-200">
+                        <h3 className="font-semibold text-lg">Rekening Donasi:</h3>
+                        <p>Bank Syariah Indonesia (BSI)</p>
+                        <p className="font-bold text-xl my-2 tracking-wider">{accountNumber}</p>
+                        <p>Atas nama: <strong>Yayasan Al Ikhlas Casablanca</strong></p>
+                        <button 
+                            onClick={() => handleCopyToClipboard(accountNumber)}
+                            className="mt-3 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center gap-2"
+                        >
+                            <CopyIcon /> Salin No. Rekening
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
+
+// --- Komponen untuk Tutorial ---
+const Tutorial = () => (
+    <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+        <h2 className="text-2xl font-bold mb-2 text-gray-800">Tutorial & Panduan</h2>
+        <p className="text-gray-600 mb-6">Akses folder Google Drive kami untuk melihat video tutorial dan panduan penggunaan aplikasi Bibliocobra.</p>
+        
+        <div className="p-4 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50">
+            <h3 className="text-xl font-bold mb-2 text-blue-800">Folder Tutorial</h3>
+            <p className="text-blue-700 mb-4">Klik tombol di bawah untuk membuka folder Google Drive di tab baru.</p>
+            <a 
+                href="https://drive.google.com/drive/u/0/folders/1MXW0fxlWC7uZbA5iINLrTq5P7ENnsJU0"
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105"
+            >
+                Buka Folder Tutorial
+            </a>
+        </div>
+    </div>
+);
+
+// --- Komponen BARU untuk Reset & Hapus Proyek ---
+    const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard }) => { // <-- Tambahkan handleCopyToClipboard
+    const chromeSettingsUrl = "chrome://settings/content/siteDetails?site=https%3A%2F%2Fbibliocobra-sikobra.vercel.app%2F";
+
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Reset & Hapus Data Proyek</h2>
+
+            {/* Bagian 1: Reset Proyek (Aplikasi) */}
+            <div className="mb-8 p-4 border-2 border-dashed border-yellow-400 rounded-lg bg-yellow-50">
+                <h3 className="text-xl font-bold mb-2 text-yellow-800">1. Reset Proyek (Aplikasi)</h3>
+                <p className="text-yellow-700 mb-4 text-sm">
+                    Tindakan ini akan menghapus data proyek yang sedang aktif tersimpan di browser Anda (data di <code>localStorage</code> untuk aplikasi ini) dan mengembalikan aplikasi ke kondisi awal seperti baru. Pengaturan browser lain atau data situs lain tidak akan terpengaruh.
+                </p>
+                <button
+                    onClick={() => setIsResetConfirmOpen(true)}
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105"
+                >
+                    Reset Proyek Saat Ini
+                </button>
+            </div>
+
+            {/* Bagian 2: Hapus Data Situs (Browser) */}
+            <div className="p-4 border-2 border-dashed border-red-400 rounded-lg bg-red-50">
+                <h3 className="text-xl font-bold mb-2 text-red-800">2. Hapus Semua Data Situs (Browser)</h3>
+                <p className="text-red-700 mb-4 text-sm">
+                    Opsi ini akan membuka pengaturan browser Anda untuk menghapus <strong>semua data</strong> (termasuk penyimpanan lokal, cookies, cache, dll.) yang disimpan oleh browser untuk situs web <strong>Bibliocobra</strong> ini. Gunakan ini untuk pembersihan total atau jika Anda mengalami masalah teknis yang persisten.
+                </p>
+                <p className="text-red-900 font-semibold mb-4 text-sm">
+                    Peringatan: Tindakan ini tidak dapat diurungkan dan akan menghapus semua proyek Anda dari browser ini.
+                </p>
+
+                {/* Tautan Khusus Chrome */}
+                <div className="mb-4">
+                    <p className="text-gray-700 text-sm mb-2"><strong>Untuk pengguna Google Chrome:</strong></p>
+                    <button
+                    onClick={() => handleCopyToClipboard(chromeSettingsUrl)} // <-- Panggil fungsi salin
+                    className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105"
+                    >
+                    <CopyIcon /> Salin Tautan Pengaturan Chrome {/* <-- Teks tombol baru */}
+                    </button>
+                    <p className="text-xs text-gray-500 mt-1">Salin tautan di atas, lalu tempelkan (paste) di bilah alamat (address bar) browser Chrome Anda dan tekan Enter, kemudian pilih "Delete/Clear data".</p>
+                </div>
+
+                {/* Instruksi Browser Lain */}
+                <div>
+                    <p className="text-gray-700 text-sm mb-2"><strong>Untuk pengguna browser lain (Firefox, Edge, Safari, dll.):</strong></p>
+                    <p className="text-gray-600 text-sm">
+                        Silakan buka pengaturan browser Anda, cari bagian "Privacy & Security" atau "Cookies and site data", lalu temukan opsi untuk mengelola atau menghapus data situs web (biasanya disebut "Manage Data", "Clear site data", atau sejenisnya) dan cari <code>bibliocobra-sikobra.vercel.app</code> untuk menghapus datanya.
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+};
+// --- AKHIR Komponen BARU --- 
 
 
 // ============================================================================
@@ -2364,6 +5221,7 @@ const initialProjectData = {
     topikTema: '',
     pendekatan: '',
     faktaMasalahDraft: '', // Dipindahkan ke sini
+    rumusanMasalahDraft: '', // <-- TAMBAHKAN STATE BARU
     tujuanPenelitianDraft: '', // Dipindahkan ke sini
     metode: '',
     periode: '',
@@ -2389,6 +5247,42 @@ const initialProjectData = {
     aiGeneratedQueries: null,
     searchLog: [],
     
+    picos: {
+        population: '',
+        intervention: '',
+        comparison: '',
+        outcome: '',
+        studyDesign: ''
+    },
+
+    // State baru untuk PRISMA
+    prismaState: {
+        isInitialized: false,
+        studies: [], // { ...ref, screeningStatus, exclusionReason }
+        initialRecordCount: 0,
+        duplicateCount: 0,
+        automationIneligible: 0,
+        otherReasonsRemoved: 0,
+        reportsNotRetrieved: 0,
+        exclusionReasons: {
+            abstract: ['Tidak relevan dengan topik', 'Jenis publikasi salah (misal: review, editorial)', 'Desain studi tidak sesuai', 'Lainnya'],
+            fulltext: ['Tidak dapat mengambil full-text', 'Hasil (outcome) tidak relevan', 'Populasi/subjek tidak sesuai', 'Intervensi tidak sesuai', 'Lainnya']
+        },
+    },
+
+    // State baru untuk Ekstraksi & Sintesis
+    synthesisTableColumns: [
+        { key: 'author', label: 'Author(s) & Year', type: 'text' },
+        { key: 'population', label: 'Population/Problem', type: 'textarea' },
+        { key: 'intervention', label: 'Intervention', type: 'textarea' },
+        { key: 'comparison', label: 'Comparison', type: 'textarea' },
+        { key: 'outcome', label: 'Outcome/Result', type: 'textarea' },
+        { key: 'methodology', label: 'Methodology', type: 'textarea' },
+        { key: 'keyFinding', label: 'Temuan Kunci', type: 'textarea' },
+    ],
+    extractedData: [], // Array of objects, each object represents a paper
+    sintesisNaratifDraft: '',
+
     // Data Analisis
     analisisKuantitatifHasil: '',
     analisisKuantitatifDraft: '',
@@ -2416,9 +5310,7 @@ function App() {
     const [ideKtiMode, setIdeKtiMode] = useState(null); // 'ai', 'manual', atau null
     const [editingIdea, setEditingIdea] = useState(null);
     const [aiStructuredResponse, setAiStructuredResponse] = useState(null);
-    
     const [isLoading, setIsLoading] = useState(false);
-    
     const manualRefTemplate = `Journal Article Title: 
 Journal Name: 
 Date: 
@@ -2433,21 +5325,28 @@ Publisher Name: `;
     const [manualRef, setManualRef] = useState({ id: null, text: manualRefTemplate });
     const [freeTextRef, setFreeTextRef] = useState('');
     const [generatedApaReferences, setGeneratedApaReferences] = useState('');
-    
     const [showModal, setShowModal] = useState(false);
     const [modalMessage, setModalMessage] = useState('');
     const [showSearchPromptModal, setShowSearchPromptModal] = useState(false);
     const [aiClueNarratives, setAiClueNarratives] = useState({});
     const [geminiApiKey, setGeminiApiKey] = useState('');
-
+    const [scopusApiKey, setScopusApiKey] = useState(''); // State baru untuk Scopus API Key
     const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
     const [currentEditingRef, setCurrentEditingRef] = useState(null);
     const [noteText, setNoteText] = useState('');
-    
-    const [isClarificationModalOpen, setIsClarificationModalOpen] = useState(false);
+        const [isClarificationModalOpen, setIsClarificationModalOpen] = useState(false);
     const [clarificationQuestions, setClarificationQuestions] = useState([]);
     const [clarificationAnswers, setClarificationAnswers] = useState({});
     
+    // State untuk pencarian Semantic Scholar
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState(null);
+    const [isS2Searching, setIsS2Searching] = useState(false);
+
+    // State baru untuk pencarian Scopus
+    const [isScopusSearching, setIsScopusSearching] = useState(false);
+    const [scopusSearchResults, setScopusSearchResults] = useState(null);
+
     const importInputRef = useRef(null);
     const importReferencesInputRef = useRef(null);
     const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
@@ -2460,6 +5359,23 @@ Publisher Name: `;
     const [lastCopiedQuery, setLastCopiedQuery] = useState({ query: '', database: '' });
     
     const [includeIndonesianQuery, setIncludeIndonesianQuery] = useState(false);
+    const [openMethod, setOpenMethod] = useState(null);
+    const [openSearchDropdown, setOpenSearchDropdown] = useState(null);
+
+    // --- State Baru untuk Fitur Pencarian Konsep ---
+    const [conceptQuery, setConceptQuery] = useState('');
+    const [isConceptSearching, setIsConceptSearching] = useState(false);
+    const [conceptSearchResult, setConceptSearchResult] = useState(null);
+
+    // State baru untuk pencarian Regulasi (Tambahkan ini)
+    const [isRegulationSearching, setIsRegulationSearching] = useState(false);
+    const [regulationSearchResults, setRegulationSearchResults] = useState(null);
+
+    const [conceptSearchMode, setConceptSearchMode] = useState('concept'); 
+
+
+    // Kunci API Semantic Scholar di-hardcode sesuai permintaan
+    const S2_API_KEY = '62xZMjIZah5nNxfZ9lv112iKyIhqT1929s3X3xEz';
 
 
     // Efek untuk menampilkan pop-up selamat datang
@@ -2475,13 +5391,26 @@ Publisher Name: `;
         try {
             const savedData = localStorage.getItem('kti-bibliometric-project');
             const savedGeminiKey = localStorage.getItem('gemini-api-key');
+            const savedScopusKey = localStorage.getItem('scopus-api-key'); // Muat kunci Scopus
             
             if (savedGeminiKey) {
                 setGeminiApiKey(savedGeminiKey);
             }
+            if (savedScopusKey) { // Set state kunci Scopus
+                setScopusApiKey(savedScopusKey);
+            }
 
             if (savedData) {
                 const parsedData = JSON.parse(savedData);
+
+                // --- LOGIKA PEMBARUAN OTOMATIS ---
+                // Cek apakah template tabel ekstraksi adalah versi lama (kurang dari 7 kolom).
+                if (!parsedData.synthesisTableColumns || (parsedData.synthesisTableColumns && parsedData.synthesisTableColumns.length < 7)) {
+                    // Jika ya, ganti dengan template baru dari initialProjectData.
+                    parsedData.synthesisTableColumns = initialProjectData.synthesisTableColumns;
+                }
+                // --- AKHIR LOGIKA PEMBARUAN ---
+
                 const mergedData = { ...initialProjectData, ...parsedData };
                 setProjectData(mergedData);
             } else {
@@ -2510,6 +5439,15 @@ Publisher Name: `;
         }
     }, [geminiApiKey]);
 
+    // Efek untuk menyimpan kunci API Scopus ke localStorage setiap kali berubah
+    useEffect(() => {
+        try {
+            localStorage.setItem('scopus-api-key', scopusApiKey);
+        } catch (error) {
+            console.error("Gagal menyimpan kunci API Scopus ke localStorage:", error);
+        }
+    }, [scopusApiKey]);
+
     // Efek untuk memuat skrip PapaParse
     useEffect(() => {
         const script = document.createElement('script');
@@ -2527,10 +5465,10 @@ Publisher Name: `;
         setShowWelcomeModal(false);
     };
     
-    const showInfoModal = (message) => {
+    const showInfoModal = React.useCallback((message) => {
         setModalMessage(message);
         setShowModal(true);
-    };
+    }, []);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -2572,7 +5510,7 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema);
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
             setClarificationQuestions(result.questions);
             setClarificationAnswers({});
             setIsClarificationModalOpen(true);
@@ -2606,7 +5544,7 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema);
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
             setAiStructuredResponse(result);
         } catch (error) {
             showInfoModal(`Gagal menghasilkan ide: ${error.message}`);
@@ -2662,43 +5600,54 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
             showInfoModal("Harap hasilkan 'Clue Referensi' terlebih dahulu.");
             return;
         }
-        setIsLoading(true);
         setShowSearchPromptModal(true);
-        
-        const allClues = projectData.aiReferenceClues.flatMap(cat => cat.clues);
-        const prompt = `Anda adalah seorang asisten riset. Untuk setiap kata kunci penelitian (clue) dalam daftar berikut, tuliskan satu kalimat narasi singkat (tujuan) dalam Bahasa Indonesia yang menjelaskan mengapa seorang peneliti perlu mencari kata kunci tersebut.
-
-Daftar Clues:
-${allClues.map(clue => `- "${clue}"`).join('\n')}
-
-Berikan jawaban hanya dalam format JSON.`;
-        
-        const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    clue: { type: "STRING" },
-                    narrative: { type: "STRING" }
-                },
-                required: ["clue", "narrative"]
-            }
-        };
-
-        try {
-            const results = await geminiService.run(prompt, geminiApiKey, schema);
-            const narrativeMap = results.reduce((acc, item) => {
-                acc[item.clue.trim()] = item.narrative;
-                return acc;
-            }, {});
-            setAiClueNarratives(narrativeMap);
-        } catch (error) {
-            showInfoModal(`Gagal menghasilkan narasi untuk clues: ${error.message}`);
-            setShowSearchPromptModal(false);
-        } finally {
-            setIsLoading(false);
-        }
     };
+
+    const handleAiReview = React.useCallback(async (paper, searchContext) => {
+        if (!projectData.topikTema) {
+          throw new Error("Harap tentukan 'Topik atau Tema' utama di tab 'Ide KTI' terlebih dahulu.");
+        }
+        
+        const prompt = `Anda adalah seorang asisten peneliti ahli. Tugas utama Anda adalah mengevaluasi apakah sebuah paper secara spesifik menjawab **fokus pencarian/clue** yang diberikan.
+
+**Konteks Umum (Tema Penelitian Utama):**
+"${projectData.topikTema}"
+
+**Fokus Pencarian Spesifik / Clue (Tugas Utama Anda):**
+"${searchContext || 'Tidak ada fokus spesifik yang diberikan. Evaluasi berdasarkan Konteks Umum saja.'}"
+
+**Detail Paper untuk Dievaluasi:**
+- Judul: ${paper.title}
+- Abstrak: ${paper.abstract || "Tidak tersedia."}
+
+**Instruksi (Ikuti dengan Ketat):**
+1.  **Identifikasi Finding:** Baca abstraknya, lalu sintesis informasi berikut ke dalam **satu paragraf tunggal yang padat**: (a) Latar belakang/konteks masalah, (b) Tujuan penelitian, (c) Metode penelitian yang digunakan, (d) Hasil utama/temuan kunci, dan (e) Kesimpulan/implikasi singkat. **PENTING: Jangan gunakan kalimat pembuka seperti 'Paper ini membahas...' atau 'Penelitian ini bertujuan...'. Langsung mulai dengan inti informasinya.**
+2.  **Analisis Relevansi:** Jelaskan secara spesifik dan lugas bagaimana paper ini **menjawab atau membahas 'Fokus Pencarian Spesifik / Clue'** di atas. Contoh: "Paper ini secara langsung memberikan definisi 'budaya inovasi' di bagian pendahuluan dan mengukurnya menggunakan tiga dimensi...", atau "Paper ini tidak secara eksplisit mendefinisikan 'budaya inovasi', namun membahas faktor-faktor pembentuknya...". Jadilah langsung pada tujuan.
+3.  **Kategorikan Relevansi:** Berikan salah satu dari tiga kategori berikut berdasarkan seberapa baik paper ini menjawab **'Fokus Pencarian Spesifik'**: "Sangat Relevan", "Relevan", atau "Tidak Relevan".
+
+Berikan jawaban HANYA dalam format JSON yang ketat.`;
+    
+        const schema = {
+            type: "OBJECT",
+            properties: {
+                finding: { type: "STRING", description: "Satu paragraf padat yang merangkum: latar belakang, tujuan, metode, hasil, dan kesimpulan." },
+                relevansi: { type: "STRING", description: "Penjelasan spesifik bagaimana paper menjawab 'Fokus Pencarian Spesifik'." },
+                kategori_relevansi: { 
+                    type: "STRING", 
+                    description: "Kategori relevansi: 'Sangat Relevan', 'Relevan', atau 'Tidak Relevan'.",
+                    enum: ["Sangat Relevan", "Relevan", "Tidak Relevan"]
+                }
+            },
+            required: ["finding", "relevansi", "kategori_relevansi"]
+        };
+    
+        try {
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            return result;
+        } catch (error) {
+            showInfoModal(`Gagal mereview paper: ${error.message}`);
+        }
+    }, [geminiApiKey, projectData.topikTema, showInfoModal]);
     
     const parseManualReference = (text) => {
         const lines = text.split('\n');
@@ -2776,7 +5725,7 @@ Urai teks berikut:
         };
 
         try {
-            const parsedRef = await geminiService.run(prompt, geminiApiKey, schema);
+            const parsedRef = await geminiService.run(prompt, geminiApiKey, { schema });
             const newRef = { ...parsedRef, id: Date.now(), isiKutipan: '' };
             setProjectData(prev => ({ ...prev, allReferences: [...prev.allReferences, newRef] }));
             setFreeTextRef('');
@@ -2825,26 +5774,55 @@ Publisher Name: ${ref.publisher || ''}`;
     };
 
     const handleGenerateApa = () => {
-        const list = projectData.allReferences
-            .sort((a, b) => (a.author || '').localeCompare(b.author || ''))
-            .map(ref => {
-                let citation = `${ref.author || ''} (${ref.year || 't.t.'}). ${ref.title || ''}.`;
-                if (ref.journal) {
-                    citation += ` ${ref.journal}`;
-                    if (ref.volume) citation += `, ${ref.volume}`;
-                    if (ref.issue) citation += `(${ref.issue})`;
-                    if (ref.pages) citation += `, ${ref.pages}`;
-                    citation += '.';
-                }
-                if (ref.doi) {
-                    citation += ` https://doi.org/${ref.doi}`;
-                } else if (ref.url) {
-                    citation += ` ${ref.url}`;
-                }
-                return citation;
-            }).join('\n\n');
-        setGeneratedApaReferences(list.replace(/\n/g, '<br />'));
+        try { // Add try...catch for better error handling
+            const list = projectData.allReferences
+                 // --- PERBAIKAN DI SINI ---
+                .sort((a, b) => {
+                    // Pastikan a.author dan b.author selalu string sebelum dibandingkan
+                    const authorA = String(a.author || ''); 
+                    const authorB = String(b.author || '');
+                    return authorA.localeCompare(authorB);
+                })
+                // --- AKHIR PERBAIKAN ---
+                .map(ref => {
+                    // Start with author and year. Add space after period. Use defaults if missing.
+                    let citation = `${ref.author || 'Anonim'} (${ref.year || 't.t.'}). ${ref.title || 'Judul tidak tersedia'}.`;
+
+                    // Handle journal details if available
+                    if (ref.journal) {
+                        // Check if journal is an object (from S2) or string (from Scopus/Manual)
+                        const journalName = (typeof ref.journal === 'object' && ref.journal !== null) ? ref.journal.name : ref.journal;
+                        citation += ` <i>${journalName || 'Nama Jurnal Tidak Tersedia'}</i>`; // Italicize journal name
+                        if (ref.volume) citation += `, <i>${ref.volume}</i>`; // Italicize volume
+                        if (ref.issue) citation += `(${ref.issue})`;
+                        if (ref.pages) citation += `, ${ref.pages}`;
+                        citation += '.'; // Add period after journal details
+                    }
+
+                    // Add DOI or URL
+                    if (ref.doi) {
+                        citation += ` https://doi.org/${ref.doi}`;
+                    } else if (ref.url) {
+                        // Check if it's already a full URL before adding prefix
+                        citation += ref.url.startsWith('http') ? ` ${ref.url}` : ` Diperoleh dari ${ref.url}`;
+                    }
+                    return citation; // Return the single formatted citation string
+                }).join('<br /><br />'); // Join directly with HTML line breaks for rendering
+
+            // --- DEBUGGING ---
+            console.log("Generated APA List (HTML):", list); 
+            // --- END DEBUGGING ---
+
+            // Set the generated HTML string to state
+            setGeneratedApaReferences(list);
+
+        } catch (error) {
+             console.error("Error generating APA list:", error);
+             showInfoModal(`Terjadi error saat membuat daftar pustaka: ${error.message}`);
+             setGeneratedApaReferences(''); // Clear output on error
+        }
     };
+
 
     const handleCopyToClipboard = (text) => {
         const plainText = text
@@ -2877,32 +5855,51 @@ Publisher Name: ${ref.publisher || ''}`;
         setProjectData(prev => ({ ...prev, aiReferenceClues: null }));
         
         const context = `Konteks Proyek:
-- Topik: "${projectData.topikTema}"
+- Topik atau Judul: "${projectData.judulKTI || projectData.topikTema}"
+- Pendekatan Penelitian (Wajib Diikuti): "${projectData.pendekatan}"
 - Jenis Karya Tulis: "${projectData.jenisKaryaTulis === 'Lainnya' ? projectData.jenisKaryaTulisLainnya : projectData.jenisKaryaTulis}"
-- Metode: "${projectData.metode || 'Belum ditentukan'}"
-- Basis Data: "${projectData.basisData || 'Belum ditentukan'}"
-- Tools: "${projectData.tools || 'Belum ditentukan'}"`;
+- Metode Spesifik: "${projectData.metode || 'Belum ditentukan'}"`;
 
-        const prompt = `Anda adalah seorang asisten riset ahli. Berdasarkan konteks proyek berikut, buatlah daftar kategori referensi kunci yang terstruktur untuk membantu pengguna melakukan tinjauan pustaka.
+        // --- MODIFIKASI PROMPT DIMULAI DI SINI ---
+        const prompt = `Anda adalah seorang asisten riset ahli. Berdasarkan konteks proyek berikut, buatlah daftar kategori referensi kunci yang terstruktur dan sangat mendalam.
 
-Gunakan kerangka kategori standar berikut:
-1. Definisi Inti & Konsep Kunci
-2. Teori yang Relevan
-3. Metodologi Penelitian
-4. Studi Terdahulu & Praktik Terbaik
-5. Tantangan & Arah Masa Depan
+Gunakan kerangka kategori standar berikut dan patuhi semua aturan. Untuk setiap item, hasilkan DUA hal:
+1.  **clue**: Kata kunci pencarian yang sangat singkat dan padat (maksimal 5 kata). Ini HARUS berupa frasa yang efektif untuk digunakan di mesin pencari akademis atau basis data hukum.
+2.  **explanation**: Sebuah kalimat penjelasan lengkap yang menguraikan relevansi dan tujuan dari pencarian kata kunci tersebut.
 
-Untuk setiap kategori, isi dengan 2-3 contoh kata kunci pencarian yang spesifik dan relevan dengan konteks proyek.
+**Contoh Format yang Diinginkan:**
+- clue: "efek bioakustik kebisingan kapal"
+- explanation: "Mencari literatur tentang efek bioakustik dari kebisingan yang dihasilkan kapal terhadap organisme laut untuk memahami mekanisme dampaknya."
 
-**Aturan Penting:**
-- Jika pada konteks, pengguna SUDAH menyebutkan sebuah "Metode" (misalnya, 'SLR' atau 'Bibliometrik'), maka pada kategori "Metodologi Penelitian", berikan clue yang spesifik untuk metode tersebut (contohnya: 'PRISMA guidelines' untuk SLR, atau 'co-citation analysis' untuk Bibliometrik). JANGAN menyarankan nama metode lain.
-- Jika "Metode" belum ditentukan, Anda boleh menyarankan beberapa pendekatan metodologi yang relevan.
-
-Konteks Proyek:
 ---
+**KERANGKA & ATURAN**
+
+**Kategori 1: Definisi Inti & Konsep Kunci**
+- **Aturan:** Urai 'Topik atau Judul' menjadi komponennya: **Penyebab/Variabel Independen**, **Akibat/Variabel Dependen**, dan **Subjek/Konteks Spesifik**. Jika ada nama organisasi atau lokasi spesifik (misal: 'di BRIN'), WAJIB jadikan itu sebagai 'clue' tersendiri.
+
+**Kategori 2: Teori yang Relevan**
+- **Aturan:** Sarankan satu teori **dasar/fundamental** dan satu teori **kontemporer/spesifik** yang relevan.
+
+**Kategori 3: Metodologi Penelitian**
+- **Aturan (SANGAT PENTING):**
+    - WAJIB berpegang pada "Pendekatan Penelitian" yang ditetapkan. Jika "Kualitatif", semua 'clue' HARUS metode kualitatif (studi kasus, etnografi). JANGAN campur.
+    - Jika pengguna SUDAH menyebutkan "Metode Spesifik" (misal: 'SLR'), berikan 'clue' yang spesifik untuk metode itu (misal: 'PRISMA guidelines', 'co-citation analysis').
+
+**Kategori 4: Studi Terdahulu & Praktik Terbaik**
+- **Aturan:** Jika ada **Subjek/Konteks Spesifik**, sarankan 'clue' untuk mencari studi kasus di organisasi sejenis. Jika ada **Metode Spesifik**, sarankan 'clue' untuk mencari artikel tinjauan dengan topik serupa.
+
+**Kategori 5: Tantangan & Arah Masa Depan**
+- **Aturan:** Identifikasi 'clue' untuk tantangan dari perspektif **Internal** (budaya, SDM) dan **Eksternal** (kebijakan, teknologi). Sarankan satu 'clue' yang merupakan **celah penelitian (research gap)**.
+
+**Kategori 6: Peraturan Terkait**
+- **Aturan:** Identifikasi potensi peraturan perundang-undangan di Indonesia (Undang-Undang, Peraturan Pemerintah, Peraturan Menteri, Peraturan Daerah, dll.) yang relevan dengan 'Topik atau Judul' dan 'Subjek/Konteks Spesifik'. 'Clue' bisa berupa nama peraturan spesifik (jika umum diketahui, misal: 'UU Cipta Kerja') atau frasa pencarian umum (misal: 'peraturan terkait [topik]'). 'Explanation' harus menjelaskan relevansi peraturan tersebut terhadap topik penelitian. Sarankan 1-2 peraturan atau area peraturan yang paling relevan.
+
+---
+**KONTEKS PROYEK PENGGUNA:**
 ${context}
 ---
 `;
+        // --- MODIFIKASI PROMPT BERAKHIR DI SINI ---
 
         const schema = {
             type: "ARRAY",
@@ -2910,13 +5907,23 @@ ${context}
                 type: "OBJECT",
                 properties: {
                     category: { type: "STRING" },
-                    clues: { type: "ARRAY", items: { type: "STRING" } }
+                    clues: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                clue: { type: "STRING", description: "Kata kunci pencarian singkat (maks. 5 kata)." },
+                                explanation: { type: "STRING", description: "Kalimat penjelasan lengkap tentang relevansi clue." }
+                            },
+                            required: ["clue", "explanation"]
+                        }
+                    }
                 },
                 required: ["category", "clues"]
             }
         };
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema);
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
             setProjectData(prev => ({ ...prev, aiReferenceClues: result }));
             showInfoModal("Clue referensi berhasil dibuat!");
         } catch (error) {
@@ -2928,7 +5935,21 @@ ${context}
 
     const handleGenerateOutline = async () => {
         setIsLoading(true);
-        const prompt = `Buatkan draf outline (kerangka) untuk ${projectData.jenisKaryaTulis} berjudul "${projectData.judulKTI}". Sertakan bab dan sub-bab yang relevan. Hasil harus berupa teks biasa tanpa format.`;
+        // --- PERBAIKAN DIMULAI DI SINI: Mengganti prompt yang rusak ---
+        const prompt = `Anda adalah seorang asisten penulisan akademik. Buatkan draf outline (kerangka bab) standar untuk sebuah ${projectData.jenisKaryaTulis} dengan judul "${projectData.judulKTI}".
+
+        Gunakan struktur bab standar berikut:
+        - Bab I: Pendahuluan
+        - Bab II: Tinjauan Pustaka (atau Studi Literatur)
+        - Bab III: Metode Penelitian
+        - Bab IV: Hasil dan Pembahasan
+        - Bab V: Kesimpulan (sertakan sub-bab untuk Keterbatasan dan Saran Penelitian Selanjutnya)
+
+        Untuk setiap bab, berikan beberapa sub-bab (poin-poin) yang relevan dan umum ditemukan dalam struktur tersebut, sesuaikan sedikit dengan konteks judul jika memungkinkan, tetapi prioritas utama adalah struktur standar.
+
+        Hasil harus dalam format JSON yang diminta.`;
+        // --- PERBAIKAN BERAKHIR DI SINI ---
+
         const schema = {
             type: "ARRAY",
             items: {
@@ -2942,7 +5963,7 @@ ${context}
             }
         };
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema);
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
             setProjectData(prev => ({ ...prev, outlineDraft: result }));
             showInfoModal("Draf Outline KTI berhasil dibuat!");
         } catch (error) {
@@ -2961,26 +5982,29 @@ ${context}
         
         const outlineString = projectData.outlineDraft ? projectData.outlineDraft.map(bab => `- ${bab.bab}: ${bab.judul}`).join('\n') : 'Outline belum dibuat.';
 
-        const prompt = `Anda adalah seorang penulis akademis ahli. Tugas Anda adalah menulis draf Bab 1: Pendahuluan yang lengkap dan koheren untuk sebuah karya tulis ilmiah.
+        // --- PERBAIKAN PROMPT DI SINI (AKSI 1 & AKSI 2 LENGKAP) ---
+        const prompt = `Anda adalah seorang penulis akademik ahli yang sangat teliti. Tugas Anda adalah menulis draf Bab 1: Pendahuluan yang lengkap dan koheren HANYA berdasarkan informasi yang disediakan.
 
-**Aturan Penulisan (Sangat Penting):**
-- Tulis seluruhnya sebagai teks biasa (plain text).
-- JANGAN gunakan format apa pun seperti bold, miring, markdown (*, _, **), atau tag HTML (<i>, <b>).
-- Gunakan sub-judul bernomor (misalnya, 1.1 Latar Belakang, 1.2 Rumusan Masalah, dst.) untuk setiap bagian.
+**Aturan Paling Penting (WAJIB DIPATUHI):**
+- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek" di bawah. JANGAN menambahkan informasi, konsep, atau referensi lain yang tidak ada secara eksplisit dalam catatan yang diberikan. Anda harus bekerja HANYA dengan materi yang ada.
+- **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
+- **Gunakan Sub-judul Bernomor:** Wajib gunakan format seperti "1.1 Latar Belakang", "1.2 Rumusan Masalah", dst.
+- **WAJIB SERTAKAN SITASI:** Saat Anda menggunakan informasi dari "Catatan dari Referensi" untuk sub-bab 1.1 Latar Belakang, Anda wajib menyertakan sitasinya di dalam teks, misal: (Penulis, Tahun).
 
-**Konteks Proyek:**
+**Konteks Proyek (Satu-satunya Sumber Informasi Anda):**
 - Judul: "${projectData.judulKTI}"
 - Pokok Masalah: "${projectData.faktaMasalahDraft}"
+- Rumusan Masalah (Pertanyaan Penelitian): "${projectData.rumusanMasalahDraft || 'Belum ada rumusan masalah spesifik.'}" 
 - Tujuan Penelitian: "${projectData.tujuanPenelitianDraft}"
 - Catatan dari Referensi (untuk mendukung latar belakang):
-${kutipanString || "Tidak ada catatan spesifik."}
+${kutipanString || "Tidak ada catatan spesifik dari referensi."}
 - Outline KTI (untuk sistematika penulisan):
 ${outlineString || "Outline belum dibuat."}
 
 **Struktur Bab Pendahuluan yang Harus Anda Hasilkan:**
-1.  **1.1 Latar Belakang:** Gunakan "Pokok Masalah" sebagai ide sentral. Bangun narasi yang kuat di sekitarnya, didukung oleh "Catatan dari Referensi" untuk memberikan konteks dan justifikasi mengapa masalah ini penting untuk diteliti.
-2.  **1.2 Rumusan Masalah:** Berdasarkan "Pokok Masalah", buat satu paragraf pengantar singkat, lalu daftarkan pertanyaan penelitian spesifik dalam format bernomor.
-3.  **1.3 Tujuan Penelitian:** Turunkan tujuan penelitian secara langsung dari "Tujuan Penelitian" yang sudah diberikan pengguna, format dalam poin-poin bernomor.
+1.  **1.1 Latar Belakang:** Gunakan "Pokok Masalah" sebagai ide sentral. Bangun narasi yang kuat di sekitarnya. Jika "Catatan dari Referensi" tersedia, gunakan kutipan tersebut untuk memberikan konteks dan justifikasi mengapa masalah ini penting untuk diteliti.
+2.  **1.2 Rumusan Masalah:** Gunakan "Rumusan Masalah (Pertanyaan Penelitian)" yang sudah ada. Tulis satu paragraf pengantar singkat, lalu daftarkan pertanyaan penelitian tersebut apa adanya dalam format bernomor. Jika data "Rumusan Masalah (Pertanyaan Penelitian)" kosong, barulah Anda boleh membuatnya berdasarkan "Pokok Masalah".
+3.  **1.3 Tujuan Penelitian:** Buatlah tujuan penelitian yang selaras dan diturunkan SECARA LANGSUNG dari "Rumusan Masalah (Pertanyaan Penelitian)" yang ada (pada poin 1.2). Ubah setiap pertanyaan penelitian menjadi pernyataan tujuan yang sesuai. (Data 'Tujuan Penelitian' asli dari pengguna hanya boleh digunakan sebagai referensi tambahan, BUKAN sumber utama).
 4.  **1.4 Sistematika Penulisan:** Tulis satu paragraf standar yang menjelaskan isi dari setiap bab berikutnya, berdasarkan outline yang diberikan.
 
 Pastikan ada kesinambungan dan alur yang logis antar sub-bab.`;
@@ -3008,14 +6032,28 @@ Pastikan ada kesinambungan dan alur yang logis antar sub-bab.`;
         let instruction = '';
         switch (mode) {
             case 'shorten':
-                instruction = 'Ringkas teks berikut sekitar 30-40% dengan tetap mempertahankan semua poin kunci dan referensi. Fokus pada kalimat yang paling esensial. Hasilkan sebagai teks biasa tanpa format.';
+                instruction = 'Ringkas teks berikut sekitar 30-40% dengan tetap mempertahankan semua poin kunci dan referensi. Fokus pada kalimat yang paling esensial. PENTING: Usahakan untuk **mempertahankan struktur format** yang ada (seperti penomoran sub-bab 1.1, 1.2, dst.) jika ada di teks asli. Hasilkan sebagai teks biasa.';
                 break;
             case 'medium':
-                instruction = 'Tulis ulang teks berikut dengan panjang yang kurang lebih sama, tetapi gunakan gaya bahasa yang lebih mengalir dan akademis. Perbaiki struktur kalimat jika perlu tanpa mengubah substansi atau referensi. Hasilkan sebagai teks biasa tanpa format.';
+                instruction = 'Tulis ulang teks berikut dengan panjang yang kurang lebih sama, tetapi gunakan gaya bahasa yang lebih mengalir dan akademis. Perbaiki struktur kalimat jika perlu tanpa mengubah substansi atau referensi. PENTING: Usahakan untuk **mempertahankan struktur format** yang ada (seperti penomoran sub-bab 1.1, 1.2, dst.) jika ada di teks asli. Hasilkan sebagai teks biasa.';
                 break;
             case 'lengthen':
-                instruction = 'Perpanjang teks berikut sekitar 40-50%. Elaborasi setiap argumen utama dengan penjelasan lebih dalam atau contoh konkret. Pastikan semua informasi tetap konsisten dengan substansi asli dan kutipan yang ada. Jangan mengurangi atau mengubah referensi yang sudah ada. Tujuannya adalah menambah bobot argumen, bukan hanya menambah kata. Hasilkan sebagai teks biasa tanpa format.';
+                instruction = 'Perpanjang teks berikut sekitar 40-50%. Elaborasi setiap argumen utama dengan penjelasan lebih dalam atau contoh konkret. Pastikan semua informasi tetap konsisten dengan substansi asli dan kutipan yang ada. Jangan mengurangi atau mengubah referensi yang sudah ada. Tujuannya adalah menambah bobot argumen, bukan hanya menambah kata. PENTING: Usahakan untuk **mempertahankan struktur format** yang ada (seperti penomoran sub-bab 1.1, 1.2, dst.) jika ada di teks asli. Hasilkan sebagai teks biasa.';
                 break;
+            // INI ADALAH KODE YANG SALAH:
+/* --- BLOK BARU DITAMBAHKAN DI SINI --- */
+case 'humanize':
+    instruction = `Anda adalah seorang editor ahli yang bertugas "menghumanisasi" draf akademis agar tidak terlalu kaku dan tidak terdeteksi sebagai tulisan AI. Tugas Anda: Ambil teks berikut dan tulis ulang HANYA berdasarkan instruksi ini:
+1. Variasikan Ritme Kalimat (Burstiness): Hancurkan ritme yang monoton. Gunakan campuran kalimat yang sangat pendek (4-5 kata) disusul dengan kalimat yang lebih panjang (15-20 kata).
+2. Pecah Paragraf: Jika paragraf terlalu padat, pecah menjadi 2-3 paragraf yang lebih kecil dan fokus.
+3. Ganti Transisi Formal: Ganti kata penghubung 'kaku' (Contoh: "Selain itu,", "Lebih lanjut,", "Maka dari itu,") dengan frasa transisi yang lebih mengalir dan semi-formal (Contoh: "Bicara soal hal ini,", "Tapi bukan cuma itu,", "Gampangnya,", "Kalau kita lihat lebih dalam,").
+4. Variasi Diksi (Pilihan Kata): Ganti beberapa kata yang terlalu formal/umum dengan sinonim yang lebih dinamis namun TETAP SOPAN. (Contoh: 'mencapai' -> 'tembus', 'sangat efektif' -> 'terbukti ampuh', 'menunjukkan' -> 'membuktikan').
+
+PENTING (Batasan):
+1. JANGAN mengubah fakta, data, angka, sitasi, atau makna inti.
+2. TETAP JAGA KESOPANAN: DILARANG menggunakan bahasa slang yang tidak pantas untuk karya ilmiah (Contoh: "gila", "banget", "keren"). Tetap dalam ranah semi-formal yang profesional.
+3. Format: Hasilkan sebagai teks biasa (plain text) dan pertahankan struktur sub-bab (misal: 1.1, 1.2) jika ada di teks asli.`; break;
+/* --- AKHIR BLOK BARU --- */    
             default:
                 setIsLoading(false);
                 return;
@@ -3037,14 +6075,135 @@ Pastikan ada kesinambungan dan alur yang logis antar sub-bab.`;
 
     const handleGenerateMetode = async () => {
         setIsLoading(true);
-        const prompt = `Tuliskan draf Bab Metode Penelitian untuk sebuah ${projectData.jenisKaryaTulis} berjudul "${projectData.judulKTI}". Jelaskan secara detail alur penelitian berdasarkan informasi berikut:
-- Pendekatan Penelitian: ${projectData.pendekatan}
-- Metode Spesifik: ${projectData.metode || 'Akan dijelaskan'}
-- Sumber Data: Data akan diambil dari basis data ${projectData.basisData || 'yang relevan'}
-- Periode Pengambilan Data: ${projectData.periode || 'Akan ditentukan'}
-- Alat Analisis: Analisis data akan menggunakan ${projectData.tools || 'alat yang sesuai'}
+        
+        // --- PERUBAHAN (LOGIKA INTEGRASI SLR) DIMULAI DI SINI ---
 
-Susun menjadi paragraf yang koheren dan akademis, sesuaikan penjelasan dengan pendekatan (${projectData.pendekatan}) yang dipilih. Hasilkan sebagai teks biasa tanpa format.`;
+        // 1. Cek apakah ini riset SLR/Bibliometrik
+        const isSLR = projectData.metode && (
+            projectData.metode.toLowerCase().includes('slr') ||
+            projectData.metode.toLowerCase().includes('systematic literature review') ||
+            projectData.metode.toLowerCase().includes('bibliometric')
+        );
+
+        // 2. Siapkan data SLR jika relevan
+        let slrContext = '';
+        if (isSLR) {
+            // Data dari Log Kueri
+            const logRingkasan = projectData.searchLog
+                .map(log => `- Database: ${log.database}, Kueri: "${log.query}", Hasil: ${log.resultsCount} (Tanggal: ${log.searchDate})`)
+                .join('\n');
+            
+            // Data dari PRISMA
+            const { studies = [], initialRecordCount = 0, duplicateCount = 0, automationIneligible = 0, otherReasonsRemoved = 0, reportsNotRetrieved = 0 } = projectData.prismaState || {};
+            const records_screened = initialRecordCount - duplicateCount - automationIneligible - otherReasonsRemoved;
+            const records_excluded = studies.filter(s => s.screeningStatus === 'abstract_excluded').length;
+            const reports_sought_for_retrieval = records_screened - records_excluded;
+            const reports_assessed_for_eligibility = reports_sought_for_retrieval - reportsNotRetrieved;
+            const reports_excluded_fulltext = studies.filter(s => s.screeningStatus === 'fulltext_excluded').length;
+            const studies_included_in_review = reports_assessed_for_eligibility - reports_excluded_fulltext;
+            
+            // Data dari Template Ekstraksi
+            const extractionColumns = projectData.synthesisTableColumns
+                .map(col => `- ${col.label}`)
+                .join('\n');
+
+            slrContext = `
+**Konteks SLR Spesifik (WAJIB DIGUNAKAN):**
+---
+**Strategi Pencarian (dari Log Kueri):**
+${logRingkasan || "Log kueri belum diisi."}
+
+**Seleksi Studi (dari Diagram PRISMA):**
+- Total record awal: ${initialRecordCount}
+- Record setelah duplikat dihapus: ${initialRecordCount - duplicateCount}
+- Record di-screen (abstrak): ${records_screened}
+- Record dieksklusi (abstrak): ${records_excluded}
+- Laporan dinilai kelayakannya (full-text): ${reports_assessed_for_eligibility}
+- Laporan dieksklusi (full-text): ${reports_excluded_fulltext}
+- Studi final yang diinklusi: ${studies_included_in_review}
+
+**Ekstraksi Data (dari Template Tabel Sintesis):**
+Kolom-kolom berikut digunakan untuk ekstraksi data:
+${extractionColumns}
+---
+`;
+        }
+
+        // 3. Mengambil kutipan metodologi (logika yang sudah ada)
+        const kutipanMetodologiString = projectData.allReferences
+            .filter(ref => ref.isiKutipan)
+            .map(ref => `- Dari "${ref.title}" oleh ${ref.author} (${ref.year}): "${ref.isiKutipan}"`)
+            .join('\n');
+
+        // 4. Memilih prompt yang tepat
+        let prompt;
+        if (isSLR) {
+            // PROMPT KHUSUS SLR
+            prompt = `Anda adalah seorang penulis akademik dan ahli metodologi SLR/Bibliometrik. Tugas Anda adalah menulis draf Bab 3: Metode Penelitian yang sangat rinci HANYA berdasarkan data yang disediakan.
+
+**Aturan Paling Penting (WAJIB DIPATUHI):**
+- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek" dan "Konteks SLR Spesifik". JANGAN membuat asumsi atau menambahkan informasi yang tidak ada.
+- **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
+- **Gunakan Sub-judul Bernomor:** Wajib gunakan format "3.1 ...", "3.2 ...", dst.
+
+**Konteks Proyek (Sumber Umum):**
+- Judul: "${projectData.judulKTI}"
+- Pendekatan Penelitian: "${projectData.pendekatan}"
+- Metode Spesifik: "${projectData.metode}"
+- Sumber Data: "${projectData.basisData}"
+- Periode: "${projectData.periode}"
+- Tools Analisis: "${projectData.tools}"
+
+${slrContext} 
+
+**Catatan Relevan dari Referensi (Gunakan untuk Mendukung Penjelasan):**
+---
+${kutipanMetodologiString || "Tidak ada catatan relevan dari referensi yang dapat digunakan."}
+---
+
+**Struktur Bab Metode SLR yang Harus Anda Hasilkan:**
+1.  **Judul Bab:** "BAB III METODE PENELITIAN".
+2.  **3.1 Desain Penelitian:** Jelaskan secara singkat bahwa penelitian ini menggunakan ${projectData.metode}.
+3.  **3.2 Strategi Pencarian:** Uraikan proses pencarian. Gunakan data dari "Strategi Pencarian (dari Log Kueri)" untuk menjelaskan database yang digunakan dan ringkasan kueri. Sebutkan juga "Periode" dan "Sumber Data" dari Konteks Proyek.
+4.  **3.3 Seleksi Studi dan Kriteria Inklusi/Eksklusi:** Jelaskan alur seleksi studi. Gunakan angka-angka dari "Seleksi Studi (dari Diagram PRISMA)" untuk menjelaskan proses dari identifikasi awal hingga studi final yang diinklusi (alur PRISMA).
+5.  **3.4 Ekstraksi Data:** Jelaskan proses ekstraksi data. Gunakan daftar kolom dari "Ekstraksi Data (dari Template Tabel Sintesis)" untuk menjelaskan data apa saja yang dikumpulkan dari setiap studi.
+6.  **3.5 Analisis Data:** Jelaskan "Tools Analisis" yang digunakan (misal: VOSviewer, R) untuk menganalisis data yang telah diekstrak.
+
+Susun poin-poin di atas menjadi narasi bab metode yang koheren dan didukung data.`;
+        
+        } else {
+            // PROMPT UMUM (yang sudah ada sebelumnya)
+            prompt = `Anda adalah seorang penulis akademik dan metodolog penelitian yang sangat teliti. Tugas Anda adalah menulis draf Bab 3: Metode Penelitian yang komprehensif HANYA berdasarkan informasi dan kutipan yang disediakan.
+
+**Aturan Paling Penting (WAJIB DIPATUHI):**
+- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek" dan "Catatan Relevan dari Referensi" di bawah. JANGAN menambahkan informasi, asumsi, atau referensi lain yang tidak ada secara eksplisit.
+- **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
+- **Gunakan Sub-judul Bernomor:** Wajib gunakan format "3.1 Desain Penelitian", "3.2 ...", dst.
+- **Integrasikan Sitasi:** Jika "Catatan Relevan dari Referensi" tersedia, gunakan kutipan tersebut untuk memperkuat penjelasan metodologi. Sebutkan sumbernya (penulis, tahun) saat Anda mengutip sebuah ide.
+
+**Konteks Proyek (Sumber Utama):**
+- Judul: "${projectData.judulKTI}"
+- Pendekatan Penelitian: "${projectData.pendekatan}"
+- Metode Spesifik: "${projectData.metode || 'Tidak ditentukan'}"
+- Sumber Data: "${projectData.basisData || 'Tidak ditentukan'}"
+- Periode: "${projectData.periode || 'Tidak ditentukan'}"
+- Tools Analisis: "${projectData.tools || 'Tidak ditentukan'}"
+
+**Catatan Relevan dari Referensi (Gunakan untuk Mendukung Penjelasan):**
+---
+${kutipanMetodologiString || "Tidak ada catatan relevan dari referensi yang dapat digunakan."}
+---
+
+**Struktur Bab Metode yang Harus Anda Hasilkan:**
+1.  **Judul Bab:** Mulai dengan "BAB III METODE PENELITIAN".
+2.  **3.1 Desain Penelitian:** Jelaskan desain penelitian berdasarkan "Pendekatan Penelitian". Jika ada kutipan yang relevan tentang pendekatan ini, gunakan untuk memperkuat argumen.
+3.  **3.2 Metode Pengumpulan Data:** Uraikan bagaimana data akan dikumpulkan, sebutkan "Sumber Data" dan "Periode".
+4.  **3.3 Metode Analisis Data:** Jelaskan "Metode Spesifik" dan "Tools Analisis" yang akan digunakan. Ini adalah bagian terpenting untuk didukung oleh referensi. Jika ada catatan tentang metode (misalnya, tentang SLR, PRISMA, atau studi kasus), integrasikan kutipan tersebut di sini untuk memberikan dasar teoretis pada metode yang Anda pilih.
+
+Susun poin-poin di atas menjadi sebuah narasi bab metode yang koheren dan didukung oleh sitasi yang relevan.`;
+        }
+        // --- PERUBAHAN (LOGIKA INTEGRASI SLR) BERAKHIR DI SINI ---
+
         try {
             const result = await geminiService.run(prompt, geminiApiKey);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
@@ -3070,20 +6229,32 @@ Susun menjadi paragraf yang koheren dan akademis, sesuaikan penjelasan dengan pe
             return;
         }
 
-        const prompt = `Anda adalah seorang penulis akademik ahli. Berdasarkan kumpulan kutipan dan catatan dari berbagai sumber berikut, tuliskan sebuah draf Tinjauan Pustaka (Studi Literatur) yang koheren untuk sebuah karya tulis berjudul "${projectData.judulKTI}".
+        // --- PENAMBAHAN KONTEKS BARU (AKSI 1) ---
+        const outlineString = projectData.outlineDraft ? projectData.outlineDraft.map(bab => `- ${bab.bab}: ${bab.judul}`).join('\n') : 'Outline belum dibuat.';
 
-Tugas Anda adalah:
-1.  Identifikasi tema-tema atau argumen utama yang muncul dari catatan-catatan di bawah.
-2.  Kelompokkan catatan-catatan tersebut berdasarkan tema yang relevan.
-3.  Sintesis informasi tersebut menjadi sebuah narasi yang mengalir. Jangan hanya mendaftar ringkasan satu per satu, tetapi bandingkan, pertentangkan, dan hubungkan ide-ide dari berbagai sumber.
-4.  Gunakan kalimat transisi untuk memastikan alur tulisan lancar antar paragraf.
-5.  Akhiri dengan sebuah ringkasan singkat yang menyoroti celah penelitian (research gap) yang berhasil diidentifikasi dari literatur.
-6.  PENTING: Hasilkan seluruhnya sebagai teks biasa (plain text) tanpa format apa pun.
+        // --- PERBAIKAN PROMPT DI SINI ---
+        const prompt = `Anda adalah seorang penulis akademik yang sangat teliti. Tugas Anda adalah menulis draf Bab 2: Tinjauan Pustaka HANYA berdasarkan informasi yang disediakan.
 
-Catatan dari Referensi:
----
+**Aturan Paling Penting (WAJIB DIPATUHI):**
+- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek". JANGAN menambahkan informasi, konsep, atau teori lain.
+- **Wajib Ikuti Outline:** Anda HARUS menggunakan struktur sub-bab dari "Outline KTI" (khususnya Bab 2) sebagai kerangka tulisan Anda. Jika "Outline KTI" kosong, barulah Anda boleh membuat tema sendiri.
+- **Fokus pada Rumusan Masalah:** Prioritaskan sintesis catatan yang paling relevan untuk memberikan landasan teoretis bagi "Rumusan Masalah".
+- **Format Teks:** Tulis seluruhnya sebagai teks biasa (plain text). Jangan gunakan markdown (*, _, **), HTML.
+- **Wajib Sitasi:** Saat Anda menggunakan ide dari 'Catatan dari Referensi', Anda WAJIB menyertakan sitasinya (Penulis, Tahun).
+
+**Konteks Proyek (Satu-satunya Sumber Informasi Anda):**
+- Judul Karya Tulis: "${projectData.judulKTI}"
+- Rumusan Masalah (Fokus Utama): "${projectData.rumusanMasalahDraft || 'Belum ada'}"
+- Outline KTI (Struktur Wajib):
+${outlineString}
+- Catatan dari Referensi (Konten):
 ${kutipanString}
----
+
+**Tugas Anda:**
+1.  **Buat Judul Bab:** Mulai dengan "BAB II TINJAUAN PUSTAKA".
+2.  **Gunakan Struktur Outline:** Identifikasi sub-bab yang ada di bawah Bab II dari "Outline KTI". Gunakan ini sebagai sub-bab bernomor Anda (misal: 2.1 [Sub-bab dari Outline], 2.2 [Sub-bab dari Outline], dst.).
+3.  **Sintesis per Sub-bab:** Untuk setiap sub-bab, sintesiskan "Catatan dari Referensi" yang paling relevan dengan sub-bab tersebut, dengan fokus untuk mendukung "Rumusan Masalah".
+4.  **Alur Logis:** Pastikan ada alur yang logis antar paragraf.
 `;
         try {
             const result = await geminiService.run(prompt, geminiApiKey);
@@ -3112,24 +6283,26 @@ ${kutipanString}
             return;
         }
 
-        const prompt = `Anda adalah seorang penulis akademis dan peneliti ahli. Tugas Anda adalah menulis draf Bab 4: Hasil dan Pembahasan yang komprehensif, terstruktur, dan analitis.
+        // --- PERBAIKAN PROMPT DI SINI ---
+        const prompt = `Anda adalah seorang penulis akademis dan peneliti ahli yang sangat teliti. Tugas Anda adalah menulis draf Bab 4: Hasil dan Pembahasan yang komprehensif HANYA berdasarkan informasi yang disediakan.
 
-**Konteks Penelitian:**
+**Aturan Paling Penting (WAJIB DIPATUHI):**
+- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Data Hasil Analisis" di bawah. JANGAN menambahkan data, temuan, interpretasi, atau referensi lain yang tidak berasal dari draf analisis yang diberikan. Anda harus bekerja HANYA dengan materi yang ada.
+- **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
+
+**Konteks Proyek & Data Analisis (Satu-satunya Sumber Informasi Anda):**
 - Judul Penelitian: "${projectData.judulKTI || 'Tidak Disediakan'}"
 - Tujuan Penelitian: "${projectData.tujuanPenelitianDraft || 'Tidak Disediakan'}"
-- Ringkasan Metode: "${projectData.metodeDraft || 'Tidak Disediakan'}"
-
-**Data Hasil Analisis untuk Sintesis:**
+- Data Hasil Analisis:
 ${dataSintesis}
 
 **Instruksi Penulisan yang Sangat Rinci:**
 1.  **Struktur Bab:** Susunlah draf Anda ke dalam dua sub-bab utama: **4.1 Hasil Penelitian** dan **4.2 Pembahasan**.
-2.  **Instruksi untuk 4.1 Hasil Penelitian:** Pada bagian ini, sajikan temuan-temuan utama dari semua draf analisis yang diberikan secara objektif. Laporkan fakta dan data apa adanya tanpa interpretasi mendalam. Integrasikan temuan dari berbagai analisis (jika ada lebih dari satu) secara logis.
-3.  **Instruksi untuk 4.2 Pembahasan:** Pada bagian ini, lakukan hal berikut:
+2.  **Instruksi untuk 4.1 Hasil Penelitian:** Sajikan temuan-temuan utama dari "Data Hasil Analisis" secara objektif. Laporkan fakta dan data apa adanya tanpa interpretasi mendalam. Integrasikan temuan dari berbagai analisis (jika ada lebih dari satu) secara logis.
+3.  **Instruksi untuk 4.2 Pembahasan:** Lakukan hal berikut:
     - **Interpretasikan Temuan:** Jelaskan apa arti dari hasil yang telah disajikan di sub-bab 4.1.
-    - **Hubungkan dengan Tujuan:** Secara eksplisit, bahas bagaimana setiap temuan membantu menjawab tujuan penelitian yang telah ditetapkan.
+    - **Hubungkan dengan Tujuan:** Secara eksplisit, bahas bagaimana setiap temuan membantu menjawab "Tujuan Penelitian" yang telah ditetapkan.
     - **Sintesis, Bukan Pengulangan:** Jangan hanya mengulang hasil, tetapi sintesiskan menjadi sebuah argumen yang utuh.
-4.  **Aturan Format:** Tulis seluruhnya sebagai teks biasa (plain text) tanpa format markdown atau HTML.
 
 Pastikan ada alur yang logis antara penyajian hasil dan pembahasannya.`;
 
@@ -3196,6 +6369,217 @@ Pastikan ada alur yang logis dan setiap bagian saling terkait.`;
         }
     };
     
+    // --- HANDLER BARU UNTUK SEMANTIC SCHOLAR ---
+    const handleSearchSemanticScholar = async (query) => {
+        if (!query || !query.trim()) {
+            showInfoModal("Silakan masukkan topik atau judul untuk dicari.");
+            return;
+        }
+        setIsS2Searching(true);
+        setSearchResults(null); // Bersihkan hasil sebelumnya
+
+        try {
+            const results = await semanticScholarService.search(query, S2_API_KEY);
+            setSearchResults(results);
+        } catch (error) {
+            showInfoModal(`Gagal mencari referensi: ${error.message}`);
+        } finally {
+            // Rate limiting sederhana dengan menonaktifkan tombol selama 1 detik setelah selesai
+            setTimeout(() => setIsS2Searching(false), 1000);
+        }
+    };
+
+    const handleClueSearchRegulation = async (clueObj) => {
+    // 1. Tutup modal Peta Jalan
+    setShowSearchPromptModal(false);
+
+    // 2. Pindah ke tab Referensi
+    setCurrentSection('referensi');
+
+    // 3. Buka (expand) Metode 5
+    setOpenMethod('method5');
+
+    // 4. Set mode pencarian ke 'Peraturan Terkait'
+    setConceptSearchMode('regulation'); // Menggunakan fungsi setter dari state App
+
+    // 5. Isi kolom input di Metode 5 dengan clue
+    setConceptQuery(clueObj.clue); // Pastikan setConceptQuery juga state di App jika belum
+
+    // 6. Tunggu sebentar agar UI sempat update (opsional tapi disarankan)
+    await new Promise(resolve => setTimeout(resolve, 100)); // Jeda 0.1 detik
+
+    // 7. Mulai pencarian peraturan secara otomatis
+    await handleRegulationSearch(clueObj.clue); // Panggil fungsi pencarian yang sudah ada, kirim clue sebagai argumen
+};
+
+    const handleAddReferenceFromSearch = (paper, aiReview, keyQuote = '') => {
+        // Cek duplikat berdasarkan judul atau DOI
+        const isDuplicate = projectData.allReferences.some(ref => 
+            ref.title.toLowerCase() === paper.title.toLowerCase() || 
+            (ref.doi && paper.externalIds?.DOI && ref.doi === paper.externalIds.DOI)
+        );
+
+        if (isDuplicate) {
+            showInfoModal("Referensi ini sudah ada di perpustakaan Anda.");
+            return;
+        }
+
+        let notes = [];
+        if (keyQuote) {
+            notes.push(`[Kutipan Kunci Konsep]: "${keyQuote}"`);
+        }
+        if (aiReview && aiReview.finding) {
+            notes.push(`[Temuan Kunci AI]: "${aiReview.finding}"`);
+        }
+        const initialNote = notes.join('\n\n');
+
+        // --- PERBAIKAN DIMULAI DI SINI ---
+        // Logika ini sekarang dapat menangani format penulis yang berbeda
+        // dari Semantic Scholar (array objek) dan Scopus (string).
+        let authorString;
+        if (Array.isArray(paper.authors)) {
+            // Format Semantic Scholar
+            authorString = paper.authors.map(a => a.name).join(', ');
+        } else if (typeof paper.authors === 'string') {
+            // Format Scopus
+            authorString = paper.authors;
+        } else {
+            authorString = '';
+        }
+
+        const newRef = {
+            id: Date.now(),
+            title: paper.title || '',
+            author: authorString, // Menggunakan string yang sudah diproses
+            year: paper.year || '',
+            journal: paper.journal?.name || paper.publicationVenue?.name || '',
+            volume: paper.journal?.volume || '',
+            issue: paper.journal?.issue || '',
+            pages: paper.journal?.pages || '',
+            doi: paper.externalIds?.DOI || '',
+            url: paper.url || '',
+            publisher: '',
+            isiKutipan: initialNote
+        };
+        // --- PERBAIKAN BERAKHIR DI SINI ---
+
+        setProjectData(prev => ({
+            ...prev,
+            allReferences: [...prev.allReferences, newRef]
+        }));
+        showInfoModal(`"${paper.title}" berhasil ditambahkan ke perpustakaan.`);
+    };
+    // --- AKHIR HANDLER BARU ---
+
+    // --- LANGKAH E DIMULAI DI SINI: Fungsi Tambah Peraturan ---
+const handleAddRegulationToReference = (regulationResult) => {
+    const { judul, url, analisis_relevansi } = regulationResult;
+
+    // Cek duplikat berdasarkan judul
+    const isDuplicate = projectData.allReferences.some(
+        ref => ref.title.toLowerCase() === judul.toLowerCase()
+    );
+
+    if (isDuplicate) {
+        showInfoModal(`Peraturan "${judul}" sudah ada di perpustakaan Anda.`);
+        return;
+    }
+
+    // Coba ekstrak tahun dari judul (jika formatnya umum, misal "UU No. 11 Tahun 2020")
+    const yearMatch = judul.match(/Tahun (\d{4})/i);
+    const year = yearMatch ? yearMatch[1] : new Date().getFullYear().toString(); // Default tahun ini jika tidak ketemu
+
+    // Format data peraturan agar sesuai struktur allReferences
+    const newRef = {
+        id: Date.now() + Math.random(), // ID unik
+        title: judul,
+        author: "Pemerintah RI", // Placeholder umum
+        year: year,
+        journal: "Peraturan Perundang-undangan", // Placeholder
+        volume: '',
+        issue: '',
+        pages: '',
+        doi: '',
+        url: url || '', // Gunakan URL jika ada
+        publisher: '',
+        isiKutipan: `[Analisis Relevansi AI]:\n"${analisis_relevansi}"` // Gunakan analisis AI sebagai catatan awal
+    };
+
+    setProjectData(prev => ({
+        ...prev,
+        allReferences: [...prev.allReferences, newRef]
+    }));
+
+    showInfoModal(`Peraturan "${judul}" berhasil ditambahkan ke perpustakaan.`);
+};
+// --- LANGKAH E BERAKHIR DI SINI ---
+
+    const handleClueSearch = async (clueObj) => {
+    setShowSearchPromptModal(false);
+    setCurrentSection('referensi');
+    setOpenMethod('method2');
+    setSearchQuery(`AI sedang membuat kueri cerdas untuk "${clueObj.clue}"...`);
+    setIsLoading(true);
+
+    try {
+        const smartQuery = await handleGenerateAdvancedSemanticQuery(clueObj);
+        setSearchQuery(smartQuery);
+        await handleSearchSemanticScholar(smartQuery);
+    } catch (error) {
+        showInfoModal(error.message);
+        setSearchQuery(clueObj.clue); // Fallback
+    } finally {
+        setIsLoading(false);
+    }
+};
+
+    const handleClueSearchScopus = async (clueObj) => {
+        setShowSearchPromptModal(false); 
+        setCurrentSection('referensi');   
+        setOpenMethod('method3');         
+        setSearchQuery(`AI sedang membuat kueri cerdas untuk "${clueObj.clue}"...`);
+        setIsLoading(true);
+
+        try {
+            // Panggil "otak" logika yang baru untuk membuat kueri
+            const advancedQuery = await handleGenerateAdvancedBooleanQuery(clueObj);
+            
+            // Set kueri cerdas ke input field
+            setSearchQuery(advancedQuery);
+            
+            // Langsung eksekusi pencarian dengan kueri cerdas tersebut
+            await handleSearchScopus(advancedQuery);
+
+        } catch (error) {
+            showInfoModal(error.message);
+            setSearchQuery(clueObj.clue); // Fallback ke clue sederhana jika ada error tak terduga
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleGenerateAdvancedSemanticQuery = async (clueObj) => {
+    const prompt = `Anda adalah seorang asisten riset yang efisien. Berdasarkan tujuan dan kata kunci berikut, buatlah satu frasa pencarian (search query phrase) yang ringkas namun kaya konteks (sekitar 5-8 kata) untuk digunakan di database seperti Semantic Scholar atau Google Scholar. Gabungkan konsep-konsep terpenting menjadi sebuah frasa yang logis.
+
+    Tujuan Pencarian (Explanation): "${clueObj.explanation}"
+    Kata Kunci Inti (Clue): "${clueObj.clue}"
+
+    Contoh:
+    - Input: Explanation="Mencari definisi...", Clue="pemerintah daerah"
+    - Hasil yang Diharapkan: "definition and characteristics of local government innovation"
+
+    Hasilkan HANYA frasa pencariannya saja, tanpa teks atau penjelasan tambahan.`;
+
+    try {
+        const result = await geminiService.run(prompt, geminiApiKey);
+        return result.replace(/"/g, '').trim(); // Membersihkan tanda kutip
+    } catch (error) {
+        console.error("Gagal membuat kueri cerdas untuk Semantic Scholar:", error);
+        showInfoModal(`Gagal membuat kueri cerdas: ${error.message}. Menggunakan kueri sederhana.`);
+        return clueObj.clue; // Fallback ke clue sederhana jika gagal
+    }
+};
+
     const handleGenerateVariabel = async () => {
         setIsLoading(true);
         setProjectData(prev => ({ ...prev, aiSuggestedVariables: null }));
@@ -3220,7 +6604,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema);
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
             setProjectData(prev => ({ ...prev, aiSuggestedVariables: result }));
             showInfoModal("Saran variabel berhasil dibuat! Silakan sunting dan simpan.");
         } catch (error) {
@@ -3259,7 +6643,7 @@ Berikan jawaban hanya dalam format JSON.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema);
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
             setProjectData(prev => ({ ...prev, aiSuggestedHypotheses: result }));
             showInfoModal("Saran hipotesis berhasil dibuat! Silakan sunting dan simpan.");
         } catch (error) {
@@ -3302,7 +6686,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema);
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
             setProjectData(prev => ({ ...prev, aiSuggestedKuesioner: result }));
             showInfoModal("Draf kuesioner berhasil dibuat! Silakan sunting dan simpan.");
         } catch (error) {
@@ -3353,7 +6737,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema);
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
             setProjectData(prev => ({ ...prev, aiSuggestedWawancara: result }));
             showInfoModal("Draf panduan wawancara berhasil dibuat! Silakan sunting dan simpan.");
         } catch (error) {
@@ -3416,7 +6800,7 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema);
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
             setProjectData(p => ({ ...p, aiGeneratedQueries: result }));
             showInfoModal("Kueri berjenjang berhasil dibuat!");
         } catch (error) {
@@ -3433,7 +6817,127 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
         }));
     };
 
-    const handleGenerateAnalisis = async (data, analysisType) => {
+    const handleGenerateQueriesFromPicos = async (picos, type) => {
+        setIsLoading(true);
+        // Hapus aiGeneratedQueries agar loading state terlihat
+        if (type === 'query') {
+            setProjectData(p => ({ ...p, aiGeneratedQueries: null }));
+        }
+
+        let prompt;
+        if (type === 'rq') {
+            prompt = `Berdasarkan kerangka PICOS berikut, formulasikan satu Pertanyaan Penelitian (Research Question) utama yang jelas dan ringkas untuk sebuah Systematic Literature Review.
+            - P (Population/Problem): ${picos.population}
+            - I (Intervention): ${picos.intervention}
+            - C (Comparison): ${picos.comparison || 'Tidak ditentukan'}
+            - O (Outcome): ${picos.outcome}
+            - S (Study Design): ${picos.studyDesign || 'Tidak ditentukan'}
+            
+            Hasilkan HANYA kalimat pertanyaan penelitiannya saja.`;
+             try {
+                const result = await geminiService.run(prompt, geminiApiKey);
+                // --- PERUBAHAN DI SINI: Simpan hasil ke projectData ---
+                const newRQ = `- ${result}`;
+                setProjectData(p => ({ ...p, rumusanMasalahDraft: (p.rumusanMasalahDraft ? p.rumusanMasalahDraft + '\n' : '') + newRQ }));
+                showInfoModal(`Pertanyaan Penelitian berhasil dibuat dan ditambahkan ke kotak di bawah!`);
+                // --- AKHIR PERUBAHAN ---
+            } catch (error) {
+                showInfoModal(`Gagal membuat RQ: ${error.message}`);
+            } finally {
+                setIsLoading(false);
+            }
+            return;
+        } 
+        
+        // else, it's 'query'
+        let languageInstruction = includeIndonesianQuery 
+            ? "Prioritaskan istilah Bahasa Inggris, tetapi sertakan padanan Bahasa Indonesia menggunakan operator OR."
+            : "Gunakan HANYA istilah dalam Bahasa Inggris.";
+
+        prompt = `Anda adalah Pustakawan Riset ahli. Berdasarkan kerangka PICOS berikut, buatkan 5 level search query yang komprehensif untuk database ${projectData.queryGeneratorTargetDB}.
+
+        **Kerangka PICOS:**
+        - P (Population/Problem): ${picos.population}
+        - I (Intervention): ${picos.intervention}
+        - C (Comparison): ${picos.comparison || 'Tidak ditentukan'}
+        - O (Outcome): ${picos.outcome}
+        - S (Study Design): ${picos.studyDesign || 'Tidak ditentukan'}
+
+        **Tugas Utama:**
+        Buat 5 level kueri pencarian (search strings), dari yang paling spesifik hingga paling luas, menggabungkan konsep dari PICOS.
+
+        **Level Kueri:**
+        - Level 1 (Paling Khusus): Gabungkan P, I, dan O menggunakan operator AND.
+        - Level 2 (Sedikit Lebih Umum): Perluas pencarian dengan sinonim untuk konsep kunci dari P, I, dan O.
+        - Level 3 (Umum Menengah): Gabungkan hanya P dan I.
+        - Level 4 (Lebih Umum): Gabungkan hanya P dan O.
+        - Level 5 (Paling Umum): Fokus hanya pada P dan sinonimnya.
+
+        **Aturan Penting:**
+        - **Instruksi Bahasa:** ${languageInstruction}
+        - **JANGAN** sertakan batasan tahun atau periode.
+
+        **Instruksi Sintaks:**
+        Gunakan sintaks yang paling sesuai untuk Database Target (${projectData.queryGeneratorTargetDB}).
+
+        **Format Output:**
+        Berikan jawaban HANYA dalam format JSON yang ketat.`;
+        
+        const schema = {
+            type: "ARRAY",
+            items: {
+                type: "OBJECT",
+                properties: {
+                    level: { type: "STRING" },
+                    penjelasan: { type: "STRING" },
+                    kueri: { type: "STRING" }
+                },
+                required: ["level", "penjelasan", "kueri"]
+            }
+        };
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            setProjectData(p => ({ ...p, aiGeneratedQueries: result }));
+            showInfoModal("Kueri berjenjang dari PICOS berhasil dibuat!");
+        } catch (error) {
+            showInfoModal(`Gagal membuat kueri dari PICOS: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+
+    const handleGenerateAdvancedBooleanQuery = async (clueObj) => {
+    const prompt = `Anda adalah seorang Pustakawan Riset (Research Librarian) yang ahli dalam merancang strategi pencarian untuk database Scopus. Tugas Anda adalah mengubah tujuan pencarian sederhana menjadi string pencarian boolean yang canggih dan efektif.
+
+    Tujuan Pencarian (Explanation): "${clueObj.explanation}"
+    Kata Kunci Inti (Clue): "${clueObj.clue}"
+
+    Instruksi:
+    1. Identifikasi 2-3 konsep utama dari gabungan 'Explanation' dan 'Clue'.
+    2. Untuk setiap konsep, cari 1-2 sinonim atau istilah terkait yang relevan dalam Bahasa Inggris.
+    3. Gabungkan semua konsep dan sinonimnya menjadi sebuah string kueri boolean yang valid untuk Scopus menggunakan sintaks TITLE-ABS-KEY(...), operator AND, OR, dan tanda kurung ().
+    4. Prioritaskan istilah dalam Bahasa Inggris karena Scopus adalah database internasional.
+
+    Contoh Hasil yang Diharapkan:
+    TITLE-ABS-KEY(("local government" OR "regional government") AND ("unique characteristics" OR "definition") AND ("innovation factors"))
+
+    Hasilkan HANYA string kueri Scopus tanpa penjelasan tambahan.`;
+
+    try {
+        const result = await geminiService.run(prompt, geminiApiKey);
+        // Membersihkan hasil untuk memastikan hanya kueri yang dikembalikan
+        return result.replace(/```/g, '').replace(/json/g, '').trim();
+    } catch (error) {
+        console.error("Gagal membuat kueri boolean cerdas:", error);
+        showInfoModal(`Gagal membuat kueri cerdas: ${error.message}. Menggunakan kueri sederhana sebagai fallback.`);
+        // Fallback: Jika gagal, buat kueri sederhana dari clue
+        return `TITLE-ABS-KEY("${clueObj.clue}")`;
+    }
+};
+
+    const handleGenerateAnalisis = async (data, analysisType, analysisFocus = '') => { // <-- PERUBAHAN
         if (!data) {
             showInfoModal("Tidak ada data untuk dianalisis. Silakan unggah file .csv terlebih dahulu.");
             return;
@@ -3443,6 +6947,9 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
 
         const csvString = window.Papa.unparse(data);
         let prompt;
+        // --- BARU ---
+        const focusPrompt = analysisFocus ? `\n\n**Fokus Analisis Spesifik dari Pengguna:**\n"${analysisFocus}"\n` : '';
+        // --- AKHIR BARU ---
 
         if (analysisType === 'konfirmatif') {
             const hipotesisString = projectData.hipotesis.join('\n');
@@ -3453,6 +6960,7 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
 - Tujuan: "${projectData.tujuanPenelitianDraft}"
 - Hipotesis yang akan diuji:
 ${hipotesisString}
+${focusPrompt} {/* <-- PERUBAHAN */}
 
 **Data Mentah (format CSV):**
 \`\`\`csv
@@ -3462,6 +6970,7 @@ ${csvString}
 **Instruksi Analisis:**
 1.  **Statistik Deskriptif:** Untuk setiap kolom numerik yang relevan dengan variabel penelitian, hitung dan sajikan statistik deskriptif dasar (Rata-rata/Mean, Median, Standar Deviasi).
 2.  **Uji Hipotesis (Interpretatif):** Berdasarkan data yang ada, berikan interpretasi konseptual apakah data cenderung mendukung atau menolak setiap hipotesis. Jelaskan alasan Anda secara singkat. Contoh: "Data menunjukkan rata-rata 'Kepuasan Kerja' lebih tinggi pada kelompok dengan 'Gaya Kepemimpinan Transformasional', yang secara konseptual mendukung H1."
+    ${analysisFocus ? "Secara khusus, berikan perhatian ekstra pada hipotesis atau temuan yang terkait dengan fokus pengguna." : ""} {/* <-- PERUBAHAN */}
 3.  **Narasi Temuan:** Tuliskan draf narasi yang koheren untuk bab "Hasil dan Pembahasan". Mulailah dengan ringkasan statistik deskriptif, diikuti dengan pembahasan hasil uji hipotesis satu per satu. Akhiri dengan paragraf singkat yang merangkum temuan utama.
 
 **Format Output:**
@@ -3473,6 +6982,7 @@ Gunakan format teks biasa dengan sub-judul yang jelas (misal: "1. Statistik Desk
 **Konteks Penelitian (jika ada):**
 - Judul: "${projectData.judulKTI || 'Tidak ditentukan'}"
 - Topik Umum: "${projectData.topikTema || 'Tidak ditentukan'}"
+${focusPrompt} {/* <-- PERUBAHAN */}
 
 **Data Mentah (format CSV):**
 \`\`\`csv
@@ -3482,6 +6992,7 @@ ${csvString}
 **Instruksi Analisis:**
 1.  **Statistik Deskriptif:** Untuk setiap kolom numerik, hitung dan sajikan statistik deskriptif kunci (Rata-rata/Mean, Median, Standar Deviasi, Min, Max).
 2.  **Identifikasi Wawasan Utama:** Analisis data untuk menemukan pola, korelasi, atau anomali yang paling signifikan dan menarik. Fokus pada temuan yang tidak terduga atau yang bisa menjadi titik awal untuk penelitian lebih lanjut.
+    ${analysisFocus ? "Secara khusus, prioritaskan wawasan yang terkait dengan fokus spesifik yang diberikan pengguna." : ""} {/* <-- PERUBAHAN */}
 3.  **Narasi Temuan:** Tuliskan draf narasi yang merangkum temuan-temuan utama Anda. Susun dalam format poin-poin yang mudah dibaca, di mana setiap poin menjelaskan satu wawasan penting dari data.
 
 **Format Output:**
@@ -3500,21 +7011,27 @@ Gunakan format teks biasa dengan sub-judul yang jelas (misal: "1. Statistik Desk
         }
     };
     
-    const handleGenerateAnalisisKualitatif = async (fileContent) => {
+    const handleGenerateAnalisisKualitatif = async (fileContent, analysisFocus = '') => { // <-- PERUBAHAN
         setIsLoading(true);
         setProjectData(p => ({ ...p, analisisKualitatifHasil: null, analisisKualitatifDraft: '' }));
+
+        // --- BARU ---
+        const focusPrompt = analysisFocus ? `\n\n**Fokus Analisis Spesifik dari Pengguna:**\n"${analysisFocus}"\n` : '';
+        // --- AKHIR BARU ---
 
         const prompt = `Anda adalah seorang peneliti kualitatif ahli. Lakukan analisis tematik pada teks berikut. Identifikasi 3-5 tema utama yang muncul yang paling relevan dengan tujuan penelitian.
 
 **Konteks Penelitian:**
 - Judul: "${projectData.judulKTI || 'Tidak Disediakan'}"
 - Tujuan Penelitian: "${projectData.tujuanPenelitianDraft || 'Tidak Disediakan'}"
+${focusPrompt} {/* <-- PERUBAHAN */}
 
 **Tugas:**
 Untuk setiap tema yang Anda identifikasi:
 1.  Berikan nama tema yang singkat dan jelas.
 2.  Tulis deskripsi singkat (1-2 kalimat) yang menjelaskan inti dari tema tersebut.
 3.  Sertakan 2-3 kutipan paling representatif dari teks asli untuk mendukung tema tersebut.
+${analysisFocus ? "\nSecara khusus, prioritaskan tema dan kutipan yang terkait dengan fokus spesifik pengguna." : ""} {/* <-- PERUBAHAN */}
 
 **Teks untuk Dianalisis:**
 ---
@@ -3540,7 +7057,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema);
+            const result = await geminiService.run(prompt, geminiApiKey, { schema });
             setProjectData(p => ({ ...p, analisisKualitatifHasil: result }));
             showInfoModal("Analisis tematik berhasil dibuat! Silakan tinjau hasilnya.");
         } catch(error) {
@@ -3580,7 +7097,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, schema, imageFile);
+            const result = await geminiService.run(prompt, geminiApiKey, { schema }, imageFile);
             setProjectData(p => ({
                 ...p,
                 deskripsiVisualisasi: result.deskripsi,
@@ -3711,9 +7228,13 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             case 'ideKTI':
                 return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
             case 'referensi':
-                return <Referensi {...{ projectData, manualRef, setManualRef, handleSaveManualReference, freeTextRef, setFreeTextRef, handleImportFromText, handleEditReference, handleDeleteReference, handleGenerateApa, generatedApaReferences, handleCopyToClipboard, handleShowSearchPrompts, handleGenerateReferenceClues, isLoading, openNoteModal, triggerReferencesImport, handleExportReferences }} />;
+                return <Referensi {...{ projectData, manualRef, setManualRef, handleSaveManualReference, freeTextRef, setFreeTextRef, handleImportFromText, handleEditReference, handleDeleteReference, handleGenerateApa, generatedApaReferences, handleCopyToClipboard, handleShowSearchPrompts, handleGenerateReferenceClues, isLoading, openNoteModal, triggerReferencesImport, handleExportReferences, handleSearchSemanticScholar, searchQuery, setSearchQuery, searchResults, isS2Searching, handleAddReferenceFromSearch, handleAiReview, showInfoModal, openMethod, setOpenMethod, handleConceptSearch, conceptQuery, setConceptQuery, isConceptSearching, conceptSearchResult, handleSearchScopus, isScopusSearching, scopusSearchResults, scopusApiKey, setScopusApiKey, handleRegulationSearch, isRegulationSearching, regulationSearchResults, handleAddRegulationToReference, conceptSearchMode, setConceptSearchMode, handleClueSearchRegulation }} />;
+            case 'prisma':
+                return <PrismaSLR {...{ projectData, setProjectData, showInfoModal, handleAiReview }} />;
+            case 'sintesis':
+                return <SintesisData {...{ projectData, setProjectData, showInfoModal, geminiApiKey, handleCopyToClipboard, setCurrentSection }} />;
             case 'genLogKueri':
-                return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, handleCopyQuery, handleDeleteLog, includeIndonesianQuery, setIncludeIndonesianQuery }} />;
+                return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, handleCopyQuery, handleDeleteLog, includeIndonesianQuery, setIncludeIndonesianQuery, handleGenerateQueriesFromPicos, geminiApiKey, handleInputChange }} />;
             case 'genVariabel':
                 return <GeneratorVariabel {...{ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal }} />;
             case 'genHipotesis':
@@ -3725,9 +7246,9 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             case 'analisisKuantitatif':
                 return <AnalisisKuantitatif {...{ projectData, setProjectData, handleGenerateAnalisis, isLoading, showInfoModal, setCurrentSection }} />;
             case 'analisisKualitatif':
-                return <AnalisisKualitatif {...{ projectData, setProjectData, handleGenerateAnalisisKualitatif, isLoading, showInfoModal }} />;
+                return <AnalisisKualitatif {...{ projectData, setProjectData, handleGenerateAnalisisKualitatif, isLoading, showInfoModal, handleCopyToClipboard }} />;
             case 'analisisVisual':
-                return <AnalisisVisual {...{ projectData, setProjectData, handleGenerateAnalisisVisual, isLoading, showInfoModal }} />;
+                return <AnalisisVisual {...{ projectData, setProjectData, handleGenerateAnalisisVisual, isLoading, showInfoModal, handleCopyToClipboard }} />;
             case 'outline':
                 return <Outline {...{ projectData, setProjectData, handleGenerateOutline, isLoading }} />;
             case 'pendahuluan':
@@ -3742,18 +7263,238 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                  return <Kesimpulan {...{ projectData, setProjectData, handleGenerateKesimpulan, isLoading, handleCopyToClipboard, handleModifyText }} />;
             case 'dashboard':
                 return <DashboardProyek {...{ projectData, setCurrentSection }} />;
+            case 'tutorial':
+                return <Tutorial />;
             case 'donasi':
                 return <Donasi {...{ handleCopyToClipboard }} />;
+            case 'resetHapusProyek': // ID baru dari navigasi
+                return <ResetHapusProyek setIsResetConfirmOpen={setIsResetConfirmOpen} handleCopyToClipboard={handleCopyToClipboard} />; // <-- Tambahkan prop di sini
             default:
                 return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
+               
         }
     };
     
+    // --- FUNGSI BARU UNTUK PENCARIAN KONSEP ---
+    const handleConceptSearch = async () => {
+        // Validasi input
+        if (!conceptQuery || !conceptQuery.trim()) {
+            showInfoModal("Silakan masukkan konsep atau teori untuk dicari.");
+            return;
+        }
+        setIsConceptSearching(true);
+        setConceptSearchResult(null);
+    
+        try {
+            // Langkah 1: Minta AI memberikan judul DAN penulis dalam format JSON yang terstruktur
+            const titlePrompt = `Berdasarkan konsep penelitian "${conceptQuery}", berikan SATU judul referensi yang paling fundamental BESERTA penulis utamanya. Balas HANYA dengan objek JSON dengan format: {"judul": "Judul Referensi", "penulis": "Nama Penulis"}`;
+            const titleSchema = { "type": "OBJECT", "properties": {"judul": {"type": "STRING"}, "penulis": {"type": "STRING"}}, "required": ["judul", "penulis"] };
+            
+            const titleResponseJson = await geminiService.run(titlePrompt, geminiApiKey, { schema: titleSchema });
+            
+            const { judul: referenceTitle, penulis: authorName } = titleResponseJson;
+    
+            if (!referenceTitle || !authorName) {
+                throw new Error("AI tidak dapat mengidentifikasi judul atau penulis dari referensi.");
+            }
+    
+            // Langkah 2: Setelah mendapatkan penulis, minta AI menjelaskan konsep dari perspektif penulis tersebut dengan grounding
+            const quotePrompt = `Dari perspektif penulis "${authorName}", jelaskan konsep atau teori "${conceptQuery}" secara singkat dan padat dalam 2-3 kalimat. Jawab HANYA dengan penjelasannya.`;
+            const keyQuote = await geminiService.run(quotePrompt, geminiApiKey, { useGrounding: true });
+    
+            // Langkah 3: Cari judul di database akademis
+            const s2results = await semanticScholarService.search(referenceTitle, S2_API_KEY);
+    
+            // Langkah 4: Sajikan hasil
+            if (s2results.length > 0) {
+                setConceptSearchResult([{
+                    paper: s2results[0],
+                    kutipanKunci: keyQuote || `AI tidak dapat menghasilkan kutipan kunci untuk ${conceptQuery}.`
+                }]);
+            } else {
+                setConceptSearchResult([]);
+            }
+    
+        } catch (error) {
+            showInfoModal(`Pencarian konsep gagal: ${error.message}`);
+            setConceptSearchResult([]);
+        } finally {
+            setIsConceptSearching(false);
+        }
+    };
+
+// --- LANGKAH B DIMULAI DI SINI: Kerangka Fungsi Pencarian Peraturan ---
+const handleRegulationSearch = async () => {
+    // Validasi: Pastikan ada input
+    if (!conceptQuery || !conceptQuery.trim()) {
+        showInfoModal("Silakan masukkan topik peraturan untuk dicari.");
+        return;
+    }
+
+    console.log("Memulai pencarian peraturan untuk:", conceptQuery);
+    setIsRegulationSearching(true); // Aktifkan status loading
+    setRegulationSearchResults(null); // Bersihkan hasil sebelumnya
+
+    try {
+        const topikPenelitian = projectData.topikTema || projectData.judulKTI || "penelitian"; // Konteks tambahan
+        const prompt = `Anda adalah asisten riset hukum yang ramah. Tugas Anda adalah mencari peraturan perundang-undangan di Indonesia (UU, PP, Perpres, Permen, dll.) yang paling relevan dengan topik atau kata kunci yang diberikan.
+
+Gunakan Google Search (grounding) untuk menemukan informasi ini.
+
+Topik Penelitian Utama: "${topikPenelitian}"
+Kueri Pencarian Spesifik: "${conceptQuery}"
+
+**Instruksi (SANGAT PENTING):**
+JANGAN memberikan penjelasan atau teks percakapan apa pun. Respons Anda HARUS berupa array JSON yang valid, bahkan jika tidak ada hasil (kembalikan array kosong []).
+
+Format output HARUS mengikuti schema JSON berikut dengan ketat:
+// --- LANGKAH C DIMULAI DI SINI: Definisikan Schema ---
+    const schema = {
+        type: "ARRAY",
+        items: {
+            type: "OBJECT",
+            properties: {
+                judul: { type: "STRING", description: "Judul resmi peraturan" },
+                url: { type: "STRING", description: "URL sumber peraturan (kosong jika tidak ada)" },
+                analisis_relevansi: { type: "STRING", description: "Analisis relevansi singkat (1-2 kalimat)" }
+            },
+            required: ["judul", "analisis_relevansi"]
+        }
+    };
+    // --- LANGKAH C BERAKHIR DI SINI ---
+
+    Untuk setiap peraturan yang ditemukan, berikan:
+    1.  **judul:** Judul resmi dan lengkap dari peraturan tersebut.
+    2.  **url:** URL sumber yang valid jika ditemukan (jika tidak ada, berikan string kosong "").
+    3.  **analisis_relevansi:** Satu hingga dua kalimat yang menjelaskan relevansi peraturan ini terhadap kueri pencarian.
+
+    Prioritaskan peraturan yang paling penting atau fundamental terkait topik.`; // <--- Tanda backtick penutup ditambahkan di sini
+
+        const schema = {
+    type: "ARRAY", // Kita mengharapkan daftar (array) hasil
+    items: {
+        type: "OBJECT", // Setiap hasil adalah objek
+        properties: {
+            judul: { type: "STRING", description: "Judul resmi peraturan" },
+            url: { type: "STRING", description: "URL sumber peraturan (kosong jika tidak ada)" },
+            analisis_relevansi: { type: "STRING", description: "Analisis relevansi singkat (1-2 kalimat)" }
+        },
+        required: ["judul", "analisis_relevansi"] // Judul dan analisis wajib ada
+    }
+};
+        // Panggil geminiService dengan grounding dan schema
+const results = await geminiService.run(
+    prompt,         // Pertanyaan/instruksi untuk AI
+    geminiApiKey,   // Kunci API Google AI Anda
+    { useGrounding: true } // Opsi: Aktifkan Google Search
+);
+// Tampilkan respons mentah di console untuk debug
+console.log("Respons mentah dari AI (Peraturan):", results);
+
+try {
+    // 1. Coba bersihkan respons dari tanda code block (```json ... ```)
+    const cleanedText = results
+    .replace(/```json/g, '') // Hapus ```json
+    .replace(/```/g, '')     // Hapus ```
+    .trim();                // Hapus spasi di awal/akhir
+    
+    // 2. Coba parse teks yang sudah dibersihkan sebagai JSON
+    const parsedResults = JSON.parse(cleanedText); 
+    
+    // 3. Pastikan hasilnya adalah array sebelum disimpan ke state
+    if (Array.isArray(parsedResults)) {
+        setRegulationSearchResults(parsedResults); 
+        console.log("Hasil parsing JSON (Peraturan):", parsedResults);
+    } else {
+        // Jika parsing berhasil tapi bukan array, lempar error
+        throw new Error("Respons AI bukan format array JSON yang diharapkan.");
+    }
+} catch (parseError) {
+    // 4. Jika parsing gagal (misal AI tidak mengembalikan JSON), tangani error
+    console.error("Gagal mem-parsing respons AI (Peraturan):", parseError, "\nRespons Mentah:", results);
+    showInfoModal("Gagal memproses respons dari AI. Respons mungkin tidak dalam format JSON yang benar.");
+    setRegulationSearchResults([]); // Set hasil kosong agar UI tidak error
+}
+
+    } catch (error) {
+        showInfoModal(`Gagal mencari peraturan: ${error.message}`);
+        setRegulationSearchResults([]); // Set hasil kosong jika error
+    } finally {
+        setIsRegulationSearching(false); // Matikan status loading
+    }
+};
+// --- LANGKAH B BERAKHIR DI SINI ---
+
+    const translateQueryToEnglish = async (indonesianQuery) => {
+        if (!indonesianQuery || !indonesianQuery.trim()) {
+            return '';
+        }
+        
+        const prompt = `Translate the following Indonesian research topic into a concise, effective English search query phrase. 
+        Do not add boolean operators like AND/OR unless they are part of the original topic. 
+        Respond ONLY with the translated phrase, without any quotation marks or extra text.
+
+        Indonesian Topic: "${indonesianQuery}"`;
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKey);
+            return result.replace(/"/g, '').trim();
+        } catch (error) {
+            console.warn(`Translation failed for "${indonesianQuery}", using original. Error: ${error.message}`);
+            showInfoModal(`Penerjemahan gagal, menggunakan kueri asli. Error: ${error.message}`);
+            return indonesianQuery;
+        }
+    };
+
+    const handleSearchScopus = async (query) => {
+        if (!query || !query.trim()) {
+            showInfoModal("Silakan masukkan topik atau judul untuk dicari.");
+            return;
+        }
+
+        // --- SOLUSI BUG OTORISASI ---
+        // Hapus logika kunci cadangan. Wajibkan pengguna memasukkan kunci API pribadi mereka.
+        if (!scopusApiKey) {
+            showInfoModal("Kunci API Scopus wajib diisi. Silakan masukkan kunci API pribadi Anda yang valid.");
+            return; // Hentikan eksekusi jika kunci tidak ada.
+        }
+        // --- AKHIR SOLUSI BUG ---
+
+        setIsScopusSearching(true);
+        setScopusSearchResults(null); 
+
+        try {
+            // Langkah 1: Terjemahkan kueri dan tema ke Bahasa Inggris
+            showInfoModal("Menerjemahkan kueri ke Bahasa Inggris...");
+            const translatedQuery = await translateQueryToEnglish(query);
+            const translatedTheme = await translateQueryToEnglish(projectData.topikTema);
+            
+            let feedbackMessage = `Mencari di Scopus dengan kueri Inggris: "${translatedQuery}"`;
+            if (translatedTheme) {
+                feedbackMessage += ` DAN "${translatedTheme}"`;
+            }
+            showInfoModal(feedbackMessage);
+
+            // Langkah 2: Lakukan pencarian dengan kueri yang sudah diterjemahkan dan kunci API yang tepat
+            const results = await scopusService.search(translatedQuery, scopusApiKey, translatedTheme);
+            setScopusSearchResults(results);
+            
+            if(results.length > 0) {
+                setShowModal(false);
+            }
+
+        } catch (error) {
+            showInfoModal(`Gagal mencari di Scopus: ${error.message}`);
+        } finally {
+            setIsScopusSearching(false);
+        }
+    };
+
+
     const toggleCategory = (category) => {
         setOpenCategories(prev => 
-            prev.includes(category) 
-                ? prev.filter(c => c !== category) 
-                : [...prev, category]
+            // Jika kategori yang diklik sudah terbuka, tutup. Jika tidak, buka kategori ini (dan tutup yang lain).
+            prev.includes(category) ? [] : [category]
         );
     };
 
@@ -3766,11 +7507,22 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     { id: 'referensi', name: 'Literatur & Referensi' }
                 ]
             },
+            slr_workflow: {
+                title: "Alur Kerja SLR",
+                items: [
+                    { id: 'genLogKueri', name: 'Generator & Log Kueri'},
+                    { id: 'prisma', name: 'Generator PRISMA SLR'}
+                ]
+            },
+            sintesis: {
+                title: "Ekstraksi & Sintesis",
+                items: [
+                    { id: 'sintesis', name: 'Ekstraksi & Sintesis Data' }
+                ]
+            },
             instrumen: {
                 title: "Instrumen Penelitian",
-                items: [
-                    { id: 'genLogKueri', name: 'Generator & Log Kueri'}
-                ]
+                items: []
             },
             analisis: {
                 title: "Analisis Data",
@@ -3797,18 +7549,33 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     { id: 'dashboard', name: 'Dashboard' },
                     { id: 'imporProyek', name: 'Impor Proyek', action: triggerImport },
                     { id: 'eksporProyek', name: 'Ekspor Proyek', action: handleExportProject },
-                    { id: 'resetProyek', name: 'Reset Proyek', action: () => setIsResetConfirmOpen(true) }
+                    { id: 'resetHapusProyek', name: 'Reset & Hapus Proyek' }
+                ]
+            },
+            tutorial: {
+                title: "Tutorial",
+                items: [
+                    { id: 'tutorial', name: 'Panduan Aplikasi' }
                 ]
             },
             donasi: {
                 title: "Donasi",
                 items: [
-                    { id: 'donasi', name: 'Pembangunan Masjid' }
+                    { id: 'donasi', name: 'Dukungan & Donasi' }
                 ]
             }
         };
 
         const pendekatan = projectData.pendekatan;
+        const metode = projectData.metode;
+
+        // Kondisi baru untuk menampilkan menu SLR hanya jika metode relevan
+        if (metode && (metode.toLowerCase().includes('slr') || metode.toLowerCase().includes('systematic literature review') || metode.toLowerCase().includes('bibliometric'))) {
+            // Menu sudah ada
+        } else {
+             navigation.slr_workflow.items = []; // Kosongkan jika tidak relevan
+             navigation.sintesis.items = []; // Sembunyikan juga menu Sintesis
+        }
 
         if (pendekatan === 'Kuantitatif' || pendekatan === 'Metode Campuran') {
             navigation.instrumen.items.push(
@@ -3938,16 +7705,119 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                                     <div key={catIndex} className="mb-4">
                                         <h4 className="font-bold text-gray-800 mb-2">{category.category}</h4>
                                         <div className="space-y-3">
-                                            {category.clues.map((clue, clueIndex) => (
-                                                <div key={clueIndex} className="bg-purple-50 p-3 rounded-lg border border-purple-200">
-                                                    <p className="font-semibold text-gray-800">{clue}</p>
-                                                    <p className="text-sm italic text-purple-800 my-2">✍️ {aiClueNarratives[clue.trim()] || 'Memuat narasi...'}</p>
-                                                    <div className="mt-2 flex flex-wrap gap-2">
-                                                        <a href={`https://scholar.google.com/scholar?q=${encodeURIComponent(clue)}`} target="_blank" rel="noopener noreferrer" className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded-lg">Cek di Google Scholar</a>
-                                                        <a href={`https://www.semanticscholar.org/search?q=${encodeURIComponent(clue)}`} target="_blank" rel="noopener noreferrer" className="bg-gray-500 hover:bg-gray-600 text-white text-xs font-bold py-1 px-3 rounded-lg">Cek di Semantic Scholar</a>
+                                            {category.clues.map((clueObj, clueIndex) => {
+                                                const dropdownId = `cat-${catIndex}-clue-${clueIndex}`;
+                                                const isPeraturan = category.category === "Peraturan Terkait";
+                                                // --- LANGKAH 5 DIMULAI DI SINI ---
+let searchEngines; // Gunakan let karena nilainya akan diisi di if/else
+
+if (isPeraturan) {
+    // Jika kategori adalah "Peraturan Terkait", isi dengan database hukum
+    searchEngines = [
+        { name: 'Google (Pemerintah)', url: `https://www.google.com/search?q=${encodeURIComponent(clueObj.clue)}+site%3A.go.id+filetype%3Apdf` },
+        { name: 'JDIH Nasional', url: `https://jdihn.go.id/pencarian?keyword=${encodeURIComponent(clueObj.clue)}`},
+        { name: 'Peraturan BPK', url: `https://peraturan.bpk.go.id/Search?keywords=${encodeURIComponent(clueObj.clue)}` },
+        { name: 'Peraturan BRIN', url: `https://jdih.brin.go.id/dokumen-hukum/peraturan?search=${encodeURIComponent(clueObj.clue)}` }
+        // Anda bisa menambahkan sumber hukum lain di sini jika perlu
+    ];
+} else {
+    // Jika bukan, isi dengan mesin pencari akademis (kode asli)
+    searchEngines = [
+        { name: 'Google Scholar', url: `https://scholar.google.com/scholar?q=${encodeURIComponent(clueObj.clue)}` },
+        { name: 'Perplexity', url: `https://www.perplexity.ai/search?q=${encodeURIComponent(clueObj.clue)}` },
+        { name: 'BASE', url: `https://www.base-search.net/Search/Results?q=${encodeURIComponent(clueObj.clue)}` },
+        { name: 'CORE', url: `https://core.ac.uk/search?q=${encodeURIComponent(clueObj.clue)}` },
+        { name: 'Garuda', url: `https://garuda.kemdikbud.go.id/search?q=${encodeURIComponent(clueObj.clue)}` },
+        { name: 'Connected Papers', url: `https://www.connectedpapers.com/search?q=${encodeURIComponent(clueObj.clue)}` },
+        { name: 'Scopus (berlangganan)', action: () => handleClueSearchScopus(clueObj) },
+    ];
+}
+// --- LANGKAH 5 BERAKHIR DI SINI ---
+                                                return (
+                                                    <div key={clueIndex} className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+                                                        <p className="font-semibold text-gray-800">{clueObj.clue}</p>
+                                                        <p className="text-sm italic text-purple-800 my-2">✍️ {clueObj.explanation}</p>
+                                                        <div className="mt-2 flex flex-wrap gap-2 items-center">
+                                                            {/* --- LANGKAH 6 DIMULAI DI SINI --- */}
+{isPeraturan ? (
+    <button 
+    onClick={() => handleClueSearchRegulation(clueObj)} 
+    className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-2 px-3 rounded-lg h-full inline-flex items-center disabled:bg-teal-300 disabled:cursor-not-allowed" // <-- TAMBAHKAN STYLE DISABLED
+    disabled={isRegulationSearching} // <-- TAMBAHKAN INI (MENGGUNAKAN STATE YANG BERBEDA)
+>
+    {isRegulationSearching ? 'Mencari...' : 'Cari Peraturan Ini di App'} {/* <-- UBAH TEKS SAAT LOADING */}
+</button>
+) : (
+    // Jika bukan Peraturan, tampilkan tombol Semantic Scholar (kode asli)
+    <button 
+    onClick={() => handleClueSearch(clueObj)} 
+    className="bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold py-2 px-3 rounded-lg h-full disabled:bg-purple-300 disabled:cursor-not-allowed" // <-- TAMBAHKAN STYLE DISABLED
+    disabled={isLoading} // <-- TAMBAHKAN INI
+>
+    {isLoading ? 'Memproses...' : 'Cek di Semantic Scholar'} {/* <-- UBAH TEKS SAAT LOADING */}
+</button>
+)}
+{/* --- LANGKAH 6 BERAKHIR DI SINI --- */}
+                                                            
+                                                            {/* --- PERUBAHAN 2: Tombol Scopus standalone dihapus --- */}
+                                                            
+
+                                                            <div className="relative inline-block text-left">
+                                                                <div>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="inline-flex items-center justify-center w-full rounded-lg border border-gray-300 shadow-sm px-3 py-2 bg-white text-xs font-bold text-gray-700 hover:bg-gray-50"
+                                                                        onClick={() => setOpenSearchDropdown(openSearchDropdown === dropdownId ? null : dropdownId)}
+                                                                    >
+                                                                        {isPeraturan ? 'Database Hukum Lain' : 'Mesin Pencari Lain'}
+                                                                        <svg className="-mr-1 ml-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                                        </svg>
+                                                                    </button>
+                                                                </div>
+                                                                {openSearchDropdown === dropdownId && (
+                                                                    <div className="origin-top-left absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-20" style={{ right: 'auto' }}>
+                                                                        <div className="py-1" role="menu" aria-orientation="vertical">
+                                                                            {/* --- PERUBAHAN 3: Logika render baru untuk menangani tombol dan tautan --- */}
+                                                                            {searchEngines.map(engine => {
+                                                                                if (engine.action) {
+                                                                                    return (
+                                                                                        <button
+    key={engine.name}
+    onClick={() => {
+        engine.action();
+        setOpenSearchDropdown(null);
+    }}
+    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed" // <-- TAMBAHKAN STYLE DISABLED
+    role="menuitem"
+    disabled={isLoading} // <-- TAMBAHKAN INI
+>
+    {isLoading ? 'Memproses...' : engine.name} {/* <-- UBAH TEKS SAAT LOADING */}
+</button>
+                                                                                    );
+                                                                                }
+                                                                                return (
+                                                                                    <a
+                                                                                        key={engine.name}
+                                                                                        href={engine.url}
+                                                                                        target="_blank"
+                                                                                        rel="noopener noreferrer"
+                                                                                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                                                        role="menuitem"
+                                                                                        onClick={() => setOpenSearchDropdown(null)}
+                                                                                    >
+                                                                                        {engine.name}
+                                                                                    </a>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 ))}
@@ -4029,7 +7899,9 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                             )}
 
                             <div className="bg-gray-50 p-6 rounded-lg shadow-inner min-h-[400px]">
-                                {renderSection()}
+                                <ErrorBoundary>
+                                    {renderSection()}
+                                </ErrorBoundary>
                             </div>
 
                         </div>
