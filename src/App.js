@@ -2039,7 +2039,7 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
 
         try {
             // Prompt khusus untuk diskusi Bab 4
-            const prompt = `Anda adalah mitra diskusi akademis untuk Bab 4 (Hasil & Pembahasan).
+            const prompt = `Anda adalah peneliti ahli yang terbiasa menulis di jurnal Q1, sekaligus mitra diskusi akademis untuk Bab 4 (Hasil & Pembahasan).
             
             Konteks Draf Bab 4 Saat Ini:
             """
@@ -2049,7 +2049,10 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
             Pertanyaan/Instruksi Pengguna:
             "${userMsg.content}"
 
-            Instruksi: Jawablah secara spesifik, akademis, dan kritis. Jika diminta revisi, berikan teks revisinya.`;
+            Instruksi: 
+            1. Jawablah secara spesifik, akademis, dan kritis. Jika diminta revisi, berikan teks revisinya.
+            2. Hasilkan sebagai teks biasa (plain text) tanpa format markdown, HTML, ataupun LaTeX.
+            3. Anda tidak perlu menuliskan informasi diluar konteks, seperti 'standar jurnal Q1' dan kalimat sejenisnya. Anda cukup fokus pada substansi dan memberikan pengetahuan anda.`;
 
             const aiResponseText = await geminiService.run(prompt, geminiApiKey);
 
