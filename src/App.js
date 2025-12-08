@@ -1,6 +1,240 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 // ============================================================================
+// LANGKAH A2: Import Library Firebase (PINDAHKAN KE SINI)
+// ============================================================================
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth";
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+// HAPUS: import { getAnalytics } from "firebase/analytics";
+
+// ============================================================================
+// LANGKAH A1: Memindahkan initialProjectData ke atas
+// ============================================================================
+// Definisikan state awal di luar komponen agar bisa diakses kembali
+const initialProjectData = {
+    // Data Perencanaan
+    jenisKaryaTulis: 'Artikel Ilmiah',
+    jenisKaryaTulisLainnya: '',
+    topikTema: '',
+    pendekatan: '',
+    faktaMasalahDraft: '', // Dipindahkan ke sini
+    rumusanMasalahDraft: '', // <-- TAMBAHKAN STATE BARU
+    tujuanPenelitianDraft: '', // Dipindahkan ke sini
+    metode: '',
+    periode: '',
+    basisData: '',
+    tools: '',
+    judulKTI: '',
+    kataKunci: '',
+    penjelasan: '',
+    allReferences: [],
+    aiReferenceClues: null,
+    
+    // Data Instrumen
+    aiSuggestedVariables: null,
+    variabelTerikat: '',
+    variabelBebas: [],
+    aiSuggestedHypotheses: null,
+    hipotesis: [],
+    aiSuggestedKuesioner: null,
+    itemKuesioner: [],
+    aiSuggestedWawancara: null,
+    pertanyaanWawancara: [],
+    queryGeneratorTargetDB: 'Scopus',
+    aiGeneratedQueries: null,
+    searchLog: [],
+    
+    picos: {
+        population: '',
+        intervention: '',
+        comparison: '',
+        outcome: '',
+        studyDesign: ''
+    },
+
+    // State baru untuk PRISMA
+    prismaState: {
+        isInitialized: false,
+        studies: [], // { ...ref, screeningStatus, exclusionReason }
+        initialRecordCount: 0,
+        duplicateCount: 0,
+        automationIneligible: 0,
+        otherReasonsRemoved: 0,
+        reportsNotRetrieved: 0,
+        exclusionReasons: {
+            abstract: ['Tidak relevan dengan topik', 'Jenis publikasi salah (misal: review, editorial)', 'Desain studi tidak sesuai', 'Lainnya'],
+            fulltext: ['Tidak dapat mengambil full-text', 'Hasil (outcome) tidak relevan', 'Populasi/subjek tidak sesuai', 'Intervensi tidak sesuai', 'Lainnya']
+        },
+    },
+
+    // State baru untuk Ekstraksi & Sintesis
+    synthesisTableColumns: [
+        { key: 'author', label: 'Author(s) & Year', type: 'text' },
+        { key: 'population', label: 'Population/Problem', type: 'textarea' },
+        { key: 'intervention', label: 'Intervention', type: 'textarea' },
+        { key: 'comparison', label: 'Comparison', type: 'textarea' },
+        { key: 'outcome', label: 'Outcome/Result', type: 'textarea' },
+        { key: 'methodology', label: 'Methodology', type: 'textarea' },
+        { key: 'keyFinding', label: 'Temuan Kunci', type: 'textarea' },
+    ],
+    extractedData: [], // Array of objects, each object represents a paper
+    sintesisNaratifDraft: '',
+
+    // Data Analisis
+    deskripsiRespondenDraft: '',
+    analisisKuantitatifHasil: '',
+    analisisKuantitatifDraft: '',
+    analisisKualitatifHasil: null,
+    analisisKualitatifDraft: '',
+    deskripsiVisualisasi: '',
+    interpretasiData: '',
+    analisisVisualDraft: '',
+
+    // Data Draf Bab
+    teoriPenelitianDraft: '', // Tetap di sini untuk penggunaan lain
+    outlineDraft: null,
+    pendahuluanDraft: '',
+    metodeDraft: '',
+    studiLiteraturDraft: '',
+    hasilPembahasanDraft: '',
+    kesimpulanDraft: '',
+};
+
+// ============================================================================
+// LANGKAH A2: Import Library Firebase (HAPUS DARI SINI)
+// ============================================================================
+// import { initializeApp } from "firebase/app"; // SUDAH DIPINDAH
+// import { getAuth, GoogleAuthProvider, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth"; // SUDAH DIPINDAH
+// import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore"; // SUDAH DIPINDAH
+// import { getAnalytics } from "firebase/analytics"; // SUDAH DIPINDAH
+
+// ============================================================================
+// LANGKAH A3: Konfigurasi & Inisialisasi Firebase
+// ============================================================================
+// Konfigurasi Firebase Anda
+const firebaseConfig = {
+  apiKey: "AIzaSyB8ybK5c47tN5RcSrPCJP907_EJcVhaxYY",
+  authDomain: "bibliocobra.firebaseapp.com",
+  projectId: "bibliocobra",
+  storageBucket: "bibliocobra.firebasestorage.app",
+  messagingSenderId: "407335519685",
+  appId: "1:407335519685:web:3a064ca630fc30a4d9b7ac",
+  measurementId: "G-G847PBCG80"
+};
+
+// Inisialisasi Firebase
+const app = initializeApp(firebaseConfig);
+// HAPUS: const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
+
+// ============================================================================
+// LANGKAH A4: Komponen AuthPage (Halaman Login)
+// ============================================================================
+function AuthPage() {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState(null);
+
+    // Fungsi untuk membuat akun baru
+    const handleSignUp = async () => {
+        setError(null);
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+
+            // PENTING: Buat "dokumen" baru di Firestore untuk pengguna baru ini
+            // Kita gunakan 'initialProjectData' yang sudah kita pindah ke atas
+            await setDoc(doc(db, "projects", user.uid), initialProjectData);
+
+            // Pengguna akan otomatis login setelah sign-up
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    // Fungsi untuk login dengan email/password
+    const handleLogin = async () => {
+        setError(null);
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+            // Pengguna akan otomatis login
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    // Fungsi untuk "Login dengan Google"
+    const handleGoogleLogin = async () => {
+        setError(null);
+        try {
+            const result = await signInWithPopup(auth, googleProvider);
+            const user = result.user;
+
+            // Cek apakah pengguna ini baru (dari Google)
+            // Jika ya, buatkan juga dokumen untuk mereka di Firestore
+            const docRef = doc(db, "projects", user.uid);
+            const docSnap = await getDoc(docRef);
+
+            if (!docSnap.exists()) {
+                // Pengguna baru, buatkan dokumen
+                await setDoc(docRef, initialProjectData);
+            }
+            // Jika sudah ada, pengguna akan login dan datanya sudah ada
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-100" style={{ fontFamily: "'Inter', sans-serif" }}>
+            <div className="p-8 bg-white shadow-md rounded-lg max-w-sm w-full">
+                <h2 className="text-2xl font-bold text-center mb-6">Login Bibliocobra</h2>
+
+                {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+
+                <input 
+                    type="email" 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)} 
+                    placeholder="Email"
+                    className="w-full p-2 border rounded-lg mb-4"
+                />
+                <input 
+                    type="password" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)} 
+                    placeholder="Password"
+                    className="w-full p-2 border rounded-lg mb-4"
+                />
+
+                <div className="flex gap-2">
+                    <button onClick={handleLogin} className="flex-1 bg-blue-600 text-white p-2 rounded-lg font-semibold">Login</button>
+                    <button onClick={handleSignUp} className="flex-1 bg-green-600 text-white p-2 rounded-lg font-semibold">Sign Up</button>
+                </div>
+
+                <hr className="my-6" />
+
+                <button 
+                    onClick={handleGoogleLogin} 
+                    className="w-full bg-white border border-gray-300 p-2 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50"
+                >
+                    {/* Icon Google SVG */}
+                    <svg className="w-5 h-5" aria-hidden="true" focusable="false" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
+                    <span className="font-semibold text-gray-700">Login dengan Google</span>
+                </button>
+            </div>
+        </div>
+    );
+}
+// ============================================================================
+// AKHIR DARI KOMPONEN BARU
+// ============================================================================
+
+
+// ============================================================================
 // HOOKS: Logika yang dapat digunakan kembali, seperti antrean permintaan
 // ============================================================================
 const useRequestQueue = (processTask, delay = 1100) => {
@@ -57,35 +291,36 @@ const ChevronDownIcon = ({ isOpen }) => (
     </svg>
 );
 
-const MenuIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-    </svg>
-);
-
-const CloseIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-    </svg>
-);
-
+// --- PERBAIKAN: TAMBAHKAN IKON YANG HILANG ---
 const DownloadIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-download" viewBox="0 0 16 16">
+        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+        <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
     </svg>
 );
 
 const CopyIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-clipboard" viewBox="0 0 16 16">
+      <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+      <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zM8 1.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1z"/>
     </svg>
 );
 
-const DeleteIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+const MenuIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" className="bi bi-list" viewBox="0 0 16 16">
+        <path fillRule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
     </svg>
 );
+
+const CloseIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" className="bi bi-x-lg" viewBox="0 0 16 16">
+        <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
+    </svg>
+);
+// --- AKHIR PERBAIKAN ---
+
+
+// HAPUS: const DeleteIcon = () => ( ... );
 
 // --- LANGKAH 3.1 DIMULAI DI SINI ---
 const QueueStatusIndicator = ({ queueSize }) => {
@@ -425,6 +660,62 @@ class ErrorBoundary extends React.Component {
 // ============================================================================
 // KOMPONEN: Masing-masing Tab dipecah menjadi komponennya sendiri.
 // ============================================================================
+
+// --- Komponen BARU: Deskripsi Karakteristik Responden ---
+const DeskripsiResponden = ({ projectData, setProjectData, handleGenerateDeskripsiResponden, isLoading, handleCopyToClipboard }) => {
+    const [rawData, setRawData] = useState('');
+
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Deskripsi Karakteristik Responden</h2>
+            <p className="text-gray-700 mb-4">
+                "Masukkan data demografi responden (misal: tabel frekuensi usia, pendidikan) atau profil narasumber (deskripsi latar belakang dalam Teks). AI akan menyusun narasi karakteristik subjek penelitian untuk awal Bab 4."
+            </p>
+
+            <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2">Data Mentah Karakteristik Responden:</label>
+                <textarea
+                    value={rawData}
+                    onChange={(e) => setRawData(e.target.value)}
+                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed font-mono text-sm"
+                    rows="8"
+                    placeholder="Contoh:
+Jenis Kelamin: Laki-laki (45 orang, 45%), Perempuan (55 orang, 55%).
+Usia: 20-30 th (30%), 31-40 th (50%), >40 th (20%).
+Pendidikan: S1 (80), S2 (20)."
+                ></textarea>
+            </div>
+
+            <button
+                onClick={() => handleGenerateDeskripsiResponden(rawData)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 mb-6"
+                disabled={isLoading || !rawData}
+            >
+                {isLoading ? 'Memproses...' : '✨ Tulis Deskripsi Responden'}
+            </button>
+
+            {projectData.deskripsiRespondenDraft && (
+                <div className="pt-6 border-t border-gray-200">
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-lg font-bold text-gray-800">Draf Narasi Karakteristik Responden</h3>
+                        <button onClick={() => handleCopyToClipboard(projectData.deskripsiRespondenDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-3 rounded-lg">
+                            Salin Teks
+                        </button>
+                    </div>
+                    <textarea
+                        value={projectData.deskripsiRespondenDraft}
+                        onChange={(e) => setProjectData(p => ({ ...p, deskripsiRespondenDraft: e.target.value }))}
+                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+                        rows="10"
+                    ></textarea>
+                    <p className="text-xs text-gray-500 mt-2 italic">
+                        *Narasi ini akan otomatis disertakan di awal Bab 4 (Hasil & Pembahasan) saat Anda meng-generate bab tersebut.
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+};
 
 // --- Komponen untuk Dashboard Proyek ---
 const DashboardProyek = ({ projectData, setCurrentSection }) => {
@@ -1022,7 +1313,19 @@ const Referensi = ({
                                     Dapatkan kunci dari <a href="https://dev.elsevier.com/apikey/manage" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold">Elsevier Developer Portal</a> (khusus institusi yang berlangganan Scopus).
                                 </p>
                             </div>
-                            <p className="text-sm text-gray-700 mb-4">Cari artikel langsung dari database Scopus.</p>
+                            {/* --- PERUBAHAN DIMULAI DI SINI --- */}
+                            <p className="text-sm text-gray-700 mb-4">
+                                Cari artikel langsung dari database Scopus atau Scopus AI (via 
+                                <a 
+                                    href="https://venom-reference-converter.vercel.app/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline font-semibold"
+                                >
+                                    Venom Konverter
+                                </a>)
+                            </p>
+                            {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
                             <div className="flex flex-col sm:flex-row gap-2">
                                 <input 
                                     type="text"
@@ -1673,7 +1976,7 @@ const StudiLiteratur = ({ projectData, setProjectData, handleGenerateStudiLitera
 );
 
 // --- Komponen untuk Hasil & Pembahasan ---
-const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPembahasan, isLoading, handleCopyToClipboard, handleModifyText }) => {
+const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPembahasan, isLoading, handleCopyToClipboard, handleModifyText, geminiApiKey, showInfoModal }) => {
     const availableDrafts = [
         { key: 'analisisKuantitatifDraft', name: 'Analisis Kuantitatif' },
         { key: 'analisisKualitatifDraft', name: 'Analisis Kualitatif' },
@@ -1690,7 +1993,90 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
         projectData.metode.toLowerCase().includes('bibliometric')
     );
     // --- PERUBAHAN BERAKHIR DI SINI ---
+    
+    // --- MULAI KODE BARU UNTUK DISKUSI ---
+    const [discussionInput, setDiscussionInput] = useState('');
+    const [isDiscussing, setIsDiscussing] = useState(false);
+    const [isChatOpen, setIsChatOpen] = useState(true); // <--- BARU: Untuk buka/tutup box
+    const [confirmClear, setConfirmClear] = useState(false); // <--- STATE BARU: Untuk konfirmasi hapus
+    const chatEndRef = useRef(null);
 
+    // BARU: Fungsi Hapus Chat (Tanpa window.confirm)
+    const handleClearChat = () => {
+        setProjectData(p => ({ ...p, hasilPembahasanDiscussion: [] }));
+        setConfirmClear(false);
+    };
+
+    // Fungsi agar chat otomatis scroll ke bawah saat ada pesan baru
+    const scrollToBottom = () => {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [projectData.hasilPembahasanDiscussion]);
+
+    // Fungsi utama untuk mengirim pesan diskusi
+    const handleDiscussionSubmit = async () => {
+        if (!discussionInput.trim()) return;
+        
+        if (!projectData.hasilPembahasanDraft) {
+            showInfoModal("Hasilkan draf Bab 4 terlebih dahulu agar AI memiliki konteks untuk berdiskusi.");
+            return;
+        }
+
+        const userMsg = {
+            role: 'user',
+            content: discussionInput,
+            timestamp: new Date().toISOString()
+        };
+
+        // Update tampilan chat (pesan user muncul duluan)
+        const newHistory = [...(projectData.hasilPembahasanDiscussion || []), userMsg];
+        setProjectData(p => ({ ...p, hasilPembahasanDiscussion: newHistory }));
+        setDiscussionInput('');
+        setIsDiscussing(true);
+
+        try {
+            // Prompt khusus untuk diskusi Bab 4
+            const prompt = `Anda adalah mitra diskusi akademis untuk Bab 4 (Hasil & Pembahasan).
+            
+            Konteks Draf Bab 4 Saat Ini:
+            """
+            ${projectData.hasilPembahasanDraft}
+            """
+
+            Pertanyaan/Instruksi Pengguna:
+            "${userMsg.content}"
+
+            Instruksi: Jawablah secara spesifik, akademis, dan kritis. Jika diminta revisi, berikan teks revisinya.`;
+
+            const aiResponseText = await geminiService.run(prompt, geminiApiKey);
+
+            const aiMsg = {
+                role: 'ai',
+                content: aiResponseText,
+                timestamp: new Date().toISOString()
+            };
+
+            // Simpan jawaban AI
+            setProjectData(p => ({ 
+                ...p, 
+                hasilPembahasanDiscussion: [...(p.hasilPembahasanDiscussion || []), aiMsg] 
+            }));
+
+        } catch (error) {
+            showInfoModal(`Gagal memproses diskusi: ${error.message}`);
+            // Hapus pesan user jika gagal
+            setProjectData(p => ({ 
+                ...p, 
+                hasilPembahasanDiscussion: p.hasilPembahasanDiscussion.slice(0, -1) 
+            }));
+        } finally {
+            setIsDiscussing(false);
+        }
+    };
+    // --- AKHIR KODE BARU ---
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Hasil & Pembahasan</h2>
@@ -1745,6 +2131,7 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
             )}
 
             {projectData.hasilPembahasanDraft && (
+                 <>
                  <div className="mt-6">
                     <div className="flex justify-between items-center mb-2">
                         <h3 className="text-lg font-bold text-gray-800">Draf Hasil & Pembahasan</h3>
@@ -1756,7 +2143,7 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                         value={projectData.hasilPembahasanDraft}
                         onChange={(e) => setProjectData(p => ({ ...p, hasilPembahasanDraft: e.target.value }))}
                         className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                        rows="25"
+                        rows="20"
                     ></textarea>
                     {/* Fitur Modifikasi Teks */}
                     <div className="mt-4 pt-4 border-t border-gray-200">
@@ -1783,18 +2170,138 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                             >
                                 Buat Versi Panjang
                             </button>
-                        </div>
-                        {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
-<button 
-    onClick={() => handleModifyText('humanize', 'hasilPembahasanDraft')}
-    disabled={isLoading || !projectData.hasilPembahasanDraft}
-    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
->
-    Parafrasa (Humanisasi)
-</button>
+                            <button 
+                                onClick={() => handleModifyText('humanize', 'hasilPembahasanDraft')}
+                                disabled={isLoading || !projectData.hasilPembahasanDraft}
+                                className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+                            >
+                                Parafrasa (Humanisasi)
+                            </button>
 {/* --- AKHIR TOMBOL BARU --- */}
+                        </div>
                     </div>
                 </div>
+
+                    {/* --- FITUR DISKUSI DENGAN AI (DIPERBAIKI) --- */}
+                    <div className="border-t-2 border-indigo-200 pt-6 mt-8">
+                        <div className="bg-indigo-50 rounded-xl border border-indigo-100 p-4 shadow-sm transition-all duration-300">
+                            
+                            {/* 1. HEADER (SELALU MUNCUL) */}
+                            <div className="flex justify-between items-center mb-4">
+                                <div>
+                                    <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2 cursor-pointer" onClick={() => setIsChatOpen(!isChatOpen)}>
+                                        🤖 Asisten Diskusi Bab IV
+                                        <span className="text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-1 rounded-full">
+                                            {isChatOpen ? 'Aktif' : 'Tersembunyi'}
+                                        </span>
+                                    </h3>
+                                    {isChatOpen && (
+                                        <p className="text-sm text-indigo-700 mt-1">
+                                            Konsultasi, kritik, atau minta revisi. AI membaca draf di atas sebagai konteks.
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="flex gap-2">
+                                    {isChatOpen && (
+                                        confirmClear ? (
+                                            <>
+                                                <button 
+                                                    onClick={handleClearChat}
+                                                    className="text-xs bg-red-600 text-white hover:bg-red-700 px-3 py-1 rounded-lg font-semibold animate-pulse"
+                                                >
+                                                    Yakin Hapus?
+                                                </button>
+                                                <button 
+                                                    onClick={() => setConfirmClear(false)}
+                                                    className="text-xs bg-gray-200 text-gray-600 hover:bg-gray-300 px-3 py-1 rounded-lg font-semibold"
+                                                >
+                                                    Batal
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <button 
+                                                onClick={() => setConfirmClear(true)}
+                                                className="text-xs bg-red-100 text-red-600 hover:bg-red-200 px-3 py-1 rounded-lg font-semibold"
+                                                title="Hapus Riwayat Chat"
+                                            >
+                                                Hapus Chat
+                                            </button>
+                                        )
+                                    )}
+                                    <button 
+                                        onClick={() => setIsChatOpen(!isChatOpen)}
+                                        className="text-indigo-500 hover:text-indigo-700 p-1"
+                                    >
+                                        <ChevronDownIcon isOpen={isChatOpen} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 2. BODY (MUNCUL HANYA JIKA CHAT DIBUKA) */}
+                            {isChatOpen && (
+                                <>
+                                    {/* Area Riwayat Chat */}
+                                    <div className="bg-white border border-gray-200 rounded-lg h-80 overflow-y-auto p-4 mb-4 space-y-4">
+                                        {(!projectData.hasilPembahasanDiscussion || projectData.hasilPembahasanDiscussion.length === 0) && (
+                                            <p className="text-center text-gray-400 italic mt-10">Belum ada diskusi. Mulai dengan bertanya sesuatu tentang draf Anda.</p>
+                                        )}
+                                        {projectData.hasilPembahasanDiscussion && projectData.hasilPembahasanDiscussion.map((msg, idx) => (
+                                            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                                <div className={`max-w-[85%] rounded-lg p-3 ${
+                                                    msg.role === 'user' 
+                                                    ? 'bg-indigo-600 text-white rounded-br-none' 
+                                                    : 'bg-gray-100 text-gray-800 rounded-bl-none border border-gray-200'
+                                                }`}>
+                                                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                                    {msg.role === 'ai' && (
+                                                        <div className="mt-2 pt-2 border-t border-gray-200 flex justify-end">
+                                                            <button 
+                                                                onClick={() => handleCopyToClipboard(msg.content)}
+                                                                className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
+                                                            >
+                                                                <CopyIcon /> Salin Jawaban
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {isDiscussing && (
+                                            <div className="flex justify-start">
+                                                <div className="bg-gray-100 rounded-lg p-3 rounded-bl-none border border-gray-200 flex items-center gap-2">
+                                                    <div className="animate-bounce h-2 w-2 bg-gray-400 rounded-full"></div>
+                                                    <div className="animate-bounce h-2 w-2 bg-gray-400 rounded-full" style={{animationDelay: '0.2s'}}></div>
+                                                    <div className="animate-bounce h-2 w-2 bg-gray-400 rounded-full" style={{animationDelay: '0.4s'}}></div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div ref={chatEndRef} />
+                                    </div>
+
+                                    {/* Area Input */}
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={discussionInput}
+                                            onChange={(e) => setDiscussionInput(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && handleDiscussionSubmit()}
+                                            placeholder="Tanya AI: 'Apakah argumen di paragraf 2 sudah kuat?' atau 'Tulis ulang bagian ini...'"
+                                            className="flex-grow shadow-sm border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            disabled={isDiscussing}
+                                        />
+                                        <button
+                                            onClick={handleDiscussionSubmit}
+                                            disabled={isDiscussing || !discussionInput.trim()}
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-indigo-300 transition-colors"
+                                        >
+                                            Kirim
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+            </>
             )}
         </div>
     );
@@ -1802,7 +2309,7 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
 
 
 // --- Komponen untuk Instrumen: Generator Variabel ---
-const GeneratorVariabel = ({ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal }) => {
+const GeneratorVariabel = ({ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal, handleCopyToClipboard }) => {
     // State lokal untuk menampung hasil dari AI sebelum disimpan
     const [suggestedVariables, setSuggestedVariables] = useState(null);
     // State lokal untuk mode penyuntingan
@@ -1904,18 +2411,31 @@ const GeneratorVariabel = ({ projectData, setProjectData, handleGenerateVariabel
                          <div>
                             <label className="block text-gray-700 text-sm font-bold mb-2">Variabel Bebas (X):</label>
                             {editingVariables.variabel_bebas.map((v, index) => (
-                                <div key={index} className="flex items-center gap-2 mb-2">
-                                    <input 
-                                        type="text" 
-                                        value={v} 
-                                        onChange={e => handleEditBebas(index, e.target.value)} 
-                                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                                    />
-                                    <button onClick={() => handleRemoveBebas(index)} className="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-lg text-sm flex items-center justify-center h-10 w-10">
-                                        X
-                                    </button>
-                                </div>
-                            ))}
+    <div key={index} className="flex items-start gap-2 mb-4">
+        <textarea 
+            value={v} 
+            onChange={e => handleEditBebas(index, e.target.value)} 
+            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 resize-y" // resize-y agar bisa ditarik
+            rows="2"
+        />
+        <div className="flex flex-col gap-2">
+            <button 
+                onClick={() => handleCopyToClipboard(v)} 
+                className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg flex items-center justify-center h-10 w-10"
+                title="Salin"
+            >
+                <CopyIcon />
+            </button>
+            <button 
+                onClick={() => handleRemoveBebas(index)} 
+                className="bg-red-500 hover:bg-red-600 text-white font-bold p-2 rounded-lg text-sm flex items-center justify-center h-10 w-10"
+                title="Hapus"
+            >
+                X
+            </button>
+        </div>
+    </div>
+))}
                              <button onClick={handleAddBebas} className="mt-2 bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded-lg text-sm">
                                 + Tambah Variabel Bebas
                             </button>
@@ -1931,7 +2451,7 @@ const GeneratorVariabel = ({ projectData, setProjectData, handleGenerateVariabel
 };
 
 // --- Komponen untuk Instrumen: Generator Hipotesis ---
-const GeneratorHipotesis = ({ projectData, setProjectData, handleGenerateHipotesis, isLoading, showInfoModal }) => {
+const GeneratorHipotesis = ({ projectData, setProjectData, handleGenerateHipotesis, isLoading, showInfoModal, handleCopyToClipboard }) => {
     const [editingHypotheses, setEditingHypotheses] = useState(null);
 
     useEffect(() => {
@@ -2017,15 +2537,42 @@ const GeneratorHipotesis = ({ projectData, setProjectData, handleGenerateHipotes
                             <div key={index} className="p-4 border rounded-lg bg-white">
                                 <p className="text-sm font-semibold text-gray-600 mb-2">Pasangan Hipotesis {index + 1}</p>
                                 <div className="space-y-2">
-                                    <div>
-                                        <label className="block text-gray-700 text-sm font-bold mb-1">Hipotesis Alternatif (H{index + 1}):</label>
-                                        <input 
-                                            type="text" 
-                                            value={hypo.h1} 
-                                            onChange={e => handleEdit(index, 'h1', e.target.value)}
-                                            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                                        />
-                                    </div>
+                                    <div className="mb-4">
+    <label className="block text-gray-700 text-sm font-bold mb-1">Hipotesis Alternatif (H{index + 1}):</label>
+    <div className="flex items-start gap-2">
+        <textarea 
+            value={hypo.h1} 
+            onChange={e => handleEdit(index, 'h1', e.target.value)}
+            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 resize-y"
+            rows="2"
+        />
+        <button 
+            onClick={() => handleCopyToClipboard(hypo.h1)} 
+            className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg h-10 w-10 flex items-center justify-center flex-shrink-0"
+            title="Salin"
+        >
+            <CopyIcon />
+        </button>
+    </div>
+</div>
+<div>
+    <label className="block text-gray-700 text-sm font-bold mb-1">Hipotesis Nol (H{index + 1}o):</label>
+    <div className="flex items-start gap-2">
+        <textarea 
+            value={hypo.h0} 
+            onChange={e => handleEdit(index, 'h0', e.target.value)}
+            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 resize-y"
+            rows="2"
+        />
+        <button 
+            onClick={() => handleCopyToClipboard(hypo.h0)} 
+            className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg h-10 w-10 flex items-center justify-center flex-shrink-0"
+            title="Salin"
+        >
+            <CopyIcon />
+        </button>
+    </div>
+</div>
                                     <div>
                                         <label className="block text-gray-700 text-sm font-bold mb-1">Hipotesis Nol (H{index + 1}o):</label>
                                         <input 
@@ -2049,7 +2596,7 @@ const GeneratorHipotesis = ({ projectData, setProjectData, handleGenerateHipotes
 };
 
 // --- Komponen untuk Instrumen: Generator Kuesioner ---
-const GeneratorKuesioner = ({ projectData, setProjectData, handleGenerateKuesioner, isLoading, showInfoModal }) => {
+const GeneratorKuesioner = ({ projectData, setProjectData, handleGenerateKuesioner, isLoading, showInfoModal, handleCopyToClipboard }) => {
     const [editingKuesioner, setEditingKuesioner] = useState(null);
 
     useEffect(() => {
@@ -2157,16 +2704,31 @@ const GeneratorKuesioner = ({ projectData, setProjectData, handleGenerateKuesion
                                 <h4 className="text-lg font-semibold text-gray-800 mb-3">{variabel.nama_variabel}</h4>
                                 <div className="space-y-2">
                                     {variabel.item_kuesioner.map((item, itemIndex) => (
-                                        <div key={itemIndex} className="flex items-center gap-2">
-                                            <input 
-                                                type="text" 
-                                                value={item} 
-                                                onChange={e => handleItemChange(varIndex, itemIndex, e.target.value)}
-                                                className="shadow-sm appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                                            />
-                                            <button onClick={() => handleRemoveItem(varIndex, itemIndex)} className="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-lg text-sm flex-shrink-0">X</button>
-                                        </div>
-                                    ))}
+    <div key={itemIndex} className="flex items-start gap-2 mb-3">
+        <textarea 
+            value={item} 
+            onChange={e => handleItemChange(varIndex, itemIndex, e.target.value)}
+            className="shadow-sm appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 resize-y"
+            rows="2"
+        />
+        <div className="flex flex-col gap-2 flex-shrink-0">
+            <button 
+                onClick={() => handleCopyToClipboard(item)} 
+                className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg h-10 w-10 flex items-center justify-center"
+                title="Salin"
+            >
+                <CopyIcon />
+            </button>
+            <button 
+                onClick={() => handleRemoveItem(varIndex, itemIndex)} 
+                className="bg-red-500 hover:bg-red-600 text-white font-bold p-2 rounded-lg h-10 w-10 flex items-center justify-center text-sm"
+                title="Hapus"
+            >
+                X
+            </button>
+        </div>
+    </div>
+))}
                                 </div>
                                 <button onClick={() => handleAddItem(varIndex)} className="mt-3 bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded-lg text-sm">
                                     + Tambah Item
@@ -2184,7 +2746,7 @@ const GeneratorKuesioner = ({ projectData, setProjectData, handleGenerateKuesion
 };
 
 // --- Komponen untuk Instrumen: Generator Pertanyaan Wawancara ---
-const GeneratorWawancara = ({ projectData, setProjectData, handleGenerateWawancara, isLoading, showInfoModal }) => {
+const GeneratorWawancara = ({ projectData, setProjectData, handleGenerateWawancara, isLoading, showInfoModal, handleCopyToClipboard }) => {
     const [editingWawancara, setEditingWawancara] = useState(null);
 
     useEffect(() => {
@@ -2294,17 +2856,31 @@ const GeneratorWawancara = ({ projectData, setProjectData, handleGenerateWawanca
                                 <p className="text-sm italic text-gray-600 mb-3">{kategori.deskripsi_kategori}</p>
                                 <div className="space-y-2">
                                     {kategori.pertanyaan.map((item, qIndex) => (
-                                        <div key={qIndex} className="flex items-center gap-2">
-                                            {/* PERUBAHAN: Mengganti input dengan textarea */}
-                                            <textarea 
-                                                value={item} 
-                                                onChange={e => handleQuestionChange(catIndex, qIndex, e.target.value)}
-                                                className="shadow-sm appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                                                rows="2"
-                                            />
-                                            <button onClick={() => handleRemoveQuestion(catIndex, qIndex)} className="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-lg text-sm flex-shrink-0">X</button>
-                                        </div>
-                                    ))}
+    <div key={qIndex} className="flex items-start gap-2 mb-3">
+        <textarea 
+            value={item} 
+            onChange={e => handleQuestionChange(catIndex, qIndex, e.target.value)}
+            className="shadow-sm appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 resize-y" // resize-y agar bisa ditarik
+            rows="3"
+        />
+        <div className="flex flex-col gap-2 flex-shrink-0">
+            <button 
+                onClick={() => handleCopyToClipboard(item)} 
+                className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg h-10 w-10 flex items-center justify-center"
+                title="Salin"
+            >
+                <CopyIcon />
+            </button>
+            <button 
+                onClick={() => handleRemoveQuestion(catIndex, qIndex)} 
+                className="bg-red-500 hover:bg-red-600 text-white font-bold p-2 rounded-lg h-10 w-10 flex items-center justify-center text-sm"
+                title="Hapus"
+            >
+                X
+            </button>
+        </div>
+    </div>
+))}
                                 </div>
                                 <button onClick={() => handleAddQuestion(catIndex)} className="mt-3 bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded-lg text-sm">
                                     + Tambah Pertanyaan
@@ -2349,14 +2925,7 @@ const GeneratorLogKueri = ({
     const today = new Date().toISOString().slice(0, 10);
 
     // State baru untuk PICOS
-    const [picos, setPicos] = useState({
-        population: '',
-        intervention: '',
-        comparison: '',
-        outcome: '',
-        studyDesign: ''
-    });
-    const [generatedRQ, setGeneratedRQ] = useState('');
+   
     const [isPicosLoading, setIsPicosLoading] = useState(false);
 
     const handlePicosChange = (e) => {
@@ -2471,7 +3040,7 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
 
     // Simpan perubahan edit
     const handleUpdateLog = () => {
-        const { resultsCount, query, database, searchDate } = editingLog;
+        const { resultsCount, query, searchDate } = editingLog;
         const count = parseInt(resultsCount, 10);
 
         if (!resultsCount || isNaN(count) || count < 0) {
@@ -2991,13 +3560,13 @@ const AnalisisKuantitatif = ({
             <label className="block text-gray-700 text-sm font-bold mb-2">
               Fokus Analisis Spesifik (Opsional):
             </label>
-            <input 
-              type="text"
+            <textarea 
               value={quantitativeFocus}
               onChange={(e) => setQuantitativeFocus(e.target.value)}
               className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
               placeholder="Contoh: Fokus pada korelasi 'Variabel A' vs 'Variabel B', atau 'Analisis kelompok usia > 30'"
-            />
+              rows="3"
+            ></textarea>
           </div>
           {/* --- AKHIR BARU --- */}
 
@@ -3231,13 +3800,13 @@ const AnalisisKualitatif = ({
             <label className="block text-gray-700 text-sm font-bold mb-2">
               Fokus Analisis Spesifik (Opsional):
             </label>
-            <input 
-              type="text"
-              value={qualitativeFocus}
-              onChange={(e) => setQualitativeFocus(e.target.value)}
-              className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-              placeholder="Contoh: Fokus pada tema 'tantangan implementasi', atau 'pandangan manajer senior'"
-            />
+            <textarea 
+            value={qualitativeFocus}
+            onChange={(e) => setQualitativeFocus(e.target.value)}
+            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+            placeholder="Contoh: Fokus pada tema 'tantangan implementasi', atau 'pandangan manajer senior'"
+            rows="3"
+            ></textarea>
           </div>
           {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
           <button 
@@ -3496,13 +4065,13 @@ const AnalisisVisual = ({
         <div className="mt-6 pt-6 border-t border-gray-200">
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-bold mb-2">Fokus Analisis Spesifik (Opsional):</label>
-            <input 
-              type="text"
-              value={analysisFocus}
-              onChange={(e) => setAnalysisFocus(e.target.value)}
-              className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-              placeholder="Contoh: Fokus pada klaster merah dan hubungannya dengan 'inovasi'."
-            />
+            <textarea 
+            value={analysisFocus}
+            onChange={(e) => setAnalysisFocus(e.target.value)}
+            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+            placeholder="Contoh: Fokus pada klaster merah dan hubungannya dengan 'inovasi'."
+            rows="3"
+            ></textarea>
           </div>
           <div className="flex flex-wrap gap-2">
             <button 
@@ -5214,97 +5783,24 @@ const Tutorial = () => (
 // ============================================================================
 
 // Definisikan state awal di luar komponen agar bisa diakses kembali
+// BLOK INI AKAN DIHAPUS KARENA SUDAH DIPINDAH KE ATAS
+/*
 const initialProjectData = {
     // Data Perencanaan
-    jenisKaryaTulis: 'Artikel Ilmiah',
-    jenisKaryaTulisLainnya: '',
-    topikTema: '',
-    pendekatan: '',
-    faktaMasalahDraft: '', // Dipindahkan ke sini
-    rumusanMasalahDraft: '', // <-- TAMBAHKAN STATE BARU
-    tujuanPenelitianDraft: '', // Dipindahkan ke sini
-    metode: '',
-    periode: '',
-    basisData: '',
-    tools: '',
-    judulKTI: '',
-    kataKunci: '',
-    penjelasan: '',
-    allReferences: [],
-    aiReferenceClues: null,
-    
-    // Data Instrumen
-    aiSuggestedVariables: null,
-    variabelTerikat: '',
-    variabelBebas: [],
-    aiSuggestedHypotheses: null,
-    hipotesis: [],
-    aiSuggestedKuesioner: null,
-    itemKuesioner: [],
-    aiSuggestedWawancara: null,
-    pertanyaanWawancara: [],
-    queryGeneratorTargetDB: 'Scopus',
-    aiGeneratedQueries: null,
-    searchLog: [],
-    
-    picos: {
-        population: '',
-        intervention: '',
-        comparison: '',
-        outcome: '',
-        studyDesign: ''
-    },
-
-    // State baru untuk PRISMA
-    prismaState: {
-        isInitialized: false,
-        studies: [], // { ...ref, screeningStatus, exclusionReason }
-        initialRecordCount: 0,
-        duplicateCount: 0,
-        automationIneligible: 0,
-        otherReasonsRemoved: 0,
-        reportsNotRetrieved: 0,
-        exclusionReasons: {
-            abstract: ['Tidak relevan dengan topik', 'Jenis publikasi salah (misal: review, editorial)', 'Desain studi tidak sesuai', 'Lainnya'],
-            fulltext: ['Tidak dapat mengambil full-text', 'Hasil (outcome) tidak relevan', 'Populasi/subjek tidak sesuai', 'Intervensi tidak sesuai', 'Lainnya']
-        },
-    },
-
-    // State baru untuk Ekstraksi & Sintesis
-    synthesisTableColumns: [
-        { key: 'author', label: 'Author(s) & Year', type: 'text' },
-        { key: 'population', label: 'Population/Problem', type: 'textarea' },
-        { key: 'intervention', label: 'Intervention', type: 'textarea' },
-        { key: 'comparison', label: 'Comparison', type: 'textarea' },
-        { key: 'outcome', label: 'Outcome/Result', type: 'textarea' },
-        { key: 'methodology', label: 'Methodology', type: 'textarea' },
-        { key: 'keyFinding', label: 'Temuan Kunci', type: 'textarea' },
-    ],
-    extractedData: [], // Array of objects, each object represents a paper
-    sintesisNaratifDraft: '',
-
-    // Data Analisis
-    analisisKuantitatifHasil: '',
-    analisisKuantitatifDraft: '',
-    analisisKualitatifHasil: null,
-    analisisKualitatifDraft: '',
-    deskripsiVisualisasi: '',
-    interpretasiData: '',
-    analisisVisualDraft: '',
-
-    // Data Draf Bab
-    teoriPenelitianDraft: '', // Tetap di sini untuk penggunaan lain
-    outlineDraft: null,
-    pendahuluanDraft: '',
-    metodeDraft: '',
-    studiLiteraturDraft: '',
-    hasilPembahasanDraft: '',
+// ... (konten initialProjectData yang lama) ...
     kesimpulanDraft: '',
 };
+*/
 
 function App() {
     const [currentSection, setCurrentSection] = useState('ideKTI');
     const [projectData, setProjectData] = useState(initialProjectData);
+    
+    // ============================================================================
+    // LANGKAH B1: Tambah State untuk Pengguna & Loading Auth
+    // ============================================================================
+    const [currentUser, setCurrentUser] = useState(null);
+    const [isLoadingAuth, setIsLoadingAuth] = useState(true);
     
     // State untuk alur kerja Ide KTI yang baru
     const [ideKtiMode, setIdeKtiMode] = useState(null); // 'ai', 'manual', atau null
@@ -5328,7 +5824,6 @@ Publisher Name: `;
     const [showModal, setShowModal] = useState(false);
     const [modalMessage, setModalMessage] = useState('');
     const [showSearchPromptModal, setShowSearchPromptModal] = useState(false);
-    const [aiClueNarratives, setAiClueNarratives] = useState({});
     const [geminiApiKey, setGeminiApiKey] = useState('');
     const [scopusApiKey, setScopusApiKey] = useState(''); // State baru untuk Scopus API Key
     const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
@@ -5362,6 +5857,8 @@ Publisher Name: `;
     const [openMethod, setOpenMethod] = useState(null);
     const [openSearchDropdown, setOpenSearchDropdown] = useState(null);
 
+    // HAPUS: const [aiClueNarratives, setAiClueNarratives] = useState({});
+
     // --- State Baru untuk Fitur Pencarian Konsep ---
     const [conceptQuery, setConceptQuery] = useState('');
     const [isConceptSearching, setIsConceptSearching] = useState(false);
@@ -5378,6 +5875,84 @@ Publisher Name: `;
     const S2_API_KEY = '62xZMjIZah5nNxfZ9lv112iKyIhqT1929s3X3xEz';
 
 
+    // ============================================================================
+    // LANGKAH B2: useEffect untuk Mendengarkan Status Auth & Memuat Data
+    // ============================================================================
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // Pengguna login
+                setCurrentUser(user);
+                
+                // Ambil data proyek pengguna dari Firestore
+                const docRef = doc(db, "projects", user.uid);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    // Jika dokumen ada, muat datanya
+                    const loadedData = docSnap.data();
+                    // Gabungkan dengan data awal untuk memastikan semua field ada
+                    setProjectData(prev => ({ ...initialProjectData, ...loadedData }));
+                } else {
+                    // Jika tidak ada (misal: pengguna mendaftar tapi gagal buat dokumen)
+                    // Buat dokumen baru untuk mereka
+                    try {
+                        await setDoc(doc(db, "projects", user.uid), initialProjectData);
+                        setProjectData(initialProjectData);
+                    } catch (err) {
+                        console.error("Gagal membuat dokumen untuk pengguna baru:", err);
+                    }
+                }
+            } else {
+                // Pengguna logout
+                setCurrentUser(null);
+                setProjectData(initialProjectData); // Reset ke data awal
+            }
+            setIsLoadingAuth(false); // Selesai memuat status auth
+        });
+
+        // Cleanup listener saat komponen unmount
+        return () => unsubscribe();
+    }, []); // <-- Dependency array kosong, hanya berjalan sekali
+
+    // ============================================================================
+    // LANGKAH B3: useEffect untuk Menyimpan Data ke Firestore secara Otomatis
+    // ============================================================================
+    // Gunakan useRef untuk melacak apakah ini pemuatan awal
+    const isInitialMount = useRef(true);
+    
+    useEffect(() => {
+        // Jangan simpan pada pemuatan awal atau jika auth masih loading
+        if (isLoadingAuth || isInitialMount.current) {
+            if (!isLoadingAuth) {
+                isInitialMount.current = false; // Tandai pemuatan awal selesai setelah auth selesai
+            }
+            return;
+        }
+
+        // Hanya simpan jika pengguna sudah login
+        if (currentUser) {
+            const saveData = async () => {
+                try {
+                    await setDoc(doc(db, "projects", currentUser.uid), projectData, { merge: true });
+                    console.log("Proyek disimpan ke Firestore...");
+                } catch (err) {
+                    console.error("Gagal menyimpan proyek:", err);
+                }
+            };
+            
+            // Debounce: simpan 1 detik setelah perubahan terakhir
+            const handler = setTimeout(() => {
+                saveData();
+            }, 1000); 
+
+            return () => {
+                clearTimeout(handler); // Bersihkan timeout jika ada perubahan baru
+            };
+        }
+    }, [projectData, currentUser, isLoadingAuth]); // <-- Jalankan saat data atau pengguna berubah
+
+
     // Efek untuk menampilkan pop-up selamat datang
     useEffect(() => {
         const hasSeenWelcome = localStorage.getItem('hasSeenWelcomeModal');
@@ -5389,7 +5964,7 @@ Publisher Name: `;
     // Efek untuk memuat data proyek dan kunci API dari localStorage saat komponen dimuat
     useEffect(() => {
         try {
-            const savedData = localStorage.getItem('kti-bibliometric-project');
+            // HAPUS BAGIAN INI: const savedData = localStorage.getItem('kti-bibliometric-project');
             const savedGeminiKey = localStorage.getItem('gemini-api-key');
             const savedScopusKey = localStorage.getItem('scopus-api-key'); // Muat kunci Scopus
             
@@ -5400,6 +5975,8 @@ Publisher Name: `;
                 setScopusApiKey(savedScopusKey);
             }
 
+            // HAPUS SEMUA BLOK 'if (savedData) { ... } else { ... }'
+            /*
             if (savedData) {
                 const parsedData = JSON.parse(savedData);
 
@@ -5416,12 +5993,14 @@ Publisher Name: `;
             } else {
                 setProjectData(initialProjectData);
             }
+            */
         } catch (error) {
             console.error("Gagal memuat data dari localStorage:", error);
         }
     }, []);
 
     // Efek untuk menyimpan data proyek ke localStorage setiap kali berubah
+    /* HAPUS SELURUH useEffect INI
     useEffect(() => {
         try {
             localStorage.setItem('kti-bibliometric-project', JSON.stringify(projectData));
@@ -5429,6 +6008,7 @@ Publisher Name: `;
             console.error("Gagal menyimpan data proyek ke localStorage:", error);
         }
     }, [projectData]);
+    */
 
     // Efek untuk menyimpan kunci API Gemini ke localStorage setiap kali berubah
     useEffect(() => {
@@ -6268,6 +6848,7 @@ ${kutipanString}
         }
     };
     
+    // --- UPDATE: handleGenerateHasilPembahasan (Context Injection Bab 4) ---
     const handleGenerateHasilPembahasan = async () => {
         setIsLoading(true);
         setProjectData(p => ({ ...p, hasilPembahasanDraft: '' }));
@@ -6283,34 +6864,76 @@ ${kutipanString}
             return;
         }
 
-        // --- PERBAIKAN PROMPT DI SINI ---
-        const prompt = `Anda adalah seorang penulis akademis dan peneliti ahli yang sangat teliti. Tugas Anda adalah menulis draf Bab 4: Hasil dan Pembahasan yang komprehensif HANYA berdasarkan informasi yang disediakan.
+        // INJEKSI DESKRIPSI RESPONDEN
+        const deskripsiResponden = projectData.deskripsiRespondenDraft 
+            ? `\n\n**Data Karakteristik Responden (Awal Bab 4):**\n${projectData.deskripsiRespondenDraft}\n` 
+            : "";
 
-**Aturan Paling Penting (WAJIB DIPATUHI):**
-- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Data Hasil Analisis" di bawah. JANGAN menambahkan data, temuan, interpretasi, atau referensi lain yang tidak berasal dari draf analisis yang diberikan. Anda harus bekerja HANYA dengan materi yang ada.
-- **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
+        const contextBab1 = projectData.pendahuluanDraft || "Belum ada draf Bab 1.";
+        const contextBab2 = projectData.studiLiteraturDraft || "Belum ada draf Bab 2.";
+        const contextBab3 = projectData.metodeDraft || "Belum ada draf Bab 3."; // <-- BAB 3 DITAMBAHKAN
 
-**Konteks Proyek & Data Analisis (Satu-satunya Sumber Informasi Anda):**
-- Judul Penelitian: "${projectData.judulKTI || 'Tidak Disediakan'}"
-- Tujuan Penelitian: "${projectData.tujuanPenelitianDraft || 'Tidak Disediakan'}"
-- Data Hasil Analisis:
-${dataSintesis}
+        const prompt = `Anda adalah seorang penulis akademis dan peneliti ahli. Tugas Anda adalah menulis draf Bab 4: Hasil dan Pembahasan yang komprehensif dan TERINTEGRASI SECARA TEORETIS, dengan kualitas selevel Q1 seperti yang biasa anda lakukan.
 
-**Instruksi Penulisan yang Sangat Rinci:**
-1.  **Struktur Bab:** Susunlah draf Anda ke dalam dua sub-bab utama: **4.1 Hasil Penelitian** dan **4.2 Pembahasan**.
-2.  **Instruksi untuk 4.1 Hasil Penelitian:** Sajikan temuan-temuan utama dari "Data Hasil Analisis" secara objektif. Laporkan fakta dan data apa adanya tanpa interpretasi mendalam. Integrasikan temuan dari berbagai analisis (jika ada lebih dari satu) secara logis.
-3.  **Instruksi untuk 4.2 Pembahasan:** Lakukan hal berikut:
-    - **Interpretasikan Temuan:** Jelaskan apa arti dari hasil yang telah disajikan di sub-bab 4.1.
-    - **Hubungkan dengan Tujuan:** Secara eksplisit, bahas bagaimana setiap temuan membantu menjawab "Tujuan Penelitian" yang telah ditetapkan.
-    - **Sintesis, Bukan Pengulangan:** Jangan hanya mengulang hasil, tetapi sintesiskan menjadi sebuah argumen yang utuh.
+Aturan Paling Penting (WAJIB DIPATUHI):
+1. **Theoretical Linking (WAJIB):** Pembahasan Anda JANGAN HANYA deskriptif. Anda WAJIB mengaitkan temuan data kembali ke teori-teori atau konsep yang telah disebutkan dalam "Konteks Bab 1 (Pendahuluan)" atau "Konteks Bab 2 (Tinjauan Pustaka)". Jika di Bab 1 ada teori motivasi atau keadilan, sebutkan kembali di pembahasan untuk memvalidasi atau menolak teori tersebut berdasarkan data.
+2. **No Hallucination:** Gunakan data dari "Data Hasil Analisis". Jangan mengarang angka atau kutipan baru.
+3. **Hasil penelitian wajib menjawab rumusan masalah dan tujuan penelitian pada "Konteks Bab 1 (Pendahuluan)":** JANGAN OUT OF CONTEXT, hasil penelitian harus bisa menjawab rumusan masalah dan tujuan penelitian yang disebutkan dalam "Konteks Bab 1 (Pendahuluan)".
+4. **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Sumber Data & Konteks". JANGAN membuat asumsi atau menambahkan informasi yang tidak ada.
+5. **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
+6. **Gunakan Sub-judul Bernomor:** Wajib gunakan format "4.1 ...", "4.2 ...", dst.
 
-Pastikan ada alur yang logis antara penyajian hasil dan pembahasannya.`;
+**Sumber Data & Konteks:**
+- Judul: "${projectData.judulKTI}"
+- Tujuan: "${projectData.tujuanPenelitianDraft}"
+- Konteks Bab 1 (Teori): ${contextBab1.substring(0, 3000)}
+- Konteks Bab 2 (Teori): ${contextBab2.substring(0, 3000)}
+- Konteks Bab 3 (Metode): ${contextBab3.substring(0, 3000)}
+- Deskripsi Responden: ${deskripsiResponden}
+- Data Hasil Analisis: ${dataSintesis}
+
+**Instruksi untuk Penulisan Bab 4:**
+
+**1. 4.1 Gambaran Umum Objek Penelitian / Karakteristik Responden:**
+- Sajikan **karakteristik responden** penelitian secara komprehensif. Jika data karakteristik responden sudah disediakan, gunakan informasi tersebut untuk menjelaskan:
+  - **Jumlah responden**, **karakteristik demografis** (misalnya, usia, jabatan, tingkat pendidikan, pengalaman kerja), dan **atribut relevan lainnya** yang menunjukkan **representativitas sampel**.
+  - Berikan penjelasan terkait **kriteria pemilihan responden** dan bagaimana mereka relevan untuk tujuan penelitian ini.
+
+**Saran untuk kualitas Q1:**
+- Jelaskan **metode sampling** yang digunakan (misalnya, purposive sampling, random sampling) dan **alasan pemilihannya**.
+- Pastikan **jumlah responden** dijelaskan dengan jelas dan apakah cukup representatif untuk mendukung temuan yang valid.
+
+**2. 4.2 Hasil Penelitian:**
+- **Sajikan temuan utama** dari penelitian secara terperinci, baik yang diperoleh dari data **kuantitatif** (misalnya, kuesioner, statistik deskriptif) maupun **kualitatif** (wawancara).
+  - Untuk **data kuantitatif**, gunakan **tabel, grafik**, dan sajikan dalam bentuk **frekuensi, persentase, rata-rata**, atau **standar deviasi** sesuai relevansi.
+  - Untuk **data kualitatif**, sediakan **tema-tema utama** yang muncul, dilengkapi dengan **kutipan langsung** dari responden yang relevan.
+  - Jika diperlukan, **bandingkan hasil** dari responden berdasarkan kategori yang relevan (misalnya, peneliti dengan paparan bahan kimia vs peneliti dengan paparan radiasi).
+  
+**Saran untuk kualitas Q1:**
+- Gunakan **tabel dan grafik** yang jelas untuk menyajikan data kuantitatif dan jelaskan bagaimana hasilnya mendukung **rumusan masalah**.
+- Untuk data kualitatif, sertakan **kutipan panjang** dari wawancara untuk menggambarkan tema yang ditemukan dan bagaimana tema tersebut terkait dengan teori yang ada.
+
+**3. 4.3 Pembahasan:**
+- Hubungkan temuan dengan **kerangka teori** yang telah diuraikan di **Bab 1 dan Bab 2**, serta dengan **metode** yang digunakan di Bab 3.
+- Pembahasan harus mencakup:
+  - **Analisis hasil temuan**: Jelaskan **makna dan implikasi** dari temuan utama, apakah temuan tersebut sesuai dengan literatur yang ada atau berbeda.
+  - **Perbandingan dengan studi terdahulu**: Bandingkan temuan penelitian ini dengan temuan-temuan lain di literatur yang relevan dan jelaskan **perbedaan atau kesamaannya**.
+  - **Keterkaitan dengan tujuan penelitian**: Tunjukkan bagaimana temuan ini menjawab **pertanyaan penelitian** atau **tujuan penelitian** yang telah ditetapkan sebelumnya.
+  - **Kebaruan penelitian**: Jelaskan apa yang **baru dan inovatif** dari temuan penelitian ini dalam konteks literatur yang ada.
+  - **Implikasi teoretis dan praktis**: Bahas **implikasi teoretis** dari temuan penelitian terhadap perkembangan ilmu pengetahuan di bidang yang diteliti dan **implikasi praktis**nya terhadap kebijakan atau aplikasi nyata di laboratorium atau lembaga riset.
+  - **Tantangan implementasi**: Bahas tentang **tantangan** yang mungkin dihadapi dalam implementasi kebijakan atau rekomendasi yang dihasilkan dari temuan penelitian.
+
+**Saran untuk kualitas Q1:**
+- Pastikan untuk membandingkan temuan penelitian ini dengan **studi terdahulu** dalam **diskusi yang lebih kritis**, bukan hanya merangkum hasil yang ada.
+- Fokus pada **kontribusi teoretis** dan **implikasi praktis** dari hasil penelitian, dengan memperjelas bagaimana temuan ini dapat diimplementasikan dalam kebijakan atau praktik nyata.
+- Jangan lupa untuk **mengakui keterbatasan penelitian**, baik dalam hal metodologi maupun hasil yang diperoleh, dan bagaimana hal ini dapat mempengaruhi kesimpulan.
+
+Hasilkan teks biasa tanpa format markdown berlebihan.`;
 
         try {
             const result = await geminiService.run(prompt, geminiApiKey);
-            const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
-            setProjectData(p => ({ ...p, hasilPembahasanDraft: cleanResult }));
-            showInfoModal("Draf Bab Hasil & Pembahasan berhasil dibuat!");
+            setProjectData(p => ({ ...p, hasilPembahasanDraft: result }));
+            showInfoModal("Draf Bab Hasil & Pembahasan (Terintegrasi Teori & Metode) berhasil dibuat!");
         } catch(error) {
             showInfoModal(`Gagal membuat draf: ${error.message}`);
         } finally {
@@ -6662,11 +7285,17 @@ Berikan jawaban hanya dalam format JSON.`;
         setProjectData(prev => ({ ...prev, aiSuggestedKuesioner: null }));
 
         const prompt = `Anda adalah seorang ahli metodologi penelitian yang spesialis dalam pembuatan instrumen.
-Konteks:
+Konteks Penelitian:
+- Rumusan Masalah: "${projectData.rumusanMasalahDraft || 'Tidak ditentukan'}"
+- Tujuan Penelitian: "${projectData.tujuanPenelitianDraft || 'Tidak ditentukan'}"
 - Variabel Terikat (Y): "${projectData.variabelTerikat}"
 - Variabel Bebas (X): ${projectData.variabelBebas.join(', ')}
 
-Tugas: Untuk setiap variabel yang diberikan (baik terikat maupun bebas), buatlah 3 hingga 5 item pernyataan (bukan pertanyaan) yang dapat diukur menggunakan skala Likert 5 poin (Sangat Tidak Setuju hingga Sangat Setuju). Pastikan setiap pernyataan jelas, tidak ambigu, dan secara langsung mengukur konsep dari variabel tersebut.
+Tugas: Untuk setiap variabel yang diberikan (baik terikat maupun bebas), buatlah 3 hingga 5 item pernyataan (bukan pertanyaan) yang dapat diukur menggunakan skala Likert 5 poin (Sangat Tidak Setuju hingga Sangat Setuju). 
+
+PENTING: 
+1. Pastikan setiap pernyataan tidak hanya mengukur variabel, tetapi juga relevan untuk menjawab Rumusan Masalah dan Tujuan Penelitian di atas.
+2. Pastikan setiap pernyataan jelas, tidak ambigu, dan spesifik.
 
 Berikan jawaban hanya dalam format JSON yang ketat.`;
 
@@ -6707,10 +7336,11 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         const prompt = `Anda adalah seorang peneliti kualitatif berpengalaman yang ahli dalam merancang protokol wawancara mendalam.
 Konteks Proyek:
 - Judul Penelitian: "${projectData.judulKTI}"
+- Rumusan Masalah: "${projectData.rumusanMasalahDraft || 'Tidak ditentukan'}"
 - Tujuan Penelitian: "${projectData.tujuanPenelitianDraft}"
 - Penjelasan Singkat: "${projectData.penjelasan}"
 
-Tugas: Buatkan draf panduan wawancara semi-terstruktur yang komprehensif. Draf ini harus mencakup beberapa kategori pertanyaan yang jelas. Untuk setiap kategori, berikan deskripsi singkat tujuannya, lalu daftarkan 2-4 pertanyaan relevan.
+Tugas: Buatkan draf panduan wawancara semi-terstruktur yang komprehensif. Pertanyaan-pertanyaan ini harus dirancang secara strategis untuk menggali informasi yang dibutuhkan guna menjawab Rumusan Masalah dan mencapai Tujuan Penelitian.
 
 Kategori yang harus ada:
 1.  **Pertanyaan Pembuka (Opening Questions):** Untuk membangun rapport, menjelaskan tujuan wawancara, dan membuat informan nyaman.
@@ -6937,6 +7567,29 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
     }
 };
 
+    const handleGenerateDeskripsiResponden = async (rawData) => {
+    setIsLoading(true);
+    const prompt = `Anda adalah seorang analis data statistik. Tugas Anda adalah menulis narasi deskriptif mengenai karakteristik responden (profil demografi) berdasarkan data mentah berikut.
+
+Tulis dalam gaya bahasa akademis formal untuk Bab 4 (Hasil Penelitian). Jelaskan dominasi kelompok tertentu jika ada.
+
+Data Mentah:
+${rawData}
+
+Hasilkan teks narasi saja.`;
+
+    try {
+        const result = await geminiService.run(prompt, geminiApiKey);
+        const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
+        setProjectData(prev => ({ ...prev, deskripsiRespondenDraft: cleanResult }));
+        showInfoModal("Deskripsi responden berhasil dibuat!");
+    } catch (error) {
+        showInfoModal(`Gagal membuat deskripsi: ${error.message}`);
+    } finally {
+        setIsLoading(false);
+    }
+};
+    
     const handleGenerateAnalisis = async (data, analysisType, analysisFocus = '') => { // <-- PERUBAHAN
         if (!data) {
             showInfoModal("Tidak ada data untuk dianalisis. Silakan unggah file .csv terlebih dahulu.");
@@ -7013,7 +7666,8 @@ Gunakan format teks biasa dengan sub-judul yang jelas (misal: "1. Statistik Desk
     
     const handleGenerateAnalisisKualitatif = async (fileContent, analysisFocus = '') => { // <-- PERUBAHAN
         setIsLoading(true);
-        setProjectData(p => ({ ...p, analisisKualitatifHasil: null, analisisKualitatifDraft: '' }));
+        // PERBAIKAN: Hapus "analisisKualitatifDraft: ''" agar draf lama TIDAK TERHAPUS
+        setProjectData(p => ({ ...p, analisisKualitatifHasil: null })); 
 
         // --- BARU ---
         const focusPrompt = analysisFocus ? `\n\n**Fokus Analisis Spesifik dari Pengguna:**\n"${analysisFocus}"\n` : '';
@@ -7158,11 +7812,30 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         showInfoModal("Proyek berhasil diimpor!");
     };
     
-    const handleResetProject = () => {
-        localStorage.removeItem('kti-bibliometric-project');
-        setProjectData(initialProjectData);
-        setIsResetConfirmOpen(false);
-        showInfoModal("Proyek telah berhasil di-reset.");
+    const handleResetProject = async () => {
+        if (!currentUser) {
+            showInfoModal("Error: Pengguna tidak ditemukan.");
+            setIsResetConfirmOpen(false);
+            return;
+        }
+        setIsLoading(true); // Tampilkan loading state
+        try {
+            // HAPUS BARIS INI: localStorage.removeItem('kti-bibliometric-project');
+            
+            // GANTI DENGAN: Menulis ulang data di Firestore dengan data awal
+            await setDoc(doc(db, "projects", currentUser.uid), initialProjectData);
+
+            // Set state lokal ke data awal
+            setProjectData(initialProjectData);
+            
+            setIsResetConfirmOpen(false);
+            showInfoModal("Proyek telah berhasil di-reset di server.");
+        } catch (error) {
+            console.error("Gagal me-reset proyek:", error);
+            showInfoModal(`Gagal me-reset proyek: ${error.message}`);
+        } finally {
+            setIsLoading(false); // Hentikan loading state
+        }
     };
     
     const handleExportReferences = () => {
@@ -7236,13 +7909,15 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             case 'genLogKueri':
                 return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, handleCopyQuery, handleDeleteLog, includeIndonesianQuery, setIncludeIndonesianQuery, handleGenerateQueriesFromPicos, geminiApiKey, handleInputChange }} />;
             case 'genVariabel':
-                return <GeneratorVariabel {...{ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal }} />;
-            case 'genHipotesis':
-                return <GeneratorHipotesis {...{ projectData, setProjectData, handleGenerateHipotesis, isLoading, showInfoModal }} />;
-            case 'genKuesioner':
-                return <GeneratorKuesioner {...{ projectData, setProjectData, handleGenerateKuesioner, isLoading, showInfoModal }} />;
-            case 'genWawancara':
-                return <GeneratorWawancara {...{ projectData, setProjectData, handleGenerateWawancara, isLoading, showInfoModal }} />;
+    return <GeneratorVariabel {...{ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal, handleCopyToClipboard }} />;
+case 'genHipotesis':
+    return <GeneratorHipotesis {...{ projectData, setProjectData, handleGenerateHipotesis, isLoading, showInfoModal, handleCopyToClipboard }} />;
+case 'genKuesioner':
+    return <GeneratorKuesioner {...{ projectData, setProjectData, handleGenerateKuesioner, isLoading, showInfoModal, handleCopyToClipboard }} />;
+case 'genWawancara':
+    return <GeneratorWawancara {...{ projectData, setProjectData, handleGenerateWawancara, isLoading, showInfoModal, handleCopyToClipboard }} />;
+            case 'deskripsiResponden':
+                return <DeskripsiResponden {...{ projectData, setProjectData, handleGenerateDeskripsiResponden, isLoading, handleCopyToClipboard }} />;
             case 'analisisKuantitatif':
                 return <AnalisisKuantitatif {...{ projectData, setProjectData, handleGenerateAnalisis, isLoading, showInfoModal, setCurrentSection }} />;
             case 'analisisKualitatif':
@@ -7258,7 +7933,17 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             case 'metode':
                 return <MetodePenelitian {...{ projectData, setProjectData, handleGenerateMetode, isLoading, handleCopyToClipboard, handleModifyText }} />;
             case 'hasil':
-                return <HasilPembahasan {...{ projectData, setProjectData, handleGenerateHasilPembahasan, isLoading, handleCopyToClipboard, handleModifyText }} />;
+                return <HasilPembahasan {...{ 
+                    projectData, 
+                    setProjectData, 
+                    handleGenerateHasilPembahasan, 
+                    isLoading, 
+                    handleCopyToClipboard, 
+                    handleModifyText,
+                    // Tambahkan dua baris ini:
+                    geminiApiKey,
+                    showInfoModal
+                }} />;
             case 'kesimpulan':
                  return <Kesimpulan {...{ projectData, setProjectData, handleGenerateKesimpulan, isLoading, handleCopyToClipboard, handleModifyText }} />;
             case 'dashboard':
@@ -7348,20 +8033,6 @@ Kueri Pencarian Spesifik: "${conceptQuery}"
 JANGAN memberikan penjelasan atau teks percakapan apa pun. Respons Anda HARUS berupa array JSON yang valid, bahkan jika tidak ada hasil (kembalikan array kosong []).
 
 Format output HARUS mengikuti schema JSON berikut dengan ketat:
-// --- LANGKAH C DIMULAI DI SINI: Definisikan Schema ---
-    const schema = {
-        type: "ARRAY",
-        items: {
-            type: "OBJECT",
-            properties: {
-                judul: { type: "STRING", description: "Judul resmi peraturan" },
-                url: { type: "STRING", description: "URL sumber peraturan (kosong jika tidak ada)" },
-                analisis_relevansi: { type: "STRING", description: "Analisis relevansi singkat (1-2 kalimat)" }
-            },
-            required: ["judul", "analisis_relevansi"]
-        }
-    };
-    // --- LANGKAH C BERAKHIR DI SINI ---
 
     Untuk setiap peraturan yang ditemukan, berikan:
     1.  **judul:** Judul resmi dan lengkap dari peraturan tersebut.
@@ -7370,36 +8041,39 @@ Format output HARUS mengikuti schema JSON berikut dengan ketat:
 
     Prioritaskan peraturan yang paling penting atau fundamental terkait topik.`; // <--- Tanda backtick penutup ditambahkan di sini
 
-        const schema = {
-    type: "ARRAY", // Kita mengharapkan daftar (array) hasil
-    items: {
-        type: "OBJECT", // Setiap hasil adalah objek
-        properties: {
-            judul: { type: "STRING", description: "Judul resmi peraturan" },
-            url: { type: "STRING", description: "URL sumber peraturan (kosong jika tidak ada)" },
-            analisis_relevansi: { type: "STRING", description: "Analisis relevansi singkat (1-2 kalimat)" }
-        },
-        required: ["judul", "analisis_relevansi"] // Judul dan analisis wajib ada
-    }
-};
+    // --- PERBAIKAN: Pindahkan definisi schema ke LUAR string prompt ---
+        // HAPUS: const schema = { ... }; (Definisi duplikat dihapus)
+
         // Panggil geminiService dengan grounding dan schema
 const results = await geminiService.run(
     prompt,         // Pertanyaan/instruksi untuk AI
     geminiApiKey,   // Kunci API Google AI Anda
-    { useGrounding: true } // Opsi: Aktifkan Google Search
+    { useGrounding: true} // Opsi: Aktifkan Google Search DAN kirim schema
 );
 // Tampilkan respons mentah di console untuk debug
 console.log("Respons mentah dari AI (Peraturan):", results);
 
 try {
     // 1. Coba bersihkan respons dari tanda code block (```json ... ```)
-    const cleanedText = results
-    .replace(/```json/g, '') // Hapus ```json
-    .replace(/```/g, '')     // Hapus ```
-    .trim();                // Hapus spasi di awal/akhir
+    // PERBAIKAN: Mengganti 'results' (yang merupakan objek JSON) dengan 'results.text' jika results adalah teks.
+    // Tapi karena 'results' adalah hasil dari geminiService.run, kita asumsikan itu sudah JSON/teks.
+    // Kita anggap 'results' adalah string JSON mentah.
+    let cleanedText = results;
     
+    // Jika 'results' adalah objek (karena skema berhasil), ubah jadi string dulu
+    if (typeof results === 'object') {
+        cleanedText = JSON.stringify(results);
+    }
+    
+    // Bersihkan jika masih ada format markdown
+    cleanedText = cleanedText
+        .replace(/```json/g, '') // Hapus ```json
+        .replace(/```/g, '')     // Hapus ```
+        .trim();                // Hapus spasi di awal/akhir
+
     // 2. Coba parse teks yang sudah dibersihkan sebagai JSON
-    const parsedResults = JSON.parse(cleanedText); 
+    // Jika 'results' sudah objek, kita gunakan langsung
+    const parsedResults = (typeof results === 'object') ? results : JSON.parse(cleanedText); 
     
     // 3. Pastikan hasilnya adalah array sebelum disimpan ke state
     if (Array.isArray(parsedResults)) {
@@ -7412,8 +8086,24 @@ try {
 } catch (parseError) {
     // 4. Jika parsing gagal (misal AI tidak mengembalikan JSON), tangani error
     console.error("Gagal mem-parsing respons AI (Peraturan):", parseError, "\nRespons Mentah:", results);
-    showInfoModal("Gagal memproses respons dari AI. Respons mungkin tidak dalam format JSON yang benar.");
-    setRegulationSearchResults([]); // Set hasil kosong agar UI tidak error
+    // Coba tangani jika 'results' adalah teks mentah (bukan JSON)
+    if (typeof results === 'string') {
+        try {
+            const parsedFallback = JSON.parse(results.replace(/```json/g, '').replace(/```/g, '').trim());
+            if (Array.isArray(parsedFallback)) {
+                setRegulationSearchResults(parsedFallback); 
+                console.log("Hasil parsing JSON (Peraturan) (Fallback):", parsedFallback);
+            } else {
+                 throw new Error("Respons AI (fallback) bukan format array JSON yang diharapkan.");
+            }
+        } catch (e) {
+             showInfoModal("Gagal memproses respons dari AI. Respons mungkin tidak dalam format JSON yang benar.");
+             setRegulationSearchResults([]); // Set hasil kosong agar UI tidak error
+        }
+    } else {
+        showInfoModal("Gagal memproses respons dari AI. Format tidak dikenal.");
+        setRegulationSearchResults([]); // Set hasil kosong agar UI tidak error
+    }
 }
 
     } catch (error) {
@@ -7464,19 +8154,43 @@ try {
         setScopusSearchResults(null); 
 
         try {
-            // Langkah 1: Terjemahkan kueri dan tema ke Bahasa Inggris
-            showInfoModal("Menerjemahkan kueri ke Bahasa Inggris...");
-            const translatedQuery = await translateQueryToEnglish(query);
-            const translatedTheme = await translateQueryToEnglish(projectData.topikTema);
-            
-            let feedbackMessage = `Mencari di Scopus dengan kueri Inggris: "${translatedQuery}"`;
-            if (translatedTheme) {
-                feedbackMessage += ` DAN "${translatedTheme}"`;
-            }
-            showInfoModal(feedbackMessage);
+            let queryToSearch = query; // Mulai dengan kueri asli dari input
+            let themeToSearch = projectData.topikTema; // Mulai dengan tema asli dari proyek
 
-            // Langkah 2: Lakukan pencarian dengan kueri yang sudah diterjemahkan dan kunci API yang tepat
-            const results = await scopusService.search(translatedQuery, scopusApiKey, translatedTheme);
+            // --- PERBAIKAN DIMULAI DI SINI ---
+            // Cek apakah kueri yang dimasukkan pengguna SUDAH kueri canggih?
+            // Kita cek apakah mengandung kata kunci sintaks Scopus.
+            if (query.toUpperCase().includes('TITLE-ABS-KEY') || 
+                query.toUpperCase().includes('TITLE(') || 
+                query.toUpperCase().includes('AUTHOR-NAME') ||
+                query.toUpperCase().includes(' AND ') || // Deteksi boolean dasar
+                query.toUpperCase().includes(' OR ') ||
+                query.toUpperCase().includes(' W/')) 
+            {
+                // JIKA YA: Ini kueri canggih
+                queryToSearch = query; // Gunakan kueri apa adanya (JANGAN DITERJEMAHKAN)
+                themeToSearch = ''; // Kosongkan tema, karena tema sudah seharusnya ada di dalam kueri canggih
+                
+                showInfoModal(`Menggunakan kueri Scopus canggih Anda: "${queryToSearch}"`);
+            
+            } else {
+                // JIKA TIDAK: Ini kueri sederhana (misal: "tunjangan risiko"), BARU kita terjemahkan
+                
+                showInfoModal("Menerjemahkan kueri sederhana ke Bahasa Inggris...");
+                queryToSearch = await translateQueryToEnglish(query);
+                themeToSearch = await translateQueryToEnglish(projectData.topikTema);
+                
+                let feedbackMessage = `Mencari di Scopus dengan kueri Inggris: "${queryToSearch}"`;
+                if (themeToSearch) {
+                    feedbackMessage += ` DAN "${themeToSearch}"`;
+                }
+                showInfoModal(feedbackMessage);
+            }
+            // --- PERBAIKAN BERAKHIR DI SINI ---
+
+            // Langkah 2: Lakukan pencarian dengan kueri yang TEPAT
+            // (Bisa kueri asli, bisa kueri terjemahan, tergantung hasil cek di atas)
+            const results = await scopusService.search(queryToSearch, scopusApiKey, themeToSearch);
             setScopusSearchResults(results);
             
             if(results.length > 0) {
@@ -7489,7 +8203,6 @@ try {
             setIsScopusSearching(false);
         }
     };
-
 
     const toggleCategory = (category) => {
         setOpenCategories(prev => 
@@ -7527,6 +8240,7 @@ try {
             analisis: {
                 title: "Analisis Data",
                 items: [
+                    { id: 'deskripsiResponden', name: 'Karakteristik Responden' }, // BARU
                     { id: 'analisisKuantitatif', name: 'Analisis Data Kuantitatif (Tabel)' },
                     { id: 'analisisKualitatif', name: 'Analisis Data Kualitatif (Dokumen)' },
                     { id: 'analisisVisual', name: 'Analisis Visual (Gambar)' },
@@ -7594,6 +8308,26 @@ try {
 
     const navigationItems = getNavigationItems();
 
+    // ============================================================================
+    // LANGKAH B4: Tampilkan AuthPage atau App (Render Kondisional)
+    // ============================================================================
+    
+    // Tampilan Loading saat status auth diperiksa
+    if (isLoadingAuth) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-100">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
+                <p className="ml-4 text-xl text-gray-700">Memuat...</p>
+            </div>
+        );
+    }
+    
+    // Tampilan Halaman Login jika tidak ada pengguna
+    if (!currentUser) {
+        return <AuthPage />;
+    }
+    
+    // Tampilan Aplikasi Utama jika pengguna sudah login
     return (
         <div className="min-h-screen bg-gray-100 font-sans text-gray-900">
             <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
@@ -7865,6 +8599,23 @@ if (isPeraturan) {
                             )
                         ))}
                     </nav>
+                    
+                    {/* ============================================================================ */}
+                    {/* LANGKAH B5: Tambah Tombol Logout */}
+                    {/* ============================================================================ */}
+                    {isSidebarOpen && (
+                        <div className="mt-8 pt-4 border-t border-gray-700">
+                            <p className="text-xs text-gray-400 mb-2 truncate" title={currentUser.email || currentUser.uid}>
+                                Login sebagai: {currentUser.email || currentUser.uid}
+                            </p>
+                            <button
+                                onClick={() => signOut(auth)}
+                                className="w-full text-left p-2 rounded-md text-sm bg-red-600 hover:bg-red-700 text-white font-semibold"
+                            >
+                                Logout
+                            </button>
+                        </div>
+                    )}
                 </aside>
 
                 <main className="flex-grow p-4 md:p-8 overflow-y-auto h-screen">
