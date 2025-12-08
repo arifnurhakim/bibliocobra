@@ -2200,7 +2200,7 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                                     </h3>
                                     {isChatOpen && (
                                         <p className="text-sm text-indigo-700 mt-1">
-                                            Konsultasi, kritik, atau minta revisi. AI membaca draf di atas sebagai konteks.
+                                            Fitur ini menghabiskan banyak jatah generate harian. Manfaatkan dengan bijak, atau gunakan ChatGPT/Gemini jika ingin diskusi secara intens.
                                         </p>
                                     )}
                                 </div>
@@ -2243,8 +2243,8 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                             {/* 2. BODY (MUNCUL HANYA JIKA CHAT DIBUKA) */}
                             {isChatOpen && (
                                 <>
-                                    {/* Area Riwayat Chat */}
-                                    <div className="bg-white border border-gray-200 rounded-lg h-80 overflow-y-auto p-4 mb-4 space-y-4">
+                                    {/* Area Riwayat Chat - DITAMBAHKAN CLASS resize-y */}
+                                    <div className="bg-white border border-gray-200 rounded-lg h-80 overflow-y-auto p-4 mb-4 space-y-4 resize-y">
                                         {(!projectData.hasilPembahasanDiscussion || projectData.hasilPembahasanDiscussion.length === 0) && (
                                             <p className="text-center text-gray-400 italic mt-10">Belum ada diskusi. Mulai dengan bertanya sesuatu tentang draf Anda.</p>
                                         )}
@@ -2281,21 +2281,27 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                                         <div ref={chatEndRef} />
                                     </div>
 
-                                    {/* Area Input */}
+                                    {/* Area Input - DIGANTI DENGAN TEXTAREA */}
                                     <div className="flex gap-2">
-                                        <input
-                                            type="text"
+                                        <textarea
                                             value={discussionInput}
                                             onChange={(e) => setDiscussionInput(e.target.value)}
-                                            onKeyPress={(e) => e.key === 'Enter' && handleDiscussionSubmit()}
+                                            onKeyPress={(e) => {
+                                                // Kirim dengan Enter, tapi Shift+Enter untuk baris baru
+                                                if (e.key === 'Enter' && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    handleDiscussionSubmit();
+                                                }
+                                            }}
                                             placeholder="Tanya AI: 'Apakah argumen di paragraf 2 sudah kuat?' atau 'Tulis ulang bagian ini...'"
-                                            className="flex-grow shadow-sm border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className="flex-grow shadow-sm border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+                                            rows="2"
                                             disabled={isDiscussing}
                                         />
                                         <button
                                             onClick={handleDiscussionSubmit}
                                             disabled={isDiscussing || !discussionInput.trim()}
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-indigo-300 transition-colors"
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-indigo-300 transition-colors h-fit self-end"
                                         >
                                             Kirim
                                         </button>
