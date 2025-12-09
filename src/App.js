@@ -2080,7 +2080,7 @@ ${projectData.hasilPembahasanDraft}
 1. **Integratif:** Jawablah dengan mengaitkan Bab 4 (temuan) dengan Bab 1 (Tujuan) dan Bab 2 (Teori). Contoh: "Temuan di paragraf 2 ini mendukung teori X yang Anda sebut di Bab 2, namun bertentangan dengan Hipotesis 1."
 2. **Spesifik:** Jangan menebak. Gunakan data statistik/kualitatif di atas sebagai fakta.
 3. **Solutif:** Jika pengguna bertanya "Apakah ini sudah benar?", evaluasi berdasarkan konsistensi logis antar-bab.
-4. **Gaya Bahasa:** Akademis, objektif, dan membantu.`;
+4. **Gaya Bahasa:** Spesifik, akademis, objektif, kritis, dan membantu. Jika diminta revisi, berikan teks revisinya. Hasilkan sebagai teks biasa (plain text) tanpa format markdown, HTML, ataupun LaTeX.  Anda tidak perlu menuliskan informasi diluar konteks, seperti 'standar jurnal Q1' dan kalimat sejenisnya. Anda cukup fokus pada substansi.`;
 
             const aiResponseText = await geminiService.run(prompt, geminiApiKey);
 
