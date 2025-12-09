@@ -2039,20 +2039,48 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
 
         try {
             // Prompt khusus untuk diskusi Bab 4
-            const prompt = `Anda adalah peneliti ahli yang terbiasa menulis di jurnal Q1, sekaligus mitra diskusi akademis untuk Bab 4 (Hasil & Pembahasan).
+            const prompt = `Anda adalah mitra diskusi akademis tingkat lanjut (Level Q1).
             
-            Konteks Draf Bab 4 Saat Ini:
-            """
-            ${projectData.hasilPembahasanDraft}
-            """
+Tugas Anda adalah menjawab pertanyaan pengguna terkait Bab 4 (Hasil & Pembahasan). Untuk menjawab dengan akurat, Anda diberikan akses penuh ke seluruh data penelitian ini.
 
-            Pertanyaan/Instruksi Pengguna:
-            "${userMsg.content}"
+============================================
+DATA & KONTEKS PENELITIAN LENGKAP:
+============================================
 
-            Instruksi: 
-            1. Jawablah secara spesifik, akademis, dan kritis. Jika diminta revisi, berikan teks revisinya.
-            2. Hasilkan sebagai teks biasa (plain text) tanpa format markdown, HTML, ataupun LaTeX.
-            3. Anda tidak perlu menuliskan informasi diluar konteks, seperti 'standar jurnal Q1' dan kalimat sejenisnya. Anda cukup fokus pada substansi dan memberikan pengetahuan anda.`;
+1. **HIPOTESIS PENELITIAN:**
+${projectData.hipotesis && projectData.hipotesis.length > 0 ? projectData.hipotesis.join('\n') : '- Belum ada data hipotesis.'}
+
+2. **TEMUAN DATA (Kuantitatif/Statistik):**
+${projectData.analisisKuantitatifDraft || '- Belum ada draf analisis kuantitatif.'}
+
+3. **TEMUAN DATA (Kualitatif & Visual):**
+${projectData.analisisKualitatifDraft || '- Belum ada draf kualitatif.'}
+${projectData.analisisVisualDraft || ''}
+
+4. **BAB 1 (Pendahuluan & Tujuan):**
+${projectData.pendahuluanDraft || '- Belum ada draf Bab 1.'}
+
+5. **BAB 2 (Tinjauan Pustaka/Teori):**
+${projectData.studiLiteraturDraft || '- Belum ada draf Bab 2.'}
+
+6. **BAB 3 (Metode Penelitian):**
+${projectData.metodeDraft || '- Belum ada draf Bab 3.'}
+
+============================================
+DRAF BAB 4 YANG SEDANG DITULIS:
+"""
+${projectData.hasilPembahasanDraft}
+"""
+============================================
+
+**PERTANYAAN/INSTRUKSI PENGGUNA:**
+"${userMsg.content}"
+
+**INSTRUKSI JAWABAN:**
+1. **Integratif:** Jawablah dengan mengaitkan Bab 4 (temuan) dengan Bab 1 (Tujuan) dan Bab 2 (Teori). Contoh: "Temuan di paragraf 2 ini mendukung teori X yang Anda sebut di Bab 2, namun bertentangan dengan Hipotesis 1."
+2. **Spesifik:** Jangan menebak. Gunakan data statistik/kualitatif di atas sebagai fakta.
+3. **Solutif:** Jika pengguna bertanya "Apakah ini sudah benar?", evaluasi berdasarkan konsistensi logis antar-bab.
+4. **Gaya Bahasa:** Akademis, objektif, dan membantu.`;
 
             const aiResponseText = await geminiService.run(prompt, geminiApiKey);
 
