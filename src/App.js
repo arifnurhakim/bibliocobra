@@ -6619,11 +6619,41 @@ ${kutipanString || "Tidak ada catatan spesifik dari referensi."}
 ${outlineString || "Outline belum dibuat."}
 
 **Struktur Bab Pendahuluan yang Harus Anda Hasilkan:**
-1.  **1.1 Latar Belakang:** Gunakan "Pokok Masalah" sebagai ide sentral. Bangun narasi yang kuat di sekitarnya. Jika "Catatan dari Referensi" tersedia, gunakan kutipan tersebut untuk memberikan konteks dan justifikasi mengapa masalah ini penting untuk diteliti.
-2.  **1.2 Rumusan Masalah:** Gunakan "Rumusan Masalah (Pertanyaan Penelitian)" yang sudah ada. Tulis satu paragraf pengantar singkat, lalu daftarkan pertanyaan penelitian tersebut apa adanya dalam format bernomor. Jika data "Rumusan Masalah (Pertanyaan Penelitian)" kosong, barulah Anda boleh membuatnya berdasarkan "Pokok Masalah".
-3.  **1.3 Tujuan Penelitian:** Buatlah tujuan penelitian yang selaras dan diturunkan SECARA LANGSUNG dari "Rumusan Masalah (Pertanyaan Penelitian)" yang ada (pada poin 1.2). Ubah setiap pertanyaan penelitian menjadi pernyataan tujuan yang sesuai. (Data 'Tujuan Penelitian' asli dari pengguna hanya boleh digunakan sebagai referensi tambahan, BUKAN sumber utama).
-4.  **1.4 Sistematika Penulisan:** Tulis satu paragraf standar yang menjelaskan isi dari setiap bab berikutnya, berdasarkan outline yang diberikan.
+1.1 Latar Belakang / Konteks Ilmiah
+Menyajikan konteks ilmiah dan fenomena terkini terkait topik penelitian.
+Menunjukkan kondisi global/nasional yang relevan, termasuk data terbaru.
+Menguraikan masalah empiris dan pentingnya penelitian ini dilakukan.
+Didukung oleh sitasi terbaru (≤5 tahun terakhir) untuk menunjukkan state of the art.
 
+1.2. Kesenjangan Penelitian (Research Gap)
+Mengidentifikasi kekurangan atau ketidakkonsistenan pada penelitian sebelumnya.
+Menjelaskan secara spesifik aspek apa yang belum dikaji oleh peneliti terdahulu.
+Menunjukkan kebaruan (novelty) penelitian saat ini dengan jelas, misalnya: “Namun, kajian sebelumnya belum membahas … dalam konteks …”
+Bagian ini adalah inti Bab 1 dalam standar Q1.
+
+1.3. Rumusan Masalah (Problem Statement)
+Menyatakan secara tegas masalah inti yang hendak diselesaikan.
+Disusun sebagai jembatan antara research gap dan pertanyaan penelitian.
+Cukup 1–2 kalimat, tanpa elaborasi berlebihan.
+
+1.4. Pertanyaan Penelitian / Hipotesis
+Jika kualitatif atau mixed method: daftar 1–3 pertanyaan penelitian.
+Jika kuantitatif: rumusan hipotesis yang jelas (arah hubungan variabel opsional).
+
+1.5. Tujuan Penelitian
+Menyebutkan tujuan umum dan tujuan khusus penelitian.
+Selaras langsung dengan research gap dan pertanyaan penelitian.
+
+1.6. Kontribusi Penelitian (Teoretis dan Praktis)
+Kontribusi teoretis:
+Menjelaskan bagaimana penelitian memperluas teori, memvalidasi model, atau memperbaiki pendekatan metodologis.
+Kontribusi praktis / kebijakan / manajerial:
+Dampak penelitian pada praktik kebijakan, manajemen, atau pengambilan keputusan di sektor terkait.
+Bagian ini menjadi indikator penting dalam penilaian jurnal Q1 untuk menentukan nilai kebaruan dan relevansi.
+
+1.7. Struktur Artikel
+Satu paragraf pendek yang menjelaskan alur keseluruhan artikel, misalnya:
+“Artikel ini disajikan sebagai berikut. Bagian 2 membahas tinjauan pustaka dan pengembangan hipotesis. Bagian 3 menjelaskan metodologi penelitian. Bagian 4 menyajikan hasil dan pembahasan. Bagian 5 memberikan kesimpulan dan implikasi.”
 Pastikan ada kesinambungan dan alur yang logis antar sub-bab.`;
 
         try {
