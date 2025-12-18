@@ -3808,7 +3808,12 @@ const AnalisisKualitatif = ({
 
   return (
     <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">Analisis Data Kualitatif (Dokumen)</h2>
+      <h2 className="text-2xl font-bold mb-4 text-gray-800">Analisis Data Kualitatif (Dokumen)</h2>
+
+      {/* KETERANGAN AUDIOCOBRA */}
+      <p className="text-gray-700 mb-6">
+          Gunakan aplikasi <a href="https://audiocobra.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">Audiocobra</a>, jika anda memiliki rekaman wawancara dan ingin dikonversi menjadi teks.
+      </p>
 
       <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".txt" />
       
