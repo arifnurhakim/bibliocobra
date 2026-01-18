@@ -41,7 +41,7 @@ const initialProjectData = {
     itemKuesioner: [],
     aiSuggestedWawancara: null,
     pertanyaanWawancara: [],
-    queryGeneratorTargetDB: 'Scopus',
+    queryGeneratorTargetDB: 'Google Scholar',
     aiGeneratedQueries: null,
     searchLog: [],
     
@@ -99,15 +99,10 @@ const initialProjectData = {
     studiLiteraturDraft: '',
     hasilPembahasanDraft: '',
     kesimpulanDraft: '',
+    
+    // Status Akun (Sistem Lisensi)
+    isPremium: false, // Default terkunci
 };
-
-// ============================================================================
-// LANGKAH A2: Import Library Firebase (HAPUS DARI SINI)
-// ============================================================================
-// import { initializeApp } from "firebase/app"; // SUDAH DIPINDAH
-// import { getAuth, GoogleAuthProvider, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth"; // SUDAH DIPINDAH
-// import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore"; // SUDAH DIPINDAH
-// import { getAnalytics } from "firebase/analytics"; // SUDAH DIPINDAH
 
 // ============================================================================
 // LANGKAH A3: Konfigurasi & Inisialisasi Firebase
@@ -137,8 +132,8 @@ function AuthPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
+    const [activePolicyModal, setActivePolicyModal] = useState(null);
 
-    // Fungsi untuk membuat akun baru
     const handleSignUp = async () => {
         setError(null);
         try {
@@ -146,7 +141,6 @@ function AuthPage() {
             const user = userCredential.user;
 
             // PENTING: Buat "dokumen" baru di Firestore untuk pengguna baru ini
-            // Kita gunakan 'initialProjectData' yang sudah kita pindah ke atas
             await setDoc(doc(db, "projects", user.uid), initialProjectData);
 
             // Pengguna akan otomatis login setelah sign-up
@@ -155,7 +149,6 @@ function AuthPage() {
         }
     };
 
-    // Fungsi untuk login dengan email/password
     const handleLogin = async () => {
         setError(null);
         try {
@@ -166,7 +159,6 @@ function AuthPage() {
         }
     };
 
-    // Fungsi untuk "Login dengan Google"
     const handleGoogleLogin = async () => {
         setError(null);
         try {
@@ -174,57 +166,119 @@ function AuthPage() {
             const user = result.user;
 
             // Cek apakah pengguna ini baru (dari Google)
-            // Jika ya, buatkan juga dokumen untuk mereka di Firestore
             const docRef = doc(db, "projects", user.uid);
             const docSnap = await getDoc(docRef);
 
             if (!docSnap.exists()) {
-                // Pengguna baru, buatkan dokumen
                 await setDoc(docRef, initialProjectData);
             }
-            // Jika sudah ada, pengguna akan login dan datanya sudah ada
         } catch (err) {
             setError(err.message);
         }
     };
 
+    const renderPolicyContent = () => {
+        // UBAH: Cek jika ada modal aktif (baik terms maupun privacy)
+        if (!activePolicyModal) return null;
+        
+        const isTerms = activePolicyModal === 'terms';
+        const title = isTerms ? "Syarat & Ketentuan Layanan" : "Kebijakan Privasi";
+        
+        return (
+            <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4 animate-fade-in">
+                <div className="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col">
+                    <div className="flex justify-between items-center mb-4 border-b pb-2">
+                        <h3 className="text-lg font-bold text-gray-800">{title}</h3>
+                        <button onClick={() => setActivePolicyModal(null)} className="text-gray-400 hover:text-gray-600">
+                            <CloseIcon />
+                        </button>
+                    </div>
+                    <div className="overflow-y-auto text-sm text-gray-700 space-y-4 pr-2 custom-scrollbar">
+                        {isTerms ? (
+                            <>
+                                <p><strong>1. Pendahuluan</strong><br/>Selamat datang di Bibliocobra Systems. Dengan mengakses aplikasi ini, Anda menyetujui untuk terikat oleh syarat dan ketentuan ini.</p>
+                                <p><strong>2. Lisensi Penggunaan</strong><br/>Bibliocobra memberikan Anda lisensi terbatas, non-eksklusif, dan tidak dapat dipindahtangankan untuk menggunakan aplikasi ini guna keperluan penelitian pribadi atau akademis.</p>
+                                <p><strong>3. Batasan Tanggung Jawab</strong><br/>Hasil yang dihasilkan oleh AI (Artificial Intelligence) dalam aplikasi ini adalah alat bantu. Pengguna bertanggung jawab penuh atas verifikasi, validasi, dan penggunaan konten akhir dalam karya ilmiah mereka.</p>
+                                <p><strong>4. Pembayaran & Langganan</strong><br/>Layanan tertentu mungkin berbayar. Kebijakan pengembalian dana (refund) tidak berlaku setelah akses fitur premium digunakan.</p>
+                                <p><strong>5. Perubahan Ketentuan</strong><br/>Kami berhak untuk memperbarui atau mengubah syarat dan ketentuan ini sewaktu-waktu tanpa pemberitahuan sebelumnya.</p>
+                            </>
+                        ) : (
+                            <>
+                                <p><strong>1. Pengumpulan Data</strong><br/>Kami mengumpulkan informasi terbatas berupa alamat email dan ID akun Google saat Anda login untuk keperluan autentikasi dan identifikasi akun unik.</p>
+                                <p><strong>2. Data Proyek</strong><br/>Data penelitian Anda (judul, draf, referensi) disimpan di database cloud kami (Firebase) yang aman. Kami tidak membagikan data ini kepada pihak ketiga.</p>
+                                <p><strong>3. Kunci API (API Keys)</strong><br/>Demi privasi maksimal, Kunci API Google AI disimpan secara <strong>lokal di browser Anda (Local Storage)</strong>. Kunci ini tidak dikirim ke server kami, melainkan langsung digunakan untuk menghubungi layanan AI terkait.</p>
+                                <p><strong>4. Keamanan</strong><br/>Kami menggunakan standar enkripsi industri untuk melindungi transmisi dan penyimpanan data Anda.</p>
+                            </>
+                        )}
+                    </div>
+                    <div className="mt-6 pt-2 border-t">
+                        <button onClick={() => setActivePolicyModal(null)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Saya Mengerti</button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100" style={{ fontFamily: "'Inter', sans-serif" }}>
+            {renderPolicyContent()}
             <div className="p-8 bg-white shadow-md rounded-lg max-w-sm w-full">
-                <h2 className="text-2xl font-bold text-center mb-6">Login Bibliocobra</h2>
+                <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Login Bibliocobra</h2>
 
-                {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+                {error && <p className="text-red-500 text-sm mb-4 bg-red-50 p-2 rounded border border-red-200">{error}</p>}
 
                 <input 
                     type="email" 
                     value={email} 
                     onChange={(e) => setEmail(e.target.value)} 
                     placeholder="Email"
-                    className="w-full p-2 border rounded-lg mb-4"
+                    className="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
                 <input 
                     type="password" 
                     value={password} 
                     onChange={(e) => setPassword(e.target.value)} 
                     placeholder="Password"
-                    className="w-full p-2 border rounded-lg mb-4"
+                    className="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
 
                 <div className="flex gap-2">
-                    <button onClick={handleLogin} className="flex-1 bg-blue-600 text-white p-2 rounded-lg font-semibold">Login</button>
-                    <button onClick={handleSignUp} className="flex-1 bg-green-600 text-white p-2 rounded-lg font-semibold">Sign Up</button>
+                    <button onClick={handleLogin} className="flex-1 bg-blue-600 text-white p-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors">Login</button>
+                    <button onClick={handleSignUp} className="flex-1 bg-green-600 text-white p-2 rounded-lg font-semibold hover:bg-green-700 transition-colors">Sign Up</button>
                 </div>
 
-                <hr className="my-6" />
+                <div className="my-6 flex items-center">
+                    <div className="flex-grow border-t border-gray-300"></div>
+                    <span className="mx-4 text-gray-400 text-sm">atau</span>
+                    <div className="flex-grow border-t border-gray-300"></div>
+                </div>
 
                 <button 
                     onClick={handleGoogleLogin} 
-                    className="w-full bg-white border border-gray-300 p-2 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50"
+                    className="w-full bg-white border border-gray-300 p-2 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm group"
                 >
                     {/* Icon Google SVG */}
-                    <svg className="w-5 h-5" aria-hidden="true" focusable="false" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
-                    <span className="font-semibold text-gray-700">Login dengan Google</span>
+                    <svg className="w-5 h-5 group-hover:scale-110 transition-transform" aria-hidden="true" focusable="false" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
+                    <span className="font-semibold text-gray-700">Masuk dengan Google</span>
                 </button>
+
+                <p className="text-xs text-center text-gray-500 mt-6 leading-relaxed">
+                    Dengan masuk, Anda menyetujui 
+                    <button 
+                        onClick={() => setActivePolicyModal('terms')} 
+                        className="text-blue-600 hover:underline mx-1 font-medium focus:outline-none"
+                    >
+                        Syarat & Ketentuan
+                    </button> 
+                    serta 
+                    <button 
+                        onClick={() => setActivePolicyModal('privacy')} 
+                        className="text-blue-600 hover:underline mx-1 font-medium focus:outline-none"
+                    >
+                        Kebijakan Privasi
+                    </button> 
+                    kami.
+                </p>
             </div>
         </div>
     );
@@ -655,6 +709,81 @@ class ErrorBoundary extends React.Component {
         return this.props.children;
     }
 }
+
+// --- KOMPONEN BARU: GERBANG LISENSI (PAYWALL) ---
+const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
+    const [inputCode, setInputCode] = useState('');
+    const [errorMsg, setErrorMsg] = useState('');
+    const adminContact = "6281234567890"; // Ganti dengan nomor WhatsApp Admin
+
+    const handleActivation = () => {
+        const STANDARD_CODES = ["BIBLIO-2025", "KTI-PREMIUM", "AKADEMIK-Q1", "TEST-USER"];
+        const ELITE_CODES = ["SCOPUS-MASTER", "PROFESSOR-MODE", "SOBATJRENG"]; // Kode Rahasia
+        
+        const code = inputCode.toUpperCase().trim();
+
+        if (STANDARD_CODES.includes(code)) {
+            onActivate(false); // false = Premium Biasa (Tanpa Scopus)
+        } else if (ELITE_CODES.includes(code)) {
+            onActivate(true); // true = Premium + Scopus (Elite)
+        } else {
+            setErrorMsg("Kode lisensi tidak valid. Silakan periksa kembali atau hubungi admin.");
+        }
+    };
+
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-blue-100 p-4 font-sans">
+            <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center border border-indigo-50">
+                <div className="mb-6 inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100 text-indigo-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                </div>
+                
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Aktivasi Akun Premium</h2>
+                <p className="text-gray-600 mb-6">
+                    Bibliocobra adalah alat riset berbayar. Untuk melanjutkan, silakan masukkan <strong>Kode Lisensi</strong> yang Anda dapatkan setelah pembayaran.
+                </p>
+
+                <div className="mb-6">
+                    <input 
+                        type="text" 
+                        value={inputCode}
+                        onChange={(e) => {
+                            setInputCode(e.target.value);
+                            setErrorMsg('');
+                        }}
+                        className="w-full px-4 py-3 border-2 border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-600 text-center text-lg font-bold tracking-widest uppercase placeholder-gray-300 transition-colors"
+                        placeholder="MASUKKAN KODE"
+                    />
+                    {errorMsg && <p className="text-red-500 text-sm mt-2 animate-pulse">{errorMsg}</p>}
+                </div>
+
+                <button 
+                    onClick={handleActivation}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+                >
+                    Aktifkan Akses
+                </button>
+
+                <div className="mt-8 pt-6 border-t border-gray-100">
+                    <p className="text-sm text-gray-500 mb-3">Belum memiliki kode lisensi?</p>
+                    <a 
+                        href={`https://wa.me/${adminContact}?text=Halo%20Admin,%20saya%20ingin%20membeli%20lisensi%20Bibliocobra.`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-green-600 font-bold hover:text-green-700 bg-green-50 px-4 py-2 rounded-full hover:bg-green-100 transition-colors"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592z"/>
+                        </svg>
+                        Dapatkan Lisensi via WhatsApp
+                    </a>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 
 // ============================================================================
@@ -1149,7 +1278,7 @@ const Referensi = ({
                     </button>
                     {openMethod === 'method2' && (
                         <div className="p-4 border-t border-gray-200 animate-fade-in">
-                            <p className="text-sm text-gray-700 mb-4">Cari artikel secara langsung dan tambahkan ke perpustakaan Anda. Membutuhkan API Key Semantic Scholar.</p>
+                            <p className="text-sm text-gray-700 mb-4">Cari artikel secara langsung dan tambahkan ke perpustakaan Anda.</p>
                             <div className="flex flex-col sm:flex-row gap-2">
                                 <input 
                                     type="text"
@@ -1287,173 +1416,15 @@ const Referensi = ({
                     )}
                 </div>
 
-                {/* Metode 3: Cari via Scopus */}
-                <div className="border border-gray-200 rounded-lg">
-                    <button 
-                        onClick={() => toggleMethod('method3')} 
-                        className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method3' ? 'bg-orange-100' : 'bg-orange-50 hover:bg-orange-100'}`}
-                    >
-                        <span className="font-semibold text-gray-800">Metode 3: Cari via Scopus <span className="text-xs bg-yellow-200 text-yellow-800 rounded-full px-2 py-1 ml-2">Berlangganan</span></span>
-                        <ChevronDownIcon isOpen={openMethod === 'method3'} />
-                    </button>
-                    {openMethod === 'method3' && (
-                        <div className="p-4 border-t border-gray-200 animate-fade-in">
-                            <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                                <label htmlFor="scopusApiKey" className="block text-gray-700 text-sm font-bold mb-2">Scopus API Key Anda:</label>
-                                <input
-                                    type="password"
-                                    id="scopusApiKey"
-                                    value={scopusApiKey}
-                                    onChange={(e) => setScopusApiKey(e.target.value)}
-                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                                    placeholder="Masukkan Scopus API Key Anda..."
-                                />
-                                {/* --- PERUBAHAN DI SINI: Mengembalikan teks ke versi semula --- */}
-                                <p className="text-xs text-gray-500 mt-1">
-                                    Dapatkan kunci dari <a href="https://dev.elsevier.com/apikey/manage" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold">Elsevier Developer Portal</a> (khusus institusi yang berlangganan Scopus).
-                                </p>
-                            </div>
-                            {/* --- PERUBAHAN DIMULAI DI SINI --- */}
-                            <p className="text-sm text-gray-700 mb-4">
-                                Cari artikel langsung dari database Scopus atau Scopus AI (via 
-                                <a 
-                                    href="https://venom-reference-converter.vercel.app/"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline font-semibold"
-                                >
-                                    Venom Konverter
-                                </a>)
-                            </p>
-                            {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
-                            <div className="flex flex-col sm:flex-row gap-2">
-                                <input 
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                                    placeholder="Masukkan topik atau judul..."
-                                />
-                                <button 
-                                    type="button"
-                                    onClick={() => handleSearchScopus(searchQuery)} 
-                                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-orange-300 whitespace-nowrap" 
-                                    disabled={isScopusSearching || !searchQuery}
-                                >
-                                    {isScopusSearching ? 'Mencari...' : 'Cari di Scopus'}
-                                </button>
-                            </div>
+                {/* --- PASTIKAN AREA INI BERSIH DARI SISA ')}' ATAU '}' --- */}
 
-                            {/* --- LANGKAH 3.2 DIMULAI DI SINI (UNTUK SCOPUS) --- */}
-                            <QueueStatusIndicator queueSize={reviewQueueSize} />
-                            {/* --- LANGKAH 3.2 BERAKHIR DI SINI --- */}
-
-                            {isScopusSearching && scopusSearchResults === null && (
-                                <div className="mt-6 flex items-center justify-center">
-                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
-                                    <p className="ml-3 text-gray-600">Menghubungi Scopus...</p>
-                                </div>
-                            )}
-
-                            {scopusSearchResults && (
-                                <div className="mt-6">
-                                    <h5 className="font-bold text-gray-800 mb-2">Hasil Pencarian ({scopusSearchResults.length}):</h5>
-                                    {scopusSearchResults.length > 0 ? (
-                                        <div className="space-y-3 max-h-96 overflow-y-auto pr-2 border-t pt-4 mt-4 border-orange-200">
-                                            {scopusSearchResults.map(paper => (
-                                                <div key={paper.paperId} className="bg-white p-3 rounded-lg border border-gray-200 flex flex-col items-start gap-2">
-                                                    <div className="w-full flex justify-between items-start">
-                                                        <div>
-                                                            <p className="font-semibold text-gray-800">{paper.title}</p>
-                                                            <p className="text-xs text-gray-600">{paper.authors} ({paper.year || 'N/A'})</p>
-                                                            <p className="text-xs text-gray-500 italic">{paper.journal?.name || 'Venue tidak diketahui'}</p>
-                                                            {paper.externalIds?.DOI && (
-                                                                <p className="text-xs text-blue-600 mt-1">
-                                                                    DOI: <a href={`https://doi.org/${paper.externalIds.DOI}`} target="_blank" rel="noopener noreferrer" className="hover:underline">{paper.externalIds.DOI}</a>
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                        <button 
-                                                            onClick={() => handleAddReferenceFromSearch(paper, aiReviews[paper.paperId])}
-                                                            className="ml-4 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-2 rounded-lg flex-shrink-0"
-                                                            title="Tambah ke Perpustakaan Proyek"
-                                                        >
-                                                            + Tambah
-                                                        </button>
-                                                    </div>
-                                                    {paper.abstract && (
-                                                        <div className="mt-2 w-full">
-                                                            <div className="flex items-center gap-4">
-                                                                <button onClick={() => toggleAbstract(paper.paperId)} className="text-xs text-blue-600 hover:underline font-semibold">
-                                                                    {expandedAbstractId === paper.paperId ? 'Sembunyikan Abstrak' : 'Tampilkan Abstrak'}
-                                                                </button>
-                                                                <button 
-                                                                    onClick={() => addReviewTask({ paper: paper, context: searchQuery })} 
-                                                                    className="text-xs text-purple-600 hover:underline font-semibold disabled:text-gray-400 disabled:no-underline"
-                                                                    disabled={reviewingId === paper.paperId}
-                                                                >
-                                                                    {reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI'}
-                                                                </button>
-                                                            </div>
-                                                            {expandedAbstractId === paper.paperId && (
-                                                                <p className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded-md border">{paper.abstract}</p>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                    {reviewingId === paper.paperId && !aiReviews[paper.paperId] && (
-                                                        <div className="mt-3 flex items-center text-xs text-gray-500">
-                                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600 mr-2"></div>
-                                                            AI sedang mereview...
-                                                        </div>
-                                                    )}
-                                                    {aiReviews[paper.paperId] && (
-                                                        aiReviews[paper.paperId].error ? (
-                                                             <div className="mt-3 p-3 border-l-4 rounded-r-lg bg-red-50 border-red-300 text-red-800 text-xs">
-                                                                <p className="font-bold">Gagal Mereview</p>
-                                                                <p>{aiReviews[paper.paperId].error}</p>
-                                                            </div>
-                                                        ) : (
-                                                            <div className={`mt-3 p-3 border-l-4 rounded-r-lg ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).container}`}>
-                                                                <div className="flex justify-between items-center">
-                                                                    <h6 className={`text-sm font-bold ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).header}`}>
-                                                                        AI Review
-                                                                    </h6>
-                                                                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).badge}`}>
-                                                                        {aiReviews[paper.paperId].kategori_relevansi}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="mt-2 text-xs text-gray-700 space-y-2">
-                                                                    <div>
-                                                                        <p className="font-semibold">Temuan Kunci:</p>
-                                                                        <p className="italic">"{aiReviews[paper.paperId].finding}"</p>
-                                                                    </div>
-                                                                        <div>
-                                                                        <p className="font-semibold">Analisis Relevansi:</p>
-                                                                        <p>{aiReviews[paper.paperId].relevansi}</p>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        )
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-sm text-gray-500 italic mt-4 text-center">Tidak ada hasil yang ditemukan di Scopus untuk kueri Anda.</p>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Metode 4: Tambah Manual */}
+                {/* Metode 3: Tambah Manual (Sebelumnya Metode 4, ganti labelnya jika mau) */}
                 <div className="border border-gray-200 rounded-lg">
                     <button 
                         onClick={() => toggleMethod('method4')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method4' ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 4: Tambah Manual</span>
+                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual</span>
                         <ChevronDownIcon isOpen={openMethod === 'method4'} />
                     </button>
                     {openMethod === 'method4' && (
@@ -1503,7 +1474,7 @@ const Referensi = ({
                         onClick={() => toggleMethod('method5')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method5' ? 'bg-teal-100' : 'bg-teal-50 hover:bg-teal-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 5: Pencarian Konsep / Peraturan <span className="text-xs bg-yellow-200 text-yellow-800 rounded-full px-2 py-1 ml-2">Eksperimental</span></span>
+                        <span className="font-semibold text-gray-800">Metode 4: Pencarian Konsep / Peraturan <span className="text-xs bg-yellow-200 text-yellow-800 rounded-full px-2 py-1 ml-2">Eksperimental</span></span>
                         <ChevronDownIcon isOpen={openMethod === 'method5'} />
                     </button>
                     {openMethod === 'method5' && (
@@ -1655,6 +1626,185 @@ const Referensi = ({
                     )}
                 </div>
 
+                {/* Metode 5: Cari via Scopus (Fitur Eksklusif) */}
+                {projectData.showScopus && (
+                    <div className="border border-orange-200 rounded-lg">
+                        <button 
+                            onClick={() => toggleMethod('methodScopus')} 
+                            className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'methodScopus' ? 'bg-orange-100' : 'bg-orange-50 hover:bg-orange-100'}`}
+                        >
+                            <span className="font-semibold text-orange-900 flex items-center gap-2">
+                                Metode 5: Cari via Scopus 
+                                <span className="text-[10px] bg-orange-200 text-orange-800 px-2 py-0.5 rounded-full border border-orange-300 shadow-sm">FITUR EKSKLUSIF</span>
+                            </span>
+                            <ChevronDownIcon isOpen={openMethod === 'methodScopus'} />
+                        </button>
+                        {openMethod === 'methodScopus' && (
+                            <div className="p-4 border-t border-orange-200 bg-white rounded-b-lg animate-fade-in">
+                                
+                                {/* --- UPDATE TAMPILAN SESUAI PERMINTAAN --- */}
+                                <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                                    <div className="flex flex-col gap-4">
+                                        <div>
+                                            <label className="block text-orange-900 text-sm font-bold mb-2">
+                                                Konfigurasi Akses Scopus
+                                            </label>
+                                            <div className="flex flex-col md:flex-row gap-2">
+                                                <input
+                                                    type="password"
+                                                    value={scopusApiKey}
+                                                    onChange={(e) => setScopusApiKey(e.target.value)}
+                                                    className="flex-grow shadow-sm appearance-none border border-orange-300 rounded-lg py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                                    placeholder="Masukkan Scopus API Key Anda..."
+                                                />
+                                                <a 
+                                                    href="https://venom-reference-converter.vercel.app/" 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
+                                                    title="Buka Venom Reference Converter"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                                        <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1zM4.5 9a.5.5 0 0 1 0-1h7a.5.5 0 0 1 0 1h-7zM4 10.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm.5 2.5a.5.5 0 0 1 0-1h4a.5.5 0 0 1 0 1h-4z"/>
+                                                    </svg>
+                                                    Venom Konverter
+                                                </a>
+                                            </div>
+                                            <p className="text-xs text-orange-700 mt-2">
+                                                *API Key diperlukan. Gunakan <strong>Venom Konverter</strong> untuk mengonversi referensi dari format lain ke format standar.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mb-2">
+                                    <label className="block text-gray-700 text-sm font-bold mb-2">Pencarian Literatur:</label>
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <input 
+                                            type="text"
+                                            value={searchQuery} 
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+                                            placeholder="Masukkan topik, judul, atau kueri boolean (TITLE-ABS-KEY)..."
+                                        />
+                                        <button 
+                                            type="button"
+                                            onClick={() => handleSearchScopus(searchQuery)} 
+                                            className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-orange-300 whitespace-nowrap" 
+                                            disabled={isScopusSearching || !searchQuery}
+                                        >
+                                            {isScopusSearching ? 'Mencari...' : 'Cari Scopus'}
+                                        </button>
+                                    </div>
+                                </div>
+                                {/* --- AKHIR UPDATE TAMPILAN --- */}
+
+                                {isScopusSearching && !scopusSearchResults && (
+                                    <div className="mt-6 flex items-center justify-center">
+                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
+                                        <p className="ml-3 text-gray-600">Menghubungi Scopus...</p>
+                                    </div>
+                                )}
+
+                                {scopusSearchResults && (
+                                    <div className="mt-6">
+                                        <h5 className="font-bold text-gray-800 mb-2">Hasil Scopus ({scopusSearchResults.length}):</h5>
+                                        {scopusSearchResults.length > 0 ? (
+                                            <div className="space-y-3 max-h-96 overflow-y-auto pr-2 border-t pt-4 mt-4 border-orange-200">
+                                                {scopusSearchResults.map((paper, idx) => (
+                                                    <div key={idx} className="bg-white p-3 rounded-lg border border-gray-200 flex flex-col items-start gap-2">
+                                                        <div className="w-full flex justify-between items-start">
+                                                            <div>
+                                                                <p className="font-semibold text-gray-800">{paper.title}</p>
+                                                                <p className="text-xs text-gray-600">
+                                                                    {paper.authors} ({paper.year})
+                                                                </p>
+                                                                <p className="text-xs text-gray-500 italic">
+                                                                    {paper.journal.name}
+                                                                </p>
+                                                                {paper.externalIds.DOI && (
+                                                                    <p className="text-xs text-blue-600 mt-1">DOI: {paper.externalIds.DOI}</p>
+                                                                )}
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => handleAddReferenceFromSearch(paper, aiReviews[paper.paperId])}
+                                                                className="ml-4 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-2 rounded-lg flex-shrink-0"
+                                                                title="Tambah ke Perpustakaan"
+                                                            >
+                                                                + Tambah
+                                                            </button>
+                                                        </div>
+
+                                                        {/* --- FITUR BARU: ABSTRAK & AI REVIEW (Scopus) --- */}
+                                                        <div className="mt-2 w-full">
+                                                            <div className="flex items-center gap-4">
+                                                                <button onClick={() => toggleAbstract(paper.paperId)} className="text-xs text-blue-600 hover:underline font-semibold">
+                                                                    {expandedAbstractId === paper.paperId ? 'Sembunyikan Abstrak' : 'Tampilkan Abstrak'}
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => addReviewTask({ paper: paper, context: searchQuery })} 
+                                                                    className="text-xs text-orange-600 hover:underline font-semibold disabled:text-gray-400 disabled:no-underline"
+                                                                    disabled={reviewingId === paper.paperId}
+                                                                >
+                                                                    {reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI'}
+                                                                </button>
+                                                            </div>
+                                                            {expandedAbstractId === paper.paperId && (
+                                                                <p className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded-md border">
+                                                                    {paper.abstract || "Abstrak tidak tersedia di metadata Scopus ini."}
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Tampilan Hasil Review AI (Sama dengan Semantic Scholar) */}
+                                                        {reviewingId === paper.paperId && !aiReviews[paper.paperId] && (
+                                                            <div className="mt-3 flex items-center text-xs text-gray-500">
+                                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600 mr-2"></div>
+                                                                AI sedang mereview...
+                                                            </div>
+                                                        )}
+                                                        {aiReviews[paper.paperId] && (
+                                                            aiReviews[paper.paperId].error ? (
+                                                                <div className="mt-3 p-3 border-l-4 rounded-r-lg bg-red-50 border-red-300 text-red-800 text-xs">
+                                                                    <p className="font-bold">Gagal Mereview</p>
+                                                                    <p>{aiReviews[paper.paperId].error}</p>
+                                                                </div>
+                                                            ) : (
+                                                                <div className={`mt-3 p-3 border-l-4 rounded-r-lg ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).container}`}>
+                                                                    <div className="flex justify-between items-center">
+                                                                        <h6 className={`text-sm font-bold ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).header}`}>
+                                                                            AI Review
+                                                                        </h6>
+                                                                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getRelevanceStyles(aiReviews[paper.paperId].kategori_relevansi).badge}`}>
+                                                                            {aiReviews[paper.paperId].kategori_relevansi}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="mt-2 text-xs text-gray-700 space-y-2">
+                                                                        <div>
+                                                                            <p className="font-semibold">Temuan Kunci:</p>
+                                                                            <p className="italic">"{aiReviews[paper.paperId].finding}"</p>
+                                                                        </div>
+                                                                            <div>
+                                                                            <p className="font-semibold">Analisis Relevansi:</p>
+                                                                            <p>{aiReviews[paper.paperId].relevansi}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )
+                                                        )}
+                                                        {/* --- AKHIR FITUR BARU --- */}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-gray-500 italic mt-4 text-center">Tidak ada hasil ditemukan di Scopus.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
 
             </div>
 
@@ -1678,8 +1828,8 @@ const Referensi = ({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {projectData.allReferences.map(ref => (
-                                        <tr key={ref.id} className="bg-white hover:bg-gray-50">
+                                    {projectData.allReferences.map((ref, index) => (
+                                        <tr key={`${ref.id}-${index}`} className="bg-white hover:bg-gray-50">
                                             <td className="p-3 text-sm text-gray-700 border-b border-gray-200" style={{minWidth: '300px'}}>
                                                 <p className="font-bold">{ref.title}</p>
                                                 <p className="text-xs">{ref.author} ({ref.year})</p>
@@ -1986,133 +2136,16 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
     const readyDrafts = availableDrafts.filter(d => projectData[d.key] && projectData[d.key].trim() !== '');
     const isReady = readyDrafts.length > 0;
 
-    // --- PERUBAHAN (LOGIKA INTEGRASI SLR) DIMULAI DI SINI ---
     const isSLR = projectData.metode && (
         projectData.metode.toLowerCase().includes('slr') ||
         projectData.metode.toLowerCase().includes('systematic literature review') ||
         projectData.metode.toLowerCase().includes('bibliometric')
     );
-    // --- PERUBAHAN BERAKHIR DI SINI ---
     
-    // --- MULAI KODE BARU UNTUK DISKUSI ---
-    const [discussionInput, setDiscussionInput] = useState('');
-    const [isDiscussing, setIsDiscussing] = useState(false);
-    const [isChatOpen, setIsChatOpen] = useState(true); // <--- BARU: Untuk buka/tutup box
-    const [confirmClear, setConfirmClear] = useState(false); // <--- STATE BARU: Untuk konfirmasi hapus
-    const chatEndRef = useRef(null);
-
-    // BARU: Fungsi Hapus Chat (Tanpa window.confirm)
-    const handleClearChat = () => {
-        setProjectData(p => ({ ...p, hasilPembahasanDiscussion: [] }));
-        setConfirmClear(false);
-    };
-
-    // Fungsi agar chat otomatis scroll ke bawah saat ada pesan baru
-    const scrollToBottom = () => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [projectData.hasilPembahasanDiscussion]);
-
-    // Fungsi utama untuk mengirim pesan diskusi
-    const handleDiscussionSubmit = async () => {
-        if (!discussionInput.trim()) return;
-        
-        if (!projectData.hasilPembahasanDraft) {
-            showInfoModal("Hasilkan draf Bab 4 terlebih dahulu agar AI memiliki konteks untuk berdiskusi.");
-            return;
-        }
-
-        const userMsg = {
-            role: 'user',
-            content: discussionInput,
-            timestamp: new Date().toISOString()
-        };
-
-        // Update tampilan chat (pesan user muncul duluan)
-        const newHistory = [...(projectData.hasilPembahasanDiscussion || []), userMsg];
-        setProjectData(p => ({ ...p, hasilPembahasanDiscussion: newHistory }));
-        setDiscussionInput('');
-        setIsDiscussing(true);
-
-        try {
-            // Prompt khusus untuk diskusi Bab 4
-            const prompt = `Anda adalah mitra diskusi akademis tingkat lanjut (Level Q1).
-            
-Tugas Anda adalah menjawab pertanyaan pengguna terkait Bab 4 (Hasil & Pembahasan). Untuk menjawab dengan akurat, Anda diberikan akses penuh ke seluruh data penelitian ini.
-
-============================================
-DATA & KONTEKS PENELITIAN LENGKAP:
-============================================
-
-1. **HIPOTESIS PENELITIAN:**
-${projectData.hipotesis && projectData.hipotesis.length > 0 ? projectData.hipotesis.join('\n') : '- Belum ada data hipotesis.'}
-
-2. **TEMUAN DATA (Kuantitatif/Statistik):**
-${projectData.analisisKuantitatifDraft || '- Belum ada draf analisis kuantitatif.'}
-
-3. **TEMUAN DATA (Kualitatif & Visual):**
-${projectData.analisisKualitatifDraft || '- Belum ada draf kualitatif.'}
-${projectData.analisisVisualDraft || ''}
-
-4. **BAB 1 (Pendahuluan & Tujuan):**
-${projectData.pendahuluanDraft || '- Belum ada draf Bab 1.'}
-
-5. **BAB 2 (Tinjauan Pustaka/Teori):**
-${projectData.studiLiteraturDraft || '- Belum ada draf Bab 2.'}
-
-6. **BAB 3 (Metode Penelitian):**
-${projectData.metodeDraft || '- Belum ada draf Bab 3.'}
-
-============================================
-DRAF BAB 4 YANG SEDANG DITULIS:
-"""
-${projectData.hasilPembahasanDraft}
-"""
-============================================
-
-**PERTANYAAN/INSTRUKSI PENGGUNA:**
-"${userMsg.content}"
-
-**INSTRUKSI JAWABAN:**
-1. **Integratif:** Jawablah dengan mengaitkan Bab 4 (temuan) dengan Bab 1 (Tujuan) dan Bab 2 (Teori). Contoh: "Temuan di paragraf 2 ini mendukung teori X yang Anda sebut di Bab 2, namun bertentangan dengan Hipotesis 1."
-2. **Spesifik:** Jangan menebak. Gunakan data statistik/kualitatif di atas sebagai fakta.
-3. **Solutif:** Jika pengguna bertanya "Apakah ini sudah benar?", evaluasi berdasarkan konsistensi logis antar-bab.
-4. **Gaya Bahasa:** Spesifik, akademis, objektif, kritis, dan membantu. Jika diminta revisi, berikan teks revisinya. Hasilkan sebagai teks biasa (plain text) tanpa format markdown, HTML, ataupun LaTeX.  Anda tidak perlu menuliskan informasi diluar konteks, seperti 'standar jurnal Q1' dan kalimat sejenisnya. Anda cukup fokus pada substansi.`;
-
-            const aiResponseText = await geminiService.run(prompt, geminiApiKey);
-
-            const aiMsg = {
-                role: 'ai',
-                content: aiResponseText,
-                timestamp: new Date().toISOString()
-            };
-
-            // Simpan jawaban AI
-            setProjectData(p => ({ 
-                ...p, 
-                hasilPembahasanDiscussion: [...(p.hasilPembahasanDiscussion || []), aiMsg] 
-            }));
-
-        } catch (error) {
-            showInfoModal(`Gagal memproses diskusi: ${error.message}`);
-            // Hapus pesan user jika gagal
-            setProjectData(p => ({ 
-                ...p, 
-                hasilPembahasanDiscussion: p.hasilPembahasanDiscussion.slice(0, -1) 
-            }));
-        } finally {
-            setIsDiscussing(false);
-        }
-    };
-    // --- AKHIR KODE BARU ---
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Hasil & Pembahasan</h2>
             
-            {/* --- PERUBAHAN (LOGIKA INTEGRASI SLR) DIMULAI DI SINI --- */}
             {isSLR ? (
                 <div className="mb-6 p-4 bg-teal-50 border-l-4 border-teal-400 rounded-lg">
                     <h3 className="text-lg font-semibold text-teal-800 mb-3">Integrasi Alur Kerja SLR</h3>
@@ -2151,7 +2184,6 @@ ${projectData.hasilPembahasanDraft}
                     {!isReady && <p className="text-xs text-red-600 mt-2">Tombol dinonaktifkan karena belum ada draf analisis yang disimpan.</p>}
                 </>
             )}
-            {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
 
 
             {isLoading && !projectData.hasilPembahasanDraft && (
@@ -2162,7 +2194,6 @@ ${projectData.hasilPembahasanDraft}
             )}
 
             {projectData.hasilPembahasanDraft && (
-                 <>
                  <div className="mt-6">
                     <div className="flex justify-between items-center mb-2">
                         <h3 className="text-lg font-bold text-gray-800">Draf Hasil & Pembahasan</h3>
@@ -2208,137 +2239,9 @@ ${projectData.hasilPembahasanDraft}
                             >
                                 Parafrasa (Humanisasi)
                             </button>
-{/* --- AKHIR TOMBOL BARU --- */}
                         </div>
                     </div>
                 </div>
-
-                    {/* --- FITUR DISKUSI DENGAN AI (DIPERBAIKI) --- */}
-                    <div className="border-t-2 border-indigo-200 pt-6 mt-8">
-                        <div className="bg-indigo-50 rounded-xl border border-indigo-100 p-4 shadow-sm transition-all duration-300">
-                            
-                            {/* 1. HEADER (SELALU MUNCUL) */}
-                            <div className="flex justify-between items-center mb-4">
-                                <div>
-                                    <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2 cursor-pointer" onClick={() => setIsChatOpen(!isChatOpen)}>
-                                        🤖 Asisten Diskusi Bab IV
-                                        <span className="text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-1 rounded-full">
-                                            {isChatOpen ? 'Aktif' : 'Tersembunyi'}
-                                        </span>
-                                    </h3>
-                                    {isChatOpen && (
-                                        <p className="text-sm text-indigo-700 mt-1">
-                                            Fitur ini menghabiskan banyak jatah generate harian. Manfaatkan dengan bijak, atau gunakan ChatGPT/Gemini jika ingin diskusi secara intens.
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="flex gap-2">
-                                    {isChatOpen && (
-                                        confirmClear ? (
-                                            <>
-                                                <button 
-                                                    onClick={handleClearChat}
-                                                    className="text-xs bg-red-600 text-white hover:bg-red-700 px-3 py-1 rounded-lg font-semibold animate-pulse"
-                                                >
-                                                    Yakin Hapus?
-                                                </button>
-                                                <button 
-                                                    onClick={() => setConfirmClear(false)}
-                                                    className="text-xs bg-gray-200 text-gray-600 hover:bg-gray-300 px-3 py-1 rounded-lg font-semibold"
-                                                >
-                                                    Batal
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <button 
-                                                onClick={() => setConfirmClear(true)}
-                                                className="text-xs bg-red-100 text-red-600 hover:bg-red-200 px-3 py-1 rounded-lg font-semibold"
-                                                title="Hapus Riwayat Chat"
-                                            >
-                                                Hapus Chat
-                                            </button>
-                                        )
-                                    )}
-                                    <button 
-                                        onClick={() => setIsChatOpen(!isChatOpen)}
-                                        className="text-indigo-500 hover:text-indigo-700 p-1"
-                                    >
-                                        <ChevronDownIcon isOpen={isChatOpen} />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* 2. BODY (MUNCUL HANYA JIKA CHAT DIBUKA) */}
-                            {isChatOpen && (
-                                <>
-                                    {/* Area Riwayat Chat - DITAMBAHKAN CLASS resize-y */}
-                                    <div className="bg-white border border-gray-200 rounded-lg h-80 overflow-y-auto p-4 mb-4 space-y-4 resize-y">
-                                        {(!projectData.hasilPembahasanDiscussion || projectData.hasilPembahasanDiscussion.length === 0) && (
-                                            <p className="text-center text-gray-400 italic mt-10">Belum ada diskusi. Mulai dengan bertanya sesuatu tentang draf Anda.</p>
-                                        )}
-                                        {projectData.hasilPembahasanDiscussion && projectData.hasilPembahasanDiscussion.map((msg, idx) => (
-                                            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                                <div className={`max-w-[85%] rounded-lg p-3 ${
-                                                    msg.role === 'user' 
-                                                    ? 'bg-indigo-600 text-white rounded-br-none' 
-                                                    : 'bg-gray-100 text-gray-800 rounded-bl-none border border-gray-200'
-                                                }`}>
-                                                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                                                    {msg.role === 'ai' && (
-                                                        <div className="mt-2 pt-2 border-t border-gray-200 flex justify-end">
-                                                            <button 
-                                                                onClick={() => handleCopyToClipboard(msg.content)}
-                                                                className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
-                                                            >
-                                                                <CopyIcon /> Salin Jawaban
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                        {isDiscussing && (
-                                            <div className="flex justify-start">
-                                                <div className="bg-gray-100 rounded-lg p-3 rounded-bl-none border border-gray-200 flex items-center gap-2">
-                                                    <div className="animate-bounce h-2 w-2 bg-gray-400 rounded-full"></div>
-                                                    <div className="animate-bounce h-2 w-2 bg-gray-400 rounded-full" style={{animationDelay: '0.2s'}}></div>
-                                                    <div className="animate-bounce h-2 w-2 bg-gray-400 rounded-full" style={{animationDelay: '0.4s'}}></div>
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div ref={chatEndRef} />
-                                    </div>
-
-                                    {/* Area Input - DIGANTI DENGAN TEXTAREA */}
-                                    <div className="flex gap-2">
-                                        <textarea
-                                            value={discussionInput}
-                                            onChange={(e) => setDiscussionInput(e.target.value)}
-                                            onKeyPress={(e) => {
-                                                // Kirim dengan Enter, tapi Shift+Enter untuk baris baru
-                                                if (e.key === 'Enter' && !e.shiftKey) {
-                                                    e.preventDefault();
-                                                    handleDiscussionSubmit();
-                                                }
-                                            }}
-                                            placeholder="Tanya AI: 'Apakah argumen di paragraf 2 sudah kuat?' atau 'Tulis ulang bagian ini...'"
-                                            className="flex-grow shadow-sm border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
-                                            rows="2"
-                                            disabled={isDiscussing}
-                                        />
-                                        <button
-                                            onClick={handleDiscussionSubmit}
-                                            disabled={isDiscussing || !discussionInput.trim()}
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-indigo-300 transition-colors h-fit self-end"
-                                        >
-                                            Kirim
-                                        </button>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </div>
-            </>
             )}
         </div>
     );
@@ -3195,7 +3098,6 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                                     onChange={e => setEditingLog({...editingLog, database: e.target.value})}
                                     className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
                                 >
-                                    <option value="Scopus">Scopus</option>
                                     <option value="Web of Science">Web of Science</option>
                                     <option value="Google Scholar">Google Scholar</option>
                                     <option value="Lainnya">Lainnya (Umum)</option>
@@ -3308,7 +3210,6 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                         onChange={(e) => setProjectData(p => ({...p, queryGeneratorTargetDB: e.target.value}))} 
                         className="shadow appearance-none border rounded-lg w-full md:w-1/2 py-2 px-3 text-gray-700"
                     >
-                        <option value="Scopus">Scopus</option>
                         <option value="Web of Science">Web of Science</option>
                         <option value="Google Scholar">Google Scholar</option>
                         <option value="Lainnya">Lainnya (Umum)</option>
@@ -3727,6 +3628,7 @@ const AnalisisKualitatif = ({
   const [draftSementara, setDraftSementara] = useState('');
   const [targetDraft, setTargetDraft] = useState('analisisKualitatifDraft'); // <-- BARU
   const [qualitativeFocus, setQualitativeFocus] = useState(''); // <-- BARU
+  const [showPromoModal, setShowPromoModal] = useState(false); // <-- STATE BARU UNTUK POP-UP PROMO
   const fileInputRef = useRef(null);
 
   const handleFileChange = (event) => {
@@ -3810,10 +3712,47 @@ const AnalisisKualitatif = ({
     <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
       <h2 className="text-2xl font-bold mb-4 text-gray-800">Analisis Data Kualitatif (Dokumen)</h2>
 
-      {/* KETERANGAN AUDIOCOBRA */}
+      {/* KETERANGAN AUDIOCOBRA DENGAN POP-UP */}
       <p className="text-gray-700 mb-6">
-          Gunakan aplikasi <a href="https://audiocobra.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">Audiocobra</a>, jika anda memiliki rekaman wawancara dan ingin dikonversi menjadi teks.
+          Gunakan aplikasi <button onClick={() => setShowPromoModal(true)} className="text-blue-600 hover:underline font-bold focus:outline-none">Audiocobra</button>, jika anda memiliki rekaman wawancara dan ingin dikonversi menjadi teks.
       </p>
+
+      {/* MODAL POP-UP AUDIOCOBRA */}
+      {showPromoModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
+            <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center animate-fade-in border border-indigo-100">
+                <div className="mb-4 inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-100 text-indigo-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                </div>
+                <h3 className="text-lg font-bold mb-2 text-gray-800">Audiocobra (Add-on Premium)</h3>
+                <p className="text-sm text-gray-600 mb-6">
+                    Aplikasi transkripsi audio ke teks ini merupakan fitur suplemen berbayar terpisah. Silakan hubungi admin untuk mendapatkan akses lisensi.
+                </p>
+                <div className="flex flex-col gap-2">
+                    <a 
+                        href={`https://wa.me/6281234567890?text=${encodeURIComponent("Halo Admin, saya tertarik membeli akses Audiocobra.")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm transition-colors"
+                        onClick={() => setShowPromoModal(false)}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592z"/>
+                        </svg>
+                        Dapatkan Akses via WhatsApp
+                    </a>
+                    <button 
+                        onClick={() => setShowPromoModal(false)} 
+                        className="text-gray-500 hover:text-gray-700 font-semibold py-2 text-sm"
+                    >
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
 
       <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".txt" />
       
@@ -4535,7 +4474,12 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
     };
 
     const handleInitialize = () => {
-        const initialRecordCount = projectData.searchLog.reduce((sum, log) => sum + log.resultsCount, 0);
+        // PERBAIKAN: Gunakan nilai manual jika sudah diisi user, jika 0 baru hitung dari log
+        let initialRecordCount = prismaState.initialRecordCount;
+        
+        if (initialRecordCount === 0) {
+             initialRecordCount = projectData.searchLog.reduce((sum, log) => sum + log.resultsCount, 0);
+        }
         
         if (initialRecordCount === 0 && projectData.allReferences.length === 0) {
             showInfoModal("Tidak ada data untuk memulai. Harap isi Log Penelusuran atau Perpustakaan Referensi terlebih dahulu.");
@@ -4548,13 +4492,16 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
             exclusionReason: '',
         }));
 
+        // PERBAIKAN: Fallback ke jumlah studies jika initial masih 0
+        if (initialRecordCount === 0) initialRecordCount = studies.length;
+
         setProjectData(p => ({
             ...p,
             prismaState: {
                 ...p.prismaState,
                 isInitialized: true,
                 studies: studies,
-                initialRecordCount: initialRecordCount > 0 ? initialRecordCount : studies.length,
+                initialRecordCount: initialRecordCount, // Gunakan nilai yang sudah divalidasi
             }
         }));
         showInfoModal("Proses Screening PRISMA dimulai!");
@@ -4628,68 +4575,131 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
         };
     };
 
-    const renderSetup = () => (
+    // --- MODIFIKASI TAMPILAN SETUP PRISMA ---
+    const renderSetup = () => {
+        const logTotal = projectData.searchLog.reduce((sum, log) => sum + log.resultsCount, 0);
+        const importedTotal = projectData.allReferences.length;
+        
+        // Hitung keseimbangan
+        const manualInitial = prismaState.initialRecordCount > 0 ? prismaState.initialRecordCount : logTotal;
+        const removed = (prismaState.duplicateCount || 0) + (prismaState.automationIneligible || 0) + (prismaState.otherReasonsRemoved || 0);
+        const calculatedScreened = manualInitial - removed;
+        const gap = calculatedScreened - importedTotal; // Selisih antara hitungan matematis dan data riil di library
+
+        return (
         <div className="text-center">
             <h3 className="text-xl font-semibold mb-4 text-gray-800">Mulai Proses Screening PRISMA</h3>
-            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">Fitur ini akan memandu Anda melalui proses penyaringan studi untuk Systematic Literature Review (SLR) Anda. Proses ini akan menggunakan data dari **Log Penelusuran** dan **Perpustakaan Referensi**.</p>
-            <div className="p-4 bg-gray-100 rounded-lg inline-block mb-6 space-y-2">
-                 <div className="flex justify-between items-center gap-4">
-                    <span className="text-left">Total record dari database:</span> 
-                    <strong className="text-blue-600">{projectData.searchLog.reduce((sum, log) => sum + log.resultsCount, 0)}</strong>
+            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">Fitur ini akan memandu Anda melalui proses penyaringan studi untuk Systematic Literature Review (SLR) Anda.</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto text-left">
+                {/* KOLOM KIRI: INPUT RAW DATA */}
+                <div className="p-5 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h4 className="font-bold text-blue-800 mb-3 border-b border-blue-200 pb-2">1. Data Identifikasi (Raw)</h4>
+                    <p className="text-xs text-blue-600 mb-4">Masukkan total hasil pencarian mentah dari semua database SEBELUM filter apa pun.</p>
+                    
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-bold mb-2">Total Record Identifikasi:</label>
+                        <div className="flex gap-2">
+                            <input 
+                                type="number"
+                                min="0"
+                                value={prismaState.initialRecordCount}
+                                onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, initialRecordCount: parseInt(e.target.value, 10) || 0 }}))}
+                                className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+                                placeholder={logTotal}
+                            />
+                            {logTotal > 0 && (
+                                <button 
+                                    onClick={() => setProjectData(p => ({...p, prismaState: {...p.prismaState, initialRecordCount: logTotal }}))}
+                                    className="bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded hover:bg-blue-300 whitespace-nowrap"
+                                    title="Gunakan total dari Log Kueri"
+                                >
+                                    Pakai Log ({logTotal})
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
-                 <div className="flex justify-between items-center gap-4">
-                    <span className="text-left">Total referensi unik diimpor:</span>
-                    <strong className="text-blue-600">{projectData.allReferences.length}</strong>
+
+                {/* KOLOM KANAN: INPUT PENGURANGAN */}
+                <div className="p-5 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <h4 className="font-bold text-yellow-800 mb-3 border-b border-yellow-200 pb-2">2. Filter Awal (Automation Tools)</h4>
+                    <p className="text-xs text-yellow-700 mb-4">Masukkan jumlah record yang dibuang sebelum screening manusia (oleh sistem database/aplikasi).</p>
+                    
+                    <div className="space-y-3">
+                        <div>
+                            <label className="block text-gray-700 text-xs font-bold mb-1">Duplikat dihapus:</label>
+                            <input 
+                                type="number"
+                                min="0"
+                                value={prismaState.duplicateCount}
+                                onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, duplicateCount: parseInt(e.target.value, 10) || 0 }}))}
+                                className="shadow appearance-none border rounded w-full py-1 px-2 text-sm text-gray-700"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-gray-700 text-xs font-bold mb-1">Tidak eligibel oleh automation tools:</label>
+                            <input 
+                                type="number"
+                                min="0"
+                                value={prismaState.automationIneligible}
+                                onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, automationIneligible: parseInt(e.target.value, 10) || 0 }}))}
+                                className="shadow appearance-none border rounded w-full py-1 px-2 text-sm text-gray-700"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-gray-700 text-xs font-bold mb-1">Dibuang alasan lain:</label>
+                            <input 
+                                type="number"
+                                min="0"
+                                value={prismaState.otherReasonsRemoved}
+                                onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, otherReasonsRemoved: parseInt(e.target.value, 10) || 0 }}))}
+                                className="shadow appearance-none border rounded w-full py-1 px-2 text-sm text-gray-700"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div className="max-w-md mx-auto space-y-4">
-                 <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">Jumlah duplikat dihapus (manual):</label>
-                    <input 
-                        type="number"
-                        min="0"
-                        value={prismaState.duplicateCount}
-                        onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, duplicateCount: parseInt(e.target.value, 10) || 0 }}))}
-                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                    />
+            {/* KALKULATOR KESEIMBANGAN */}
+            <div className={`mt-6 p-4 rounded-lg border-2 max-w-2xl mx-auto ${gap === 0 ? 'bg-green-50 border-green-400' : 'bg-red-50 border-red-400'}`}>
+                <h4 className={`font-bold ${gap === 0 ? 'text-green-800' : 'text-red-800'} mb-2`}>
+                    Status Data: {gap === 0 ? "SEIMBANG ✅" : "TIDAK SEIMBANG ⚠️"}
+                </h4>
+                <div className="flex justify-between text-sm mb-2">
+                    <span>Identifikasi Awal:</span>
+                    <strong>{manualInitial}</strong>
                 </div>
-                <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">Record ditandai tidak eligibel oleh automation tools:</label>
-                    <input 
-                        type="number"
-                        min="0"
-                        value={prismaState.automationIneligible}
-                        onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, automationIneligible: parseInt(e.target.value, 10) || 0 }}))}
-                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                    />
+                <div className="flex justify-between text-sm mb-2 text-red-600">
+                    <span>Dikurangi (Filter Awal):</span>
+                    <strong>- {removed}</strong>
                 </div>
-                <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">Record dibuang karena alasan lain:</label>
-                    <input 
-                        type="number"
-                        min="0"
-                        value={prismaState.otherReasonsRemoved}
-                        onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, otherReasonsRemoved: parseInt(e.target.value, 10) || 0 }}))}
-                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                    />
+                <div className="flex justify-between text-sm pt-2 border-t border-gray-300">
+                    <span>Seharusnya Masuk Screening:</span>
+                    <strong>{calculatedScreened}</strong>
                 </div>
-                 <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">Report tidak di-retrieve:</label>
-                    <input 
-                        type="number"
-                        min="0"
-                        value={prismaState.reportsNotRetrieved}
-                        onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, reportsNotRetrieved: parseInt(e.target.value, 10) || 0 }}))}
-                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                    />
+                <div className="flex justify-between text-sm">
+                    <span>Total Referensi di App (Riil):</span>
+                    <strong>{importedTotal}</strong>
                 </div>
+                
+                {gap !== 0 && (
+                    <div className="mt-3 text-xs text-red-700 bg-red-100 p-2 rounded">
+                        <strong>Selisih: {Math.abs(gap)} record.</strong> <br/>
+                        {gap > 0 
+                            ? "Data 'Filter Awal' terlalu sedikit. Ada record yang hilang?" 
+                            : "Data 'Filter Awal' terlalu banyak. Sisa record negatif?"}
+                        <br/>Silakan sesuaikan angka di kolom kuning agar selisih menjadi 0.
+                    </div>
+                )}
             </div>
+
             <button onClick={handleInitialize} className="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg">
-                Mulai Screening
+                Mulai Screening dengan Data Ini
             </button>
         </div>
     );
+    }; // END renderSetup
     
     const renderScreening = (type) => {
         const isAbstract = type === 'abstract';
@@ -5685,26 +5695,17 @@ const Donasi = ({ handleCopyToClipboard }) => {
     const accountNumber = '7193560789';
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Dukungan & Donasi</h2>
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Dampak Sosial & CSR</h2>
             
-            {/* Dukungan Aplikasi Section */}
-            <div className="mb-8 p-4 border-2 border-dashed border-green-300 rounded-lg bg-green-50">
-                <h3 className="text-xl font-bold mb-2 text-green-800">Dukungan Aplikasi</h3>
-                <p className="text-green-700 mb-4">Jika aplikasi ini bermanfaat, Anda dapat memberikan dukungan kepada pengembang untuk pengembangan fitur selanjutnya melalui Saweria.</p>
-                <a 
-                    href="https://saweria.co/ibracobra25"
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105"
-                >
-                    Dukung di Saweria
-                </a>
-            </div>
+            {/* PERUBAHAN TEKS: Menggunakan kalimat usulan pengguna agar lebih logis */}
+            <p className="text-gray-700 mb-6">
+                Layanan ini mendukung program CSR (Corporate Social Responsibility) melalui sumbangan sukarela, guna membantu komunitas yang membutuhkan.
+            </p>
 
             {/* Donasi Masjid Section */}
             <div className="p-4 border-2 border-dashed border-teal-300 rounded-lg bg-teal-50">
-                <h3 className="text-xl font-bold mb-2 text-teal-800">Donasi Pembangunan Masjid Al Ikhlas</h3>
-                <p className="text-teal-700 mb-6">Dukungan Anda juga sangat berarti untuk penyelesaian rumah ibadah. Terima kasih.</p>
+                <h3 className="text-xl font-bold mb-2 text-teal-800">Program Pembangunan Masjid Al Ikhlas</h3>
+                <p className="text-teal-700 mb-6">Kami mengajak Anda untuk turut serta dalam pembangunan rumah ibadah. Dukungan Anda sangat berarti bagi komunitas.</p>
                 
                 <div className="space-y-4 text-gray-700">
                     <div>
@@ -5741,98 +5742,196 @@ const Donasi = ({ handleCopyToClipboard }) => {
     );
 };
 
-// --- Komponen untuk Tutorial ---
-const Tutorial = () => (
-    <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-        <h2 className="text-2xl font-bold mb-2 text-gray-800">Tutorial & Panduan</h2>
-        <p className="text-gray-600 mb-6">Akses folder Google Drive kami untuk melihat video tutorial dan panduan penggunaan aplikasi Bibliocobra.</p>
-        
-        <div className="p-4 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50">
-            <h3 className="text-xl font-bold mb-2 text-blue-800">Folder Tutorial</h3>
-            <p className="text-blue-700 mb-4">Klik tombol di bawah untuk membuka folder Google Drive di tab baru.</p>
-            <a 
-                href="https://drive.google.com/drive/u/0/folders/1MXW0fxlWC7uZbA5iINLrTq5P7ENnsJU0"
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105"
-            >
-                Buka Folder Tutorial
-            </a>
-        </div>
-    </div>
-);
-
-// --- Komponen BARU untuk Reset & Hapus Proyek ---
-    const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard }) => { // <-- Tambahkan handleCopyToClipboard
-    const chromeSettingsUrl = "chrome://settings/content/siteDetails?site=https%3A%2F%2Fbibliocobra-sikobra.vercel.app%2F";
+// --- Komponen untuk Tutorial (Bantuan & Kontak) ---
+const Tutorial = () => {
+    // Data Dummy Kontak
+    const adminWA = "6281234567890"; 
+    const displayWA = "+62 812-3456-7890";
+    const adminEmail = "support@bibliocobra.com";
+    const adminIG = "bibliocobra.id"; // Dummy Instagram
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Reset & Hapus Data Proyek</h2>
-
-            {/* Bagian 1: Reset Proyek (Aplikasi) */}
-            <div className="mb-8 p-4 border-2 border-dashed border-yellow-400 rounded-lg bg-yellow-50">
-                <h3 className="text-xl font-bold mb-2 text-yellow-800">1. Reset Proyek (Aplikasi)</h3>
-                <p className="text-yellow-700 mb-4 text-sm">
-                    Tindakan ini akan menghapus data proyek yang sedang aktif tersimpan di browser Anda (data di <code>localStorage</code> untuk aplikasi ini) dan mengembalikan aplikasi ke kondisi awal seperti baru. Pengaturan browser lain atau data situs lain tidak akan terpengaruh.
-                </p>
-                <button
-                    onClick={() => setIsResetConfirmOpen(true)}
-                    className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105"
-                >
-                    Reset Proyek Saat Ini
-                </button>
-            </div>
-
-            {/* Bagian 2: Hapus Data Situs (Browser) */}
-            <div className="p-4 border-2 border-dashed border-red-400 rounded-lg bg-red-50">
-                <h3 className="text-xl font-bold mb-2 text-red-800">2. Hapus Semua Data Situs (Browser)</h3>
-                <p className="text-red-700 mb-4 text-sm">
-                    Opsi ini akan membuka pengaturan browser Anda untuk menghapus <strong>semua data</strong> (termasuk penyimpanan lokal, cookies, cache, dll.) yang disimpan oleh browser untuk situs web <strong>Bibliocobra</strong> ini. Gunakan ini untuk pembersihan total atau jika Anda mengalami masalah teknis yang persisten.
-                </p>
-                <p className="text-red-900 font-semibold mb-4 text-sm">
-                    Peringatan: Tindakan ini tidak dapat diurungkan dan akan menghapus semua proyek Anda dari browser ini.
-                </p>
-
-                {/* Tautan Khusus Chrome */}
-                <div className="mb-4">
-                    <p className="text-gray-700 text-sm mb-2"><strong>Untuk pengguna Google Chrome:</strong></p>
-                    <button
-                    onClick={() => handleCopyToClipboard(chromeSettingsUrl)} // <-- Panggil fungsi salin
-                    className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105"
-                    >
-                    <CopyIcon /> Salin Tautan Pengaturan Chrome {/* <-- Teks tombol baru */}
-                    </button>
-                    <p className="text-xs text-gray-500 mt-1">Salin tautan di atas, lalu tempelkan (paste) di bilah alamat (address bar) browser Chrome Anda dan tekan Enter, kemudian pilih "Delete/Clear data".</p>
+            <h2 className="text-2xl font-bold mb-2 text-gray-800">Pusat Bantuan & Kontak</h2>
+            <p className="text-gray-600 mb-8 text-sm">Temukan panduan penggunaan atau hubungi tim dukungan kami untuk bantuan lebih lanjut.</p>
+            
+            <div className="space-y-4">
+                {/* Bagian 1: Panduan Mandiri (Kartu Besar) */}
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow p-5">
+                    <div className="flex items-start gap-4">
+                        <div className="p-3 bg-blue-50 rounded-lg text-blue-600 flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                        </div>
+                        <div className="flex-grow">
+                            <h3 className="text-base font-bold text-gray-900 mb-1">Panduan Penggunaan & Tutorial</h3>
+                            <p className="text-gray-600 mb-3 text-xs leading-relaxed max-w-2xl">
+                                Pelajari cara memaksimalkan fitur Bibliocobra. Akses koleksi video tutorial, dokumentasi langkah demi langkah, dan tips penggunaan.
+                            </p>
+                            <a 
+                                href="https://drive.google.com/drive/u/0/folders/1MXW0fxlWC7uZbA5iINLrTq5P7ENnsJU0"
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-md hover:bg-blue-700 transition-colors shadow-sm group"
+                            >
+                                Buka Perpustakaan Tutorial
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1.5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Instruksi Browser Lain */}
-                <div>
-                    <p className="text-gray-700 text-sm mb-2"><strong>Untuk pengguna browser lain (Firefox, Edge, Safari, dll.):</strong></p>
-                    <p className="text-gray-600 text-sm">
-                        Silakan buka pengaturan browser Anda, cari bagian "Privacy & Security" atau "Cookies and site data", lalu temukan opsi untuk mengelola atau menghapus data situs web (biasanya disebut "Manage Data", "Clear site data", atau sejenisnya) dan cari <code>bibliocobra-sikobra.vercel.app</code> untuk menghapus datanya.
-                    </p>
+                {/* Bagian 2: Kontak Support */}
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+                    <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        Layanan Pelanggan (Customer Support)
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* WhatsApp Card */}
+                        <a 
+                            href={`https://wa.me/${adminWA}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg hover:border-green-400 hover:shadow-sm transition-all group"
+                        >
+                            <div className="bg-green-50 p-2 rounded-full text-green-600 group-hover:bg-green-600 group-hover:text-white transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592z"/>
+                                </svg>
+                            </div>
+                            <div className="overflow-hidden">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">WhatsApp</p>
+                                <p className="text-gray-900 font-semibold text-sm truncate">{displayWA}</p>
+                                <p className="text-[10px] text-gray-500 mt-0.5">Senin - Jumat, 09.00 - 17.00 WIB</p>
+                            </div>
+                        </a>
+
+                        {/* Email Card */}
+                        <a 
+                            href={`mailto:${adminEmail}`}
+                            className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-400 hover:shadow-sm transition-all group"
+                        >
+                            <div className="bg-gray-50 p-2 rounded-full text-gray-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <div className="overflow-hidden">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Email Support</p>
+                                <p className="text-gray-900 font-semibold text-sm truncate">{adminEmail}</p>
+                                <p className="text-[10px] text-gray-500 mt-0.5">Respon dalam 1x24 Jam Kerja</p>
+                            </div>
+                        </a>
+
+                        {/* Instagram Card (Span 2 Columns untuk Presisi) */}
+                        <a 
+                            href={`https://instagram.com/${adminIG}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg hover:border-pink-400 hover:shadow-sm transition-all group md:col-span-2"
+                        >
+                            <div className="bg-pink-50 p-2 rounded-full text-pink-600 group-hover:bg-pink-600 group-hover:text-white transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M8 0C5.829 0 5.556.01 4.703.048 3.85.088 3.269.222 2.76.42a3.917 3.917 0 0 0-1.417.923A3.927 3.927 0 0 0 .42 2.76C.222 3.268.087 3.85.048 4.7.01 5.555 0 5.827 0 8.001c0 2.172.01 2.444.048 3.297.04.852.174 1.433.372 1.942.205.526.478.972.923 1.417.444.445.89.719 1.416.923.51.198 1.09.333 1.942.372C5.555 15.99 5.827 16 8 16s2.444-.01 3.298-.048c.851-.04 1.434-.174 1.943-.372a3.916 3.916 0 0 0 1.416-.923c.445-.445.718-.891.923-1.417.197-.509.332-1.09.372-1.942C15.99 10.445 16 10.172 16 8s-.01-2.444-.048-3.298c-.04-.851-.175-1.433-.372-1.941a3.926 3.926 0 0 0-.923-1.417A3.911 3.911 0 0 0 13.24.42c-.51-.198-1.092-.333-1.943-.372C10.443.01 10.172 0 7.998 0h.003zm-.717 1.442h.718c2.136 0 2.389.007 3.232.046.78.035 1.204.166 1.486.275.373.145.64.319.92.599.28.28.453.546.598.92.11.281.24.705.275 1.485.039.843.047 1.096.047 3.231s-.008 2.389-.047 3.232c-.035.78-.166 1.203-.275 1.485a2.47 2.47 0 0 1-.599.919c-.28.28-.546.453-.92.598-.28.11-.704.24-1.485.276-.843.038-1.096.047-3.232.047s-2.39-.009-3.234-.047c-.78-.036-1.203-.166-1.485-.276a2.478 2.478 0 0 1-.92-.598 2.48 2.48 0 0 1-.6-.92c-.109-.281-.24-.705-.275-1.485-.038-.843-.046-1.096-.046-3.233 0-2.136.008-2.388.046-3.231.036-.78.166-1.204.276-1.486.145-.373.319-.64.599-.92.28-.28.546-.453.92-.598.282-.11.705-.24 1.485-.276.738-.034 1.024-.044 2.515-.045v.002zm4.988 1.328a.96.96 0 1 0 0 1.92.96.96 0 0 0 0-1.92zm-4.27 1.122a4.109 4.109 0 1 0 0 8.217 4.109 4.109 0 0 0 0-8.217zm0 1.441a2.667 2.667 0 1 1 0 5.334 2.667 2.667 0 0 1 0-5.334z"/>
+                                </svg>
+                            </div>
+                            <div className="overflow-hidden">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Instagram</p>
+                                <p className="text-gray-900 font-semibold text-sm truncate">@{adminIG}</p>
+                                <p className="text-[10px] text-gray-500 mt-0.5">Informasi & Update Terbaru</p>
+                            </div>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
-// --- AKHIR Komponen BARU --- 
 
+// --- Komponen BARU untuk Reset & Hapus Proyek ---
+const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGeminiApiKey, setScopusApiKey, showInfoModal }) => { 
+    
+    // State lokal untuk modal konfirmasi
+    const [isLocalResetConfirmOpen, setIsLocalResetConfirmOpen] = useState(false);
+
+    // Fungsi baru untuk menghapus data lokal (API Key) saja
+    const handleClearLocalData = () => {
+        // Hapus dari Local Storage
+        localStorage.removeItem('gemini-api-key');
+        localStorage.removeItem('scopus-api-key');
+        localStorage.removeItem('hasSeenWelcomeModal');
+        
+        // Hapus dari State Aplikasi (agar UI langsung update tanpa reload)
+        setGeminiApiKey('');
+        setScopusApiKey('');
+        
+        // Tutup modal dan beri notifikasi
+        setIsLocalResetConfirmOpen(false);
+        showInfoModal("Kunci API dan pengaturan lokal berhasil dihapus dari browser ini.");
+    };
+
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Pengaturan Data & Privasi</h2>
+
+            {/* Bagian 1: Reset Proyek (Aplikasi) */}
+            <div className="mb-8 p-4 border-2 border-dashed border-red-400 rounded-lg bg-red-50">
+                <h3 className="text-xl font-bold mb-2 text-red-800">1. Reset Total Proyek (Server Firebase)</h3>
+                <p className="text-red-700 mb-4 text-sm">
+                    <strong>PERINGATAN KERAS:</strong> Tindakan ini akan <strong>MENGHAPUS PERMANEN</strong> seluruh data proyek Anda (Judul, Referensi, Draf Bab, dll) yang tersimpan di server database kami. Data yang sudah dihapus tidak dapat dikembalikan.
+                </p>
+                <button
+                    onClick={() => setIsResetConfirmOpen(true)}
+                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105"
+                >
+                    Hapus & Reset Proyek Saya
+                </button>
+            </div>
+
+            {/* Bagian 2: Keamanan Lokal (API Key) */}
+            <div className="p-4 border-2 border-dashed border-gray-400 rounded-lg bg-gray-50">
+                <h3 className="text-xl font-bold mb-2 text-gray-800">2. Keamanan Perangkat (Hapus Kunci API)</h3>
+                <p className="text-gray-700 mb-4 text-sm">
+                    Gunakan tombol di bawah ini jika Anda menggunakan komputer publik atau ingin mengganti Kunci API. Tindakan ini hanya akan menghapus <strong>Google AI API Key</strong> dan <strong>Scopus API Key</strong> yang tersimpan di browser ini. Data proyek Anda tetap aman di server.
+                </p>
+                
+                <button
+                    onClick={() => setIsLocalResetConfirmOpen(true)}
+                    className="inline-flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105"
+                >
+                    Hapus Kunci API dari Browser Ini
+                </button>
+            </div>
+
+            {/* Modal Konfirmasi Hapus Data Lokal (Custom UI pengganti window.confirm) */}
+            {isLocalResetConfirmOpen && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full flex flex-col">
+                        <h3 className="text-xl font-semibold mb-4 text-gray-800">Konfirmasi Hapus Kunci</h3>
+                        <p className="text-gray-700 mb-6">Apakah Anda yakin? Kunci API akan dihapus dari browser ini. Anda perlu memasukkannya lagi nanti untuk menggunakan fitur AI.</p>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setIsLocalResetConfirmOpen(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Batal</button>
+                            <button onClick={handleClearLocalData} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Ya, Hapus</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+// --- AKHIR Komponen BARU --- 
+// ... (Bagian-bagian komponen lain seperti DeskripsiResponden, DashboardProyek, IdeKTI, Referensi, dll tidak berubah) ...
 
 // ============================================================================
 // KOMPONEN UTAMA: App
 // ============================================================================
-
-// Definisikan state awal di luar komponen agar bisa diakses kembali
-// BLOK INI AKAN DIHAPUS KARENA SUDAH DIPINDAH KE ATAS
-/*
-const initialProjectData = {
-    // Data Perencanaan
-// ... (konten initialProjectData yang lama) ...
-    kesimpulanDraft: '',
-};
-*/
 
 function App() {
     const [currentSection, setCurrentSection] = useState('ideKTI');
@@ -5871,7 +5970,7 @@ Publisher Name: `;
     const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
     const [currentEditingRef, setCurrentEditingRef] = useState(null);
     const [noteText, setNoteText] = useState('');
-        const [isClarificationModalOpen, setIsClarificationModalOpen] = useState(false);
+    const [isClarificationModalOpen, setIsClarificationModalOpen] = useState(false);
     const [clarificationQuestions, setClarificationQuestions] = useState([]);
     const [clarificationAnswers, setClarificationAnswers] = useState({});
     
@@ -5899,23 +5998,19 @@ Publisher Name: `;
     const [openMethod, setOpenMethod] = useState(null);
     const [openSearchDropdown, setOpenSearchDropdown] = useState(null);
 
-    // HAPUS: const [aiClueNarratives, setAiClueNarratives] = useState({});
-
     // --- State Baru untuk Fitur Pencarian Konsep ---
     const [conceptQuery, setConceptQuery] = useState('');
     const [isConceptSearching, setIsConceptSearching] = useState(false);
     const [conceptSearchResult, setConceptSearchResult] = useState(null);
 
-    // State baru untuk pencarian Regulasi (Tambahkan ini)
+    // State baru untuk pencarian Regulasi
     const [isRegulationSearching, setIsRegulationSearching] = useState(false);
     const [regulationSearchResults, setRegulationSearchResults] = useState(null);
 
     const [conceptSearchMode, setConceptSearchMode] = useState('concept'); 
 
-
     // Kunci API Semantic Scholar di-hardcode sesuai permintaan
     const S2_API_KEY = '62xZMjIZah5nNxfZ9lv112iKyIhqT1929s3X3xEz';
-
 
     // ============================================================================
     // LANGKAH B2: useEffect untuk Mendengarkan Status Auth & Memuat Data
@@ -5934,10 +6029,14 @@ Publisher Name: `;
                     // Jika dokumen ada, muat datanya
                     const loadedData = docSnap.data();
                     // Gabungkan dengan data awal untuk memastikan semua field ada
-                    setProjectData(prev => ({ ...initialProjectData, ...loadedData }));
+                    setProjectData(prev => ({ 
+                        ...initialProjectData, 
+                        ...loadedData,
+                        isPremium: loadedData.isPremium || false,
+                        showScopus: loadedData.showScopus || false // Muat status fitur rahasia
+                    }));
                 } else {
-                    // Jika tidak ada (misal: pengguna mendaftar tapi gagal buat dokumen)
-                    // Buat dokumen baru untuk mereka
+                    // Jika tidak ada, buat dokumen baru
                     try {
                         await setDoc(doc(db, "projects", user.uid), initialProjectData);
                         setProjectData(initialProjectData);
@@ -5953,21 +6052,19 @@ Publisher Name: `;
             setIsLoadingAuth(false); // Selesai memuat status auth
         });
 
-        // Cleanup listener saat komponen unmount
         return () => unsubscribe();
-    }, []); // <-- Dependency array kosong, hanya berjalan sekali
+    }, []); 
 
     // ============================================================================
     // LANGKAH B3: useEffect untuk Menyimpan Data ke Firestore secara Otomatis
     // ============================================================================
-    // Gunakan useRef untuk melacak apakah ini pemuatan awal
     const isInitialMount = useRef(true);
     
     useEffect(() => {
         // Jangan simpan pada pemuatan awal atau jika auth masih loading
         if (isLoadingAuth || isInitialMount.current) {
             if (!isLoadingAuth) {
-                isInitialMount.current = false; // Tandai pemuatan awal selesai setelah auth selesai
+                isInitialMount.current = false;
             }
             return;
         }
@@ -5992,8 +6089,37 @@ Publisher Name: `;
                 clearTimeout(handler); // Bersihkan timeout jika ada perubahan baru
             };
         }
-    }, [projectData, currentUser, isLoadingAuth]); // <-- Jalankan saat data atau pengguna berubah
+    }, [projectData, currentUser, isLoadingAuth]);
 
+    // Handler aktivasi lisensi (Updated dengan fitur Scopus)
+    const handleLicenseActivation = async (enableScopus = false) => {
+        if (currentUser) {
+            // Update state lokal
+            setProjectData(prev => ({ 
+                ...prev, 
+                isPremium: true,
+                showScopus: enableScopus // Set true jika kode rahasia digunakan
+            }));
+            
+            // Simpan ke Firestore
+            try {
+                const docRef = doc(db, "projects", currentUser.uid);
+                await setDoc(docRef, { 
+                    isPremium: true,
+                    showScopus: enableScopus 
+                }, { merge: true });
+                
+                if (enableScopus) {
+                    alert("Aktivasi ELITE Berhasil! Fitur Scopus telah dibuka.");
+                } else {
+                    alert("Aktivasi Berhasil! Selamat datang di Bibliocobra Premium.");
+                }
+            } catch (error) {
+                console.error("Gagal menyimpan status aktivasi:", error);
+                alert("Aktivasi berhasil di sesi ini, namun gagal menyimpan ke server.");
+            }
+        }
+    };
 
     // Efek untuk menampilkan pop-up selamat datang
     useEffect(() => {
@@ -6003,56 +6129,20 @@ Publisher Name: `;
         }
     }, []);
 
-    // Efek untuk memuat data proyek dan kunci API dari localStorage saat komponen dimuat
+    // Efek untuk memuat data kunci API dari localStorage
     useEffect(() => {
         try {
-            // HAPUS BAGIAN INI: const savedData = localStorage.getItem('kti-bibliometric-project');
             const savedGeminiKey = localStorage.getItem('gemini-api-key');
-            const savedScopusKey = localStorage.getItem('scopus-api-key'); // Muat kunci Scopus
+            const savedScopusKey = localStorage.getItem('scopus-api-key');
             
-            if (savedGeminiKey) {
-                setGeminiApiKey(savedGeminiKey);
-            }
-            if (savedScopusKey) { // Set state kunci Scopus
-                setScopusApiKey(savedScopusKey);
-            }
-
-            // HAPUS SEMUA BLOK 'if (savedData) { ... } else { ... }'
-            /*
-            if (savedData) {
-                const parsedData = JSON.parse(savedData);
-
-                // --- LOGIKA PEMBARUAN OTOMATIS ---
-                // Cek apakah template tabel ekstraksi adalah versi lama (kurang dari 7 kolom).
-                if (!parsedData.synthesisTableColumns || (parsedData.synthesisTableColumns && parsedData.synthesisTableColumns.length < 7)) {
-                    // Jika ya, ganti dengan template baru dari initialProjectData.
-                    parsedData.synthesisTableColumns = initialProjectData.synthesisTableColumns;
-                }
-                // --- AKHIR LOGIKA PEMBARUAN ---
-
-                const mergedData = { ...initialProjectData, ...parsedData };
-                setProjectData(mergedData);
-            } else {
-                setProjectData(initialProjectData);
-            }
-            */
+            if (savedGeminiKey) setGeminiApiKey(savedGeminiKey);
+            if (savedScopusKey) setScopusApiKey(savedScopusKey);
         } catch (error) {
             console.error("Gagal memuat data dari localStorage:", error);
         }
     }, []);
 
-    // Efek untuk menyimpan data proyek ke localStorage setiap kali berubah
-    /* HAPUS SELURUH useEffect INI
-    useEffect(() => {
-        try {
-            localStorage.setItem('kti-bibliometric-project', JSON.stringify(projectData));
-        } catch (error) {
-            console.error("Gagal menyimpan data proyek ke localStorage:", error);
-        }
-    }, [projectData]);
-    */
-
-    // Efek untuk menyimpan kunci API Gemini ke localStorage setiap kali berubah
+    // Efek untuk menyimpan kunci API Gemini
     useEffect(() => {
         try {
             localStorage.setItem('gemini-api-key', geminiApiKey);
@@ -6061,7 +6151,7 @@ Publisher Name: `;
         }
     }, [geminiApiKey]);
 
-    // Efek untuk menyimpan kunci API Scopus ke localStorage setiap kali berubah
+    // Efek untuk menyimpan kunci API Scopus
     useEffect(() => {
         try {
             localStorage.setItem('scopus-api-key', scopusApiKey);
@@ -7231,7 +7321,7 @@ const handleAddRegulationToReference = (regulationResult) => {
     const handleClueSearchScopus = async (clueObj) => {
         setShowSearchPromptModal(false); 
         setCurrentSection('referensi');   
-        setOpenMethod('method3');         
+        setOpenMethod('methodScopus');         
         setSearchQuery(`AI sedang membuat kueri cerdas untuk "${clueObj.clue}"...`);
         setIsLoading(true);
 
@@ -7611,21 +7701,36 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
 
 
     const handleGenerateAdvancedBooleanQuery = async (clueObj) => {
-    const prompt = `Anda adalah seorang Pustakawan Riset (Research Librarian) yang ahli dalam merancang strategi pencarian untuk database Scopus. Tugas Anda adalah mengubah tujuan pencarian sederhana menjadi string pencarian boolean yang canggih dan efektif.
+    const prompt = `Anda adalah seorang Pustakawan Riset (Research Librarian) ahli spesialis database Scopus. 
+    Tugas: Ubah "Tujuan Pencarian" dan "Kata Kunci" menjadi string kueri boolean Scopus yang presisi.
 
-    Tujuan Pencarian (Explanation): "${clueObj.explanation}"
-    Kata Kunci Inti (Clue): "${clueObj.clue}"
+    Input:
+    - Tujuan (Explanation): "${clueObj.explanation}"
+    - Kata Kunci (Clue): "${clueObj.clue}"
 
-    Instruksi:
-    1. Identifikasi 2-3 konsep utama dari gabungan 'Explanation' dan 'Clue'.
-    2. Untuk setiap konsep, cari 1-2 sinonim atau istilah terkait yang relevan dalam Bahasa Inggris.
-    3. Gabungkan semua konsep dan sinonimnya menjadi sebuah string kueri boolean yang valid untuk Scopus menggunakan sintaks TITLE-ABS-KEY(...), operator AND, OR, dan tanda kurung ().
-    4. Prioritaskan istilah dalam Bahasa Inggris karena Scopus adalah database internasional.
+    WAJIB IKUTI 4 PRINSIP METODE BERIKUT (Strict Mode):
 
-    Contoh Hasil yang Diharapkan:
-    TITLE-ABS-KEY(("local government" OR "regional government") AND ("unique characteristics" OR "definition") AND ("innovation factors"))
+    1) Tetapkan Konsep Inti (Core Concepts Only):
+       - Identifikasi topik keilmuan inti (variable, fenomena, atau subjek riset).
+       - HAPUS/ABAIKAN elemen non-inti: Judul riset spesifik, nama lokasi (misal: "Indonesia", "Jakarta"), nama institusi (misal: "BRIN", "Kemenkeu"), dan tahun/periode (misal: "2020-2024").
+       - Fokus pada "apa yang diteliti", BUKAN "di mana" atau "kapan".
 
-    Hasilkan HANYA string kueri Scopus tanpa penjelasan tambahan.`;
+    2) Istilah Baku Bahasa Inggris (Official Terms):
+       - Gunakan HANYA istilah bahasa Inggris yang baku dan diakui dalam literatur ilmiah internasional.
+       - Hindari terjemahan harfiah (literal translation) yang tidak umum.
+
+    3) Bangun Blok Sinonim dengan OR:
+       - Kelompokkan konsep yang setara/sinonim dalam satu blok kurung.
+       - Gunakan operator OR.
+       - WAJIB gunakan tanda kutip ganda "..." untuk frasa dua kata atau lebih.
+       - Contoh: ("science policy" OR "STI policy" OR "research policy")
+
+    4) Gabungkan Antar-Konsep dengan AND:
+       - Hubungkan blok-blok konsep yang berbeda menggunakan operator AND.
+       - Pastikan struktur kurung rapi dan logis.
+       - Format Akhir Wajib: TITLE-ABS-KEY((Blok A) AND (Blok B) ...)
+
+    Hasilkan HANYA string kueri final (mulai dengan TITLE-ABS-KEY). Jangan ada teks penjelasan pembuka atau penutup.`;
 
     try {
         const result = await geminiService.run(prompt, geminiApiKey);
@@ -7892,16 +7997,20 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         }
         setIsLoading(true); // Tampilkan loading state
         try {
-            // HAPUS BARIS INI: localStorage.removeItem('kti-bibliometric-project');
+            // FIX: Pertahankan status Premium saat reset agar pengguna tidak terkunci kembali
+            const resetData = {
+                ...initialProjectData,
+                isPremium: projectData.isPremium // Menyalin status premium dari data saat ini
+            };
             
-            // GANTI DENGAN: Menulis ulang data di Firestore dengan data awal
-            await setDoc(doc(db, "projects", currentUser.uid), initialProjectData);
+            // Menulis ulang data di Firestore dengan data awal (tapi isPremium dipertahankan)
+            await setDoc(doc(db, "projects", currentUser.uid), resetData);
 
-            // Set state lokal ke data awal
-            setProjectData(initialProjectData);
+            // Set state lokal ke data awal yang sudah diamankan status premiumnya
+            setProjectData(resetData);
             
             setIsResetConfirmOpen(false);
-            showInfoModal("Proyek telah berhasil di-reset di server.");
+            showInfoModal("Proyek telah berhasil di-reset. Data tulisan dihapus, namun Lisensi Premium Anda tetap aktif.");
         } catch (error) {
             console.error("Gagal me-reset proyek:", error);
             showInfoModal(`Gagal me-reset proyek: ${error.message}`);
@@ -8025,7 +8134,13 @@ case 'genWawancara':
             case 'donasi':
                 return <Donasi {...{ handleCopyToClipboard }} />;
             case 'resetHapusProyek': // ID baru dari navigasi
-                return <ResetHapusProyek setIsResetConfirmOpen={setIsResetConfirmOpen} handleCopyToClipboard={handleCopyToClipboard} />; // <-- Tambahkan prop di sini
+                return <ResetHapusProyek 
+                    setIsResetConfirmOpen={setIsResetConfirmOpen} 
+                    handleCopyToClipboard={handleCopyToClipboard} 
+                    setGeminiApiKey={setGeminiApiKey}
+                    setScopusApiKey={setScopusApiKey}
+                    showInfoModal={showInfoModal}
+                />; 
             default:
                 return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
                
@@ -8312,7 +8427,7 @@ try {
             analisis: {
                 title: "Analisis Data",
                 items: [
-                    { id: 'deskripsiResponden', name: 'Karakteristik Responden' }, // BARU
+                    { id: 'deskripsiResponden', name: 'Karakteristik Responden' },
                     { id: 'analisisKuantitatif', name: 'Analisis Data Kuantitatif (Tabel)' },
                     { id: 'analisisKualitatif', name: 'Analisis Data Kualitatif (Dokumen)' },
                     { id: 'analisisVisual', name: 'Analisis Visual (Gambar)' },
@@ -8321,7 +8436,7 @@ try {
             penulisan: {
                 title: "Penulisan KTI",
                 items: [
-                    { id: 'outline', name: 'Outline KTI'},
+                    // MENU OUTLINE DIHAPUS SESUAI PERMINTAAN
                     { id: 'pendahuluan', name: 'Pendahuluan' },
                     { id: 'studiLiteratur', name: 'Studi Literatur' },
                     { id: 'metode', name: 'Metode Penelitian' },
@@ -8339,15 +8454,15 @@ try {
                 ]
             },
             tutorial: {
-                title: "Tutorial",
+                title: "Panduan Aplikasi", // UBAH: Dari "Tutorial" menjadi "Panduan Aplikasi"
                 items: [
-                    { id: 'tutorial', name: 'Panduan Aplikasi' }
+                    { id: 'tutorial', name: 'Bantuan & Kontak' } // UBAH: Dari "Panduan Aplikasi" menjadi "Bantuan & Kontak"
                 ]
             },
             donasi: {
-                title: "Donasi",
+                title: "CSR",
                 items: [
-                    { id: 'donasi', name: 'Dukungan & Donasi' }
+                    { id: 'donasi', name: 'Program Amal' }
                 ]
             }
         };
@@ -8375,6 +8490,14 @@ try {
             navigation.instrumen.items.push({ id: 'genWawancara', name: 'Generator Pertanyaan Wawancara' });
         }
 
+        // FIX: Tampilkan placeholder agar menu tidak hilang jika pendekatan belum dipilih
+        if (navigation.instrumen.items.length === 0) {
+            navigation.instrumen.items.push({ 
+                id: 'ideKTI', // Redirect ke tab Ide untuk setting
+                name: '⚠️ Pilih Pendekatan Dulu' 
+            });
+        }
+
         return navigation;
     };
 
@@ -8398,12 +8521,33 @@ try {
     if (!currentUser) {
         return <AuthPage />;
     }
+
+    // --- LOGIKA BARU: Cek Lisensi Premium ---
+    // Jika pengguna sudah login TAPI belum premium, tampilkan License Gate
+    if (!projectData.isPremium) {
+        return (
+            <LicenseGate 
+                onActivate={handleLicenseActivation} 
+                handleCopyToClipboard={handleCopyToClipboard} 
+            />
+        );
+    }
     
-    // Tampilan Aplikasi Utama jika pengguna sudah login
+    // Tampilan Aplikasi Utama jika pengguna sudah login DAN sudah Premium
     return (
         <div className="min-h-screen bg-gray-100 font-sans text-gray-900">
             <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-            <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap'); body { font-family: 'Inter', sans-serif; } .animate-fade-in { animation: fadeIn 0.5s ease-in-out; } @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+            <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap'); body { font-family: 'Inter', sans-serif; } .animate-fade-in { animation: fadeIn 0.5s ease-in-out; } @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+            /* Hide scrollbar for Chrome, Safari and Opera */
+            .no-scrollbar::-webkit-scrollbar {
+                display: none;
+            }
+            /* Hide scrollbar for IE, Edge and Firefox */
+            .no-scrollbar {
+                -ms-overflow-style: none;  /* IE and Edge */
+                scrollbar-width: none;  /* Firefox */
+            }
+            `}</style>
             
             <input type="file" ref={importInputRef} onChange={handleFileImport} style={{ display: 'none' }} accept=".json" />
             <input type="file" ref={importReferencesInputRef} onChange={handleFileImportReferences} style={{ display: 'none' }} accept=".json" />
@@ -8412,9 +8556,21 @@ try {
                 <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex justify-center items-center z-50 p-4">
                     <div className="bg-white p-8 rounded-lg shadow-2xl max-w-md w-full text-center animate-fade-in">
                         <h2 className="text-2xl font-bold text-gray-800 mb-4">Selamat Datang di Bibliocobra</h2>
-                        <p className="text-gray-600 mb-6">Aplikasi ini dibuat oleh <strong>Papahnya Ibracobra</strong> dan sepenuhnya gratis untuk memajukan ilmu pengetahuan.</p>
-                        <p className="text-gray-600 mb-8">Sebagai dukungan, cukup doakan agar kita semua senantiasa diberikan kesehatan dan kemudahan dalam segala urusan.</p>
-                        <button onClick={handleCloseWelcomeModal} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg w-full text-lg shadow-lg hover:shadow-xl transition-all duration-300">AMIN, Mari Kita Mulai</button>
+                        
+                        {/* UPDATE: Fokus pada Value Proposition Produk dulu */}
+                        <p className="text-gray-600 mb-6">
+                            Platform asisten riset bertenaga AI untuk membantu Anda menyusun KTI, Skripsi, dan Tesis dengan standar akademis tinggi secara efisien.
+                        </p>
+                        
+                        {/* UPDATE: Menggunakan kalimat usulan pengguna */}
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-8">
+                            <p className="text-sm text-blue-800">
+                                <strong>Research with Impact:</strong> <br/>
+                                Layanan ini mendukung program CSR <em>(Corporate Social Responsibility)</em> melalui sumbangan sukarela, guna membantu komunitas yang membutuhkan.
+                            </p>
+                        </div>
+
+                        <button onClick={handleCloseWelcomeModal} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg w-full text-lg shadow-lg hover:shadow-xl transition-all duration-300">Mulai Riset</button>
                     </div>
                 </div>
             )}
@@ -8529,13 +8685,12 @@ if (isPeraturan) {
 } else {
     // Jika bukan, isi dengan mesin pencari akademis (kode asli)
     searchEngines = [
-        { name: 'Google Scholar', url: `https://scholar.google.com/scholar?q=${encodeURIComponent(clueObj.clue)}` },
+        { name: 'Google Scholar', url: `https://scholar.google.com/scholar?q=${encodeURIComponent(clueObj.clue)}+file:.pdf` },
         { name: 'Perplexity', url: `https://www.perplexity.ai/search?q=${encodeURIComponent(clueObj.clue)}` },
         { name: 'BASE', url: `https://www.base-search.net/Search/Results?q=${encodeURIComponent(clueObj.clue)}` },
         { name: 'CORE', url: `https://core.ac.uk/search?q=${encodeURIComponent(clueObj.clue)}` },
-        { name: 'Garuda', url: `https://garuda.kemdikbud.go.id/search?q=${encodeURIComponent(clueObj.clue)}` },
+        { name: 'Garuda', url: `https://garuda.kemdiktisaintek.go.id/documents?select=abstract&pdf=1&q=${encodeURIComponent(clueObj.clue)}` },
         { name: 'Connected Papers', url: `https://www.connectedpapers.com/search?q=${encodeURIComponent(clueObj.clue)}` },
-        { name: 'Scopus (berlangganan)', action: () => handleClueSearchScopus(clueObj) },
     ];
 }
 // --- LANGKAH 5 BERAKHIR DI SINI ---
@@ -8545,28 +8700,35 @@ if (isPeraturan) {
                                                         <p className="text-sm italic text-purple-800 my-2">✍️ {clueObj.explanation}</p>
                                                         <div className="mt-2 flex flex-wrap gap-2 items-center">
                                                             {/* --- LANGKAH 6 DIMULAI DI SINI --- */}
-{isPeraturan ? (
-    <button 
-    onClick={() => handleClueSearchRegulation(clueObj)} 
-    className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-2 px-3 rounded-lg h-full inline-flex items-center disabled:bg-teal-300 disabled:cursor-not-allowed" // <-- TAMBAHKAN STYLE DISABLED
-    disabled={isRegulationSearching} // <-- TAMBAHKAN INI (MENGGUNAKAN STATE YANG BERBEDA)
->
-    {isRegulationSearching ? 'Mencari...' : 'Cari Peraturan Ini di App'} {/* <-- UBAH TEKS SAAT LOADING */}
-</button>
-) : (
-    // Jika bukan Peraturan, tampilkan tombol Semantic Scholar (kode asli)
-    <button 
-    onClick={() => handleClueSearch(clueObj)} 
-    className="bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold py-2 px-3 rounded-lg h-full disabled:bg-purple-300 disabled:cursor-not-allowed" // <-- TAMBAHKAN STYLE DISABLED
-    disabled={isLoading} // <-- TAMBAHKAN INI
->
-    {isLoading ? 'Memproses...' : 'Cek di Semantic Scholar'} {/* <-- UBAH TEKS SAAT LOADING */}
-</button>
-)}
-{/* --- LANGKAH 6 BERAKHIR DI SINI --- */}
+                                                            {isPeraturan ? (
+                                                                <button 
+                                                                    onClick={() => handleClueSearchRegulation(clueObj)} 
+                                                                    className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-2 px-3 rounded-lg h-full inline-flex items-center disabled:bg-teal-300 disabled:cursor-not-allowed"
+                                                                    disabled={isRegulationSearching}
+                                                                >
+                                                                    {isRegulationSearching ? 'Mencari...' : 'Cari Peraturan Ini di App'}
+                                                                </button>
+                                                            ) : (
+                                                                <button 
+                                                                    onClick={() => handleClueSearch(clueObj)} 
+                                                                    className="bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold py-2 px-3 rounded-lg h-full disabled:bg-purple-300 disabled:cursor-not-allowed"
+                                                                    disabled={isLoading}
+                                                                >
+                                                                    {isLoading ? 'Memproses...' : 'Cek di Semantic Scholar'}
+                                                                </button>
+                                                            )}
+                                                            {/* --- LANGKAH 6 BERAKHIR DI SINI --- */}
                                                             
-                                                            {/* --- PERUBAHAN 2: Tombol Scopus standalone dihapus --- */}
-                                                            
+                                                            {/* Tombol Scopus Integrasi (Ditambahkan Kembali) */}
+                                                            {!isPeraturan && projectData.showScopus && (
+                                                                <button 
+                                                                    onClick={() => handleClueSearchScopus(clueObj)} 
+                                                                    className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold py-2 px-3 rounded-lg h-full disabled:bg-orange-300 disabled:cursor-not-allowed" 
+                                                                    disabled={isLoading}
+                                                                >
+                                                                    Cari via Scopus
+                                                                </button>
+                                                            )}
 
                                                             <div className="relative inline-block text-left">
                                                                 <div>
@@ -8637,16 +8799,16 @@ if (isPeraturan) {
             )}
 
 
-            <div className="flex w-full">
-                <aside className={`bg-gray-800 text-white h-screen p-4 flex-shrink-0 ${isSidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300`}>
-                     <div className="flex items-center justify-between mb-6">
+            <div className="flex w-full h-screen overflow-hidden">
+                <aside className={`bg-gray-800 text-white h-full p-4 flex-shrink-0 ${isSidebarOpen ? 'w-64' : 'w-16'} transition-all duration-300 flex flex-col`}>
+                     <div className="flex items-center justify-between mb-6 flex-shrink-0">
                         {isSidebarOpen && <h1 className="text-xl font-bold whitespace-nowrap">Bibliocobra</h1>}
                         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1 rounded-md hover:bg-gray-700">
                            {isSidebarOpen ? <CloseIcon /> : <MenuIcon />}
                         </button>
                     </div>
                     
-                    <nav>
+                    <nav className="flex-grow overflow-y-auto no-scrollbar">
                         {Object.entries(navigationItems).map(([key, category]) => (
                             (category.items.length === 0) ? null : (
                             <div key={key} className="mb-4">
@@ -8676,7 +8838,7 @@ if (isPeraturan) {
                     {/* LANGKAH B5: Tambah Tombol Logout */}
                     {/* ============================================================================ */}
                     {isSidebarOpen && (
-                        <div className="mt-8 pt-4 border-t border-gray-700">
+                        <div className="mt-4 pt-4 border-t border-gray-700 flex-shrink-0">
                             <p className="text-xs text-gray-400 mb-2 truncate" title={currentUser.email || currentUser.uid}>
                                 Login sebagai: {currentUser.email || currentUser.uid}
                             </p>
@@ -8690,7 +8852,7 @@ if (isPeraturan) {
                     )}
                 </aside>
 
-                <main className="flex-grow p-4 md:p-8 overflow-y-auto h-screen">
+                <main className="flex-grow p-4 md:p-8 overflow-y-auto h-full no-scrollbar">
                     <div className="w-full max-w-4xl mx-auto">
                         
                         <div className="text-center mb-8">
@@ -8700,16 +8862,25 @@ if (isPeraturan) {
                         
                         <div className="bg-white rounded-xl shadow-lg p-6">
                             <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                                <label htmlFor="geminiApiKey" className="block text-gray-700 text-sm font-bold mb-2">Google AI API Key Anda:</label>
+                                <label htmlFor="geminiApiKey" className="block text-gray-700 text-sm font-bold mb-2">
+                                    Kunci Akses AI Pribadi (Unlimited & Private):
+                                </label>
                                 <input
                                     type="password"
                                     id="geminiApiKey"
                                     value={geminiApiKey}
                                     onChange={(e) => setGeminiApiKey(e.target.value)}
                                     className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                                    placeholder="Masukkan Google AI API Key Anda"
+                                    placeholder="Tempel Kunci API Google AI di sini..."
                                 />
-                                <p className="text-xs text-gray-500 mt-1">Dapatkan kunci dari <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold">Google AI Studio</a>. Kunci tidak disimpan dan hanya digunakan di browser Anda.</p>
+                                <p className="text-xs text-gray-600 mt-2 leading-relaxed">
+                                    <span className="font-semibold text-purple-700">Fitur Kebebasan & Privasi:</span> Bibliocobra menggunakan koneksi langsung (Direct-to-Google). Ini menjamin <strong>Privasi Data 100%</strong> (data tidak singgah di server kami) dan <strong>Akses Tanpa Batas</strong> sesuai akun Google Anda.
+                                    <br/>
+                                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold inline-flex items-center gap-1 mt-1">
+                                        Aktifkan Kunci Akses Pribadi Anda di sini (Gratis) 
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                    </a>
+                                </p>
                             </div>
 
                             {projectData.judulKTI && (
@@ -8729,7 +8900,7 @@ if (isPeraturan) {
 
                         </div>
                          <footer className="mt-8 text-gray-500 text-sm text-center">
-                            <p>&copy; Copyright 2025. Papahnya Ibracobra. All rights reserved.</p>
+                            <p>&copy; 2025 Bibliocobra Systems. All rights reserved.</p>
                         </footer>
                     </div>
                 </main>
