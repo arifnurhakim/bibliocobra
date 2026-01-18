@@ -397,58 +397,54 @@ const QueueStatusIndicator = ({ queueSize }) => {
 // SERVICES: Centralized API Logic
 // ============================================================================
 
+// --- LANGKAH 3: UPDATE LOGIKA GEMINI SERVICE (Multi-Key & Auto-Downgrade) ---
 const geminiService = {
-    run: async (prompt, apiKey, options = {}, image = null) => {
-        const MAX_RETRIES = 5; // Total maksimum percobaan
-        const INITIAL_BACKOFF_MS = 1000; // Waktu tunggu awal (1 detik)
-        const FALLBACK_MODEL = 'gemini-2.5-flash-preview-09-2025'; // Model cadangan
-        const FALLBACK_ATTEMPT_THRESHOLD = 2; // Coba fallback setelah 2 kegagalan
-
-        if (!apiKey) {
-            throw new Error("Kunci API Google AI belum dimasukkan.");
+    run: async (prompt, apiKeyOrList, options = {}, image = null) => {
+        // 1. Normalisasi Input: Pastikan jadi Array
+        let apiKeys = [];
+        if (Array.isArray(apiKeyOrList)) {
+            apiKeys = apiKeyOrList.filter(k => k && k.trim() !== '');
+        } else if (typeof apiKeyOrList === 'string' && apiKeyOrList.trim() !== '') {
+            apiKeys = [apiKeyOrList];
         }
+
+        if (apiKeys.length === 0) {
+            throw new Error("Kunci API Google AI belum dimasukkan. Silakan tambahkan minimal satu kunci API.");
+        }
+
+        // Konfigurasi Retry & Fallback
+        const MAX_RETRIES = 5; 
+        const INITIAL_BACKOFF_MS = 1000; 
+        const PRO_MODEL = 'gemini-2.5-pro';
+        const FLASH_MODEL = 'gemini-2.5-flash-preview-09-2025'; // Model cadangan (lebih cepat/murah)
+        const FALLBACK_ATTEMPT_THRESHOLD = 2; // Pindah ke Flash setelah 2x gagal
 
         const parts = [{ text: prompt }];
         if (image) {
             parts.push({
-                inlineData: {
-                    mimeType: image.mimeType,
-                    data: image.data
-                }
+                inlineData: { mimeType: image.mimeType, data: image.data }
             });
         }
 
-        let chatHistory = [{ role: "user", parts: parts }];
         const payload = {
-            contents: chatHistory,
-            generationConfig: {}, // Initialize generationConfig
+            contents: [{ role: "user", parts: parts }],
+            generationConfig: options.schema ? { responseMimeType: "application/json", responseSchema: options.schema } : {},
         };
+        if (options.useGrounding) payload.tools = [{ "google_search": {} }];
 
-        const { useGrounding = false, schema = null } = options;
-
-        if (useGrounding) {
-            payload.tools = [{ "google_search": {} }];
-        }
-
-        if (schema) {
-            payload.generationConfig.responseMimeType = "application/json";
-            payload.generationConfig.responseSchema = schema;
-        }
-
-        // --- LANGKAH 3 DIMULAI DI SINI: Definisikan currentModel di luar loop ---
-        let currentModel = 'gemini-2.5-pro'; // Model yang digunakan untuk percobaan saat ini
-        // --- LANGKAH 3 BERAKHIR DI SINI ---
-
-        let lastError = null; // Simpan error terakhir jika semua percobaan gagal
+        // State Eksekusi
+        let currentModel = PRO_MODEL; 
+        let lastError = null; 
+        let currentKeyIndex = 0;
 
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-            // --- LANGKAH 3: Gunakan currentModel untuk apiUrl ---
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+            // Pilih kunci (Round Robin)
+            const currentApiKey = apiKeys[currentKeyIndex % apiKeys.length];
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${currentApiKey}`;
 
             try {
-                 console.log(`Mencoba panggilan API ke ${currentModel}, percobaan ke-${attempt + 1}`); // Update log
-                 // --- Hapus deklarasi apiUrl lama ---
-                 // const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                 console.log(`[Attempt ${attempt + 1}] Model: ${currentModel} | Key Index: ${currentKeyIndex % apiKeys.length}`); 
+                 
                  const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -456,108 +452,86 @@ const geminiService = {
                  });
 
                  if (!response.ok) {
-                    // --- Ambil body error, coba parse sebagai JSON, jika gagal gunakan teks ---
-                    let errorBodyText = '';
-                    try {
-                        const errorBodyJson = await response.json();
-                        errorBodyText = errorBodyJson.error?.message || JSON.stringify(errorBodyJson);
-                    } catch (e) {
-                        errorBodyText = await response.text(); // Fallback jika bukan JSON
-                    }
-                    console.error(`API Error Body (Attempt ${attempt + 1}):`, errorBodyText);
+                    let errorText = await response.text();
+                    try { errorText = JSON.parse(errorText).error.message; } catch(e){}
                     
-                    // --- Pindahkan definisi error agar bisa digunakan di bawah ---
-                    lastError = new Error(`HTTP error! status: ${response.status} - ${errorBodyText}`);
+                    lastError = new Error(`HTTP ${response.status} - ${errorText}`);
+                    console.warn(`API Error: ${lastError.message}`);
 
-                    // --- LANGKAH 4 DIMULAI DI SINI: Logika Fallback ---
-                    // Hanya coba ulang (dan fallback) untuk error 429 (Rate Limit) dan 503 (Overload/Unavailable)
-                    if ((response.status === 429 || response.status === 503) && attempt < MAX_RETRIES - 1) {
+                    // --- STRATEGI 1: ROTASI KUNCI (Jika Rate Limit 429) ---
+                    if (response.status === 429) {
+                        console.warn(`⚠️ Rate Limit (429) pada Key #${currentKeyIndex % apiKeys.length}. Rotasi ke kunci berikutnya...`);
                         
-                        // Cek apakah perlu beralih ke model fallback
-                        if (attempt + 1 >= FALLBACK_ATTEMPT_THRESHOLD && 
-                            currentModel !== FALLBACK_MODEL) 
-                        {
-                            console.warn(`Model ${currentModel} gagal ${attempt + 1} kali. Mencoba beralih ke fallback ${FALLBACK_MODEL} pada percobaan berikutnya.`);
-                            currentModel = FALLBACK_MODEL; // Beralih model untuk iterasi loop berikutnya
+                        // Rotasi ke kunci berikutnya
+                        currentKeyIndex++; 
+
+                        // MEKANISME PINDAH MODEL (YANG ANDA TANYAKAN):
+                        // Jika kena limit di model Pro, langsung turun ke Flash untuk percobaan berikutnya agar peluang sukses lebih tinggi.
+                        if (currentModel !== FLASH_MODEL) {
+                             console.warn(`📉 Auto-Downgrade: Beralih ke ${FLASH_MODEL} untuk efisiensi.`);
+                             currentModel = FLASH_MODEL;
                         }
                         
-                        // --- LANGKAH 5 DIMULAI DI SINI: Exponential Backoff ---
-                        const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 1000; // Hitung jeda
-                        console.log(`Menunggu ${Math.round(delay / 1000)} detik sebelum mencoba lagi...`);
-                        await new Promise(resolve => setTimeout(resolve, delay)); // Terapkan jeda
-                        // --- LANGKAH 5 BERAKHIR DI SINI ---
+                        // Jeda singkat lalu coba lagi (continue loop)
+                        await new Promise(r => setTimeout(r, 1500));
+                        continue; 
+                    }
+
+                    // --- STRATEGI 2: BACKOFF & DOWNGRADE (Jika 503 Overload atau Error Lain) ---
+                    if (attempt < MAX_RETRIES - 1) {
+                        // Jika sudah gagal beberapa kali, turunkan ke Flash
+                        if (attempt + 1 >= FALLBACK_ATTEMPT_THRESHOLD && currentModel !== FLASH_MODEL) {
+                            console.warn(`📉 Terlalu banyak kegagalan. Downgrade ke ${FLASH_MODEL}.`);
+                            currentModel = FLASH_MODEL; 
+                        }
+                        
+                        // Exponential Backoff (Tunggu makin lama: 1s, 2s, 4s...)
+                        const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 500; 
+                        console.log(`⏳ Menunggu ${Math.round(delay)}ms...`);
+                        await new Promise(r => setTimeout(r, delay));
                         
                     } else {
-                        // Jika error bukan 429/503 atau percobaan sudah maksimal, lempar error
                         throw lastError; 
                     }
-                    // --- LANGKAH 4 BERAKHIR DI SINI ---
+                 } else { 
+                    // SUKSES
+                    const result = await response.json();
                     
-                    // Baris throw di bawah dihapus karena sudah ditangani di atas
-                    // throw new Error(`HTTP error! status: ${response.status} - ${errorBody.error?.message || 'Unknown error'}`);
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        
+                        const rawText = result.candidates[0].content.parts[0].text;
+                        if (options.schema) {
+                            try {
+                                const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                                return JSON.parse(cleanedText);
+                            } catch (e) {
+                                // Retry jika JSON rusak
+                                console.error("JSON Parse Error", e);
+                                if (attempt < MAX_RETRIES - 1) continue;
+                                throw new Error("Gagal parsing JSON dari AI.");
+                            }
+                        }
+                        return rawText;
+                    } else {
+                        throw new Error("Respons dari AI kosong.");
+                    }
                  }
 
-                 const result = await response.json();
-
-                if (result.candidates && result.candidates.length > 0 &&
-                    result.candidates[0].content && result.candidates[0].content.parts &&
-                    result.candidates[0].content.parts.length > 0) {
-                    
-                    const rawText = result.candidates[0].content.parts[0].text;
-                    if (schema) {
-                        try {
-                            const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-                            return JSON.parse(cleanedText); // Jika sukses, keluar dari fungsi
-                        } catch (parseError) {
-                            console.error("Gagal mem-parsing JSON dari AI:", parseError, "\nRespons Mentah:", rawText);
-                            // Anggap sebagai error yang bisa dicoba ulang (misal: respons terpotong)
-                             lastError = new Error("Respons AI bukan JSON yang valid.");
-                             // --- LANGKAH 5: Terapkan Backoff juga untuk error parsing JSON ---
-                             if (attempt < MAX_RETRIES - 1) {
-                                const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 1000;
-                                console.log(`Error parsing JSON, menunggu ${Math.round(delay / 1000)} detik sebelum mencoba lagi...`);
-                                await new Promise(resolve => setTimeout(resolve, delay));
-                             }
-                        }
-                    } else {
-                       return rawText; // Jika sukses (non-schema), keluar dari fungsi
-                    }
-                } else {
-                    console.warn("Respons AI kosong atau tidak valid:", result);
-                     lastError = new Error("Respons dari AI kosong.");
-                    // --- Logika retry/backoff akan ditambahkan di Langkah 5 ---
-                }
-
-                 // Jika response.ok, proses hasil dan return (keluar dari loop dan fungsi)
-                 // ... (kode penanganan respons sukses yang sudah ada) ...
-                 // return processedResult; // <-- Ini akan menghentikan loop jika sukses
-
             } catch (error) {
-                console.error(`Percobaan ${attempt + 1} gagal:`, error);
-                lastError = error; // Simpan error untuk percobaan ini
-                
-                // --- LANGKAH 5: Terapkan Backoff untuk error jaringan/lainnya ---
+                lastError = error;
                 if (attempt < MAX_RETRIES - 1) {
-                    const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 1000;
-                    console.log(`Error jaringan/lainnya, menunggu ${Math.round(delay / 1000)} detik sebelum mencoba lagi...`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
+                    await new Promise(r => setTimeout(r, 2000));
                 }
-                // --- AKHIR LANGKAH 5 ---
             }
+        } 
 
-            // --- Hapus jeda sementara ---
-            // if (attempt < MAX_RETRIES - 1) {
-            //     await new Promise(resolve => setTimeout(resolve, 500)); // Jeda singkat
-            // }
-        } // Akhir dari for loop
-
-        // --- LANGKAH 6 DIMULAI DI SINI: Penanganan Error Final ---
-        // Jika loop selesai tanpa return (semua percobaan gagal)
-        console.error("Semua percobaan API gagal setelah", MAX_RETRIES, "percobaan.");
-        throw lastError; // Lemparkan error terakhir yang disimpan
-        // --- LANGKAH 6 BERAKHIR DI SINI ---
+        console.error("Semua percobaan API gagal.");
+        throw lastError; 
     }
 };
+// -------------------------------------------------------------------------
 
 const semanticScholarService = {
     search: async (query, apiKey) => {
@@ -1671,7 +1645,7 @@ const Referensi = ({
                                                 </a>
                                             </div>
                                             <p className="text-xs text-orange-700 mt-2">
-                                                *Wajib akses di jaringan institusi Anda. Gunakan <strong>Venom Konverter</strong> untuk konversi referensi dari format ScopusAI ke format Bibliocobra.
+                                                *API Key diperlukan. Gunakan <strong>Venom Konverter</strong> untuk mengonversi referensi dari format lain ke format standar.
                                             </p>
                                         </div>
                                     </div>
@@ -1824,6 +1798,7 @@ const Referensi = ({
                                     <tr>
                                         <th className="p-3 text-left text-sm font-semibold text-gray-700 border-b-2 border-gray-300">Referensi</th>
                                         <th className="p-3 text-left text-sm font-semibold text-gray-700 border-b-2 border-gray-300">Kutipan / Catatan</th>
+                                        <th className="p-3 text-center text-sm font-semibold text-gray-700 border-b-2 border-gray-300" style={{ width: '120px' }}>Cek Kualitas</th>
                                         <th className="p-3 text-left text-sm font-semibold text-gray-700 border-b-2 border-gray-300">Tindakan</th>
                                     </tr>
                                 </thead>
@@ -1833,11 +1808,51 @@ const Referensi = ({
                                             <td className="p-3 text-sm text-gray-700 border-b border-gray-200" style={{minWidth: '300px'}}>
                                                 <p className="font-bold">{ref.title}</p>
                                                 <p className="text-xs">{ref.author} ({ref.year})</p>
-                                                {ref.doi && <a href={`https://doi.org/${ref.doi}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">DOI: {ref.doi}</a>}
+                                                {/* Menampilkan nama jurnal agar user tahu apa yang dicek */}
+                                                {ref.journal && (
+                                                    <p className="text-xs italic text-gray-500 mt-1">
+                                                        {(typeof ref.journal === 'object' && ref.journal !== null) ? ref.journal.name : ref.journal}
+                                                    </p>
+                                                )}
+                                                {ref.doi && <a href={`https://doi.org/${ref.doi}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline block mt-1">DOI: {ref.doi}</a>}
                                             </td>
                                             <td className="p-3 text-sm text-gray-700 border-b border-gray-200">
                                                 <p className="italic max-h-20 overflow-y-auto">{ref.isiKutipan || "Belum ada catatan."}</p>
                                             </td>
+                                            {/* --- KOLOM BARU: CEK KUALITAS (JALAN PINTAS) --- */}
+                                            <td className="p-3 text-sm text-gray-700 border-b border-gray-200 align-middle">
+                                                {(() => {
+                                                    const jName = (typeof ref.journal === 'object' && ref.journal !== null) ? ref.journal.name : ref.journal;
+                                                    
+                                                    if (!jName) {
+                                                        return <span className="text-xs text-gray-400 italic text-center block">Nama jurnal<br/>tidak tersedia</span>;
+                                                    }
+                                                    
+                                                    return (
+                                                        <div className="flex flex-col gap-2">
+                                                            <a 
+                                                                href={`https://sinta.kemdiktisaintek.go.id/journals?q=${encodeURIComponent(jName)}`} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1.5 rounded border border-blue-200 text-center transition-colors flex items-center justify-center gap-1 group"
+                                                                title="Cek Ranking SINTA (S1-S6)"
+                                                            >
+                                                                SINTA <span className="text-[10px] group-hover:translate-x-0.5 transition-transform">↗</span>
+                                                            </a>
+                                                            <a 
+                                                                href={`https://www.scimagojr.com/journalsearch.php?q=${encodeURIComponent(jName)}`} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-bold px-2 py-1.5 rounded border border-orange-200 text-center transition-colors flex items-center justify-center gap-1 group"
+                                                                title="Cek Quartile SCImago (Q1-Q4)"
+                                                            >
+                                                                SCImago <span className="text-[10px] group-hover:translate-x-0.5 transition-transform">↗</span>
+                                                            </a>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </td>
+                                            {/* --- AKHIR KOLOM BARU --- */}
                                             <td className="p-3 text-sm text-gray-700 border-b border-gray-200">
                                                 <div className="flex flex-col gap-2">
                                                     <button onClick={() => openNoteModal(ref)} className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-1 px-2 rounded-lg whitespace-nowrap">Tambah/Edit Catatan</button>
@@ -2851,7 +2866,7 @@ const GeneratorLogKueri = ({
     setIncludeIndonesianQuery,
     // Props baru untuk PICOS
     handleGenerateQueriesFromPicos,
-    geminiApiKey,
+    geminiApiKeys, // UPDATE: Changed from geminiApiKey to geminiApiKeys
     handleInputChange // Tambahkan prop ini
 }) => {
     // State management
@@ -2890,7 +2905,8 @@ const GeneratorLogKueri = ({
 
         const context = projectData.topikTema || projectData.judulKTI;
 
-        const prompt = `You are an expert research assistant. Based on the following research topic, break it down into the PICOS components (Population/Problem, Intervention, Comparison, Outcome, Study Design). Provide concise and relevant answers in English.
+        // UPDATE: Instruksi bahasa diubah ke Indonesian (Bahasa Indonesia)
+        const prompt = `You are an expert research assistant. Based on the following research topic, break it down into the PICOS components (Population/Problem, Intervention, Comparison, Outcome, Study Design). Provide concise and relevant answers in Indonesian (Bahasa Indonesia).
 
 Research Topic: "${context}"
 
@@ -2911,7 +2927,7 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
 
         try {
             // Panggil service AI dengan prompt dan skema
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema }); // UPDATE: Use geminiApiKeys
             
             // Isi hasil dari AI ke dalam state picos utama
             setProjectData(p => ({
@@ -3135,6 +3151,27 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
             {/* UI Utama */}
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Generator & Log Kueri</h2>
             <p className="text-gray-700 mb-4">Alat ini membantu Anda membuat dan mendokumentasikan kueri pencarian secara sistematis, sebuah syarat wajib untuk penelitian SLR/Bibliometrik yang valid.</p>
+
+            {/* --- PENEMPATAN LINK COBRASAURUS DIMULAI DI SINI --- */}
+            <div className="mb-8 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h3 className="font-bold text-yellow-800 text-sm flex items-center gap-2">
+                        🐍 Utilitas Eksternal: Cobrasaurus
+                    </h3>
+                    <p className="text-sm text-yellow-700 mt-1">
+                        Punya daftar kata kunci yang berantakan atau tidak konsisten? Gunakan <strong>Cobrasaurus</strong> (Add-on mirip OpenRefine) untuk membersihkan dan menstandarisasi kata kunci Anda sebelum menyusun kueri.
+                    </p>
+                </div>
+                <a 
+                    href="https://cobrasaurus.vercel.app/" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-bold py-2 px-4 rounded-lg whitespace-nowrap shadow-sm transition-colors flex items-center gap-2"
+                >
+                    Buka Cobrasaurus ↗
+                </a>
+            </div>
+            {/* --- PENEMPATAN LINK COBRASAURUS BERAKHIR DI SINI --- */}
             
             {/* BAGIAN BARU: Asisten Pertanyaan Penelitian (PICOS) */}
             <div className="p-4 border-2 border-dashed border-teal-300 rounded-lg bg-teal-50 mb-8">
@@ -3155,23 +3192,28 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
 
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">P: Population / Problem</label>
+                        <label className="block text-gray-700 text-sm font-bold mb-1">P: Population / Problem</label>
+                        <p className="text-xs text-gray-500 mb-2">Siapa subjek/populasi yang diteliti atau apa masalah utamanya? (Contoh: Mahasiswa, UMKM, Pasien Diabetes).</p>
                         <textarea name="population" value={projectData.picos.population} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: siswa, mahasiswa" rows="2"></textarea>
                     </div>
                     <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">I: Intervention</label>
+                        <label className="block text-gray-700 text-sm font-bold mb-1">I: Intervention / Exposure</label>
+                        <p className="text-xs text-gray-500 mb-2">Apa tindakan, perlakuan, atau variabel bebas yang diberikan/diamati?</p>
                         <textarea name="intervention" value={projectData.picos.intervention} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: pembelajaran berbasis AI" rows="2"></textarea>
                     </div>
                     <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">C: Comparison</label>
+                        <label className="block text-gray-700 text-sm font-bold mb-1">C: Comparison</label>
+                        <p className="text-xs text-gray-500 mb-2">Apa pembandingnya? (Sering dikosongkan jika penelitian deskriptif atau tidak ada kelompok kontrol).</p>
                         <textarea name="comparison" value={projectData.picos.comparison} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: pembelajaran tradisional" rows="2"></textarea>
                     </div>
                     <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">O: Outcome</label>
+                        <label className="block text-gray-700 text-sm font-bold mb-1">O: Outcome</label>
+                        <p className="text-xs text-gray-500 mb-2">Apa hasil yang diukur, dampak, atau variabel terikatnya?</p>
                         <textarea name="outcome" value={projectData.picos.outcome} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: performa siswa, motivasi" rows="2"></textarea>
                     </div>
                     <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">S: Study Design</label>
+                        <label className="block text-gray-700 text-sm font-bold mb-1">S: Study Design</label>
+                        <p className="text-xs text-gray-500 mb-2">Jenis desain penelitian apa yang digunakan? (Contoh: Eksperimen, Kualitatif, SLR).</p>
                         <textarea name="studyDesign" value={projectData.picos.studyDesign} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: penelitian empiris, kuantitatif" rows="2"></textarea>
                     </div>
                 </div>
@@ -3210,6 +3252,7 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                         onChange={(e) => setProjectData(p => ({...p, queryGeneratorTargetDB: e.target.value}))} 
                         className="shadow appearance-none border rounded-lg w-full md:w-1/2 py-2 px-3 text-gray-700"
                     >
+                        <option value="Scopus">Scopus</option>
                         <option value="Web of Science">Web of Science</option>
                         <option value="Google Scholar">Google Scholar</option>
                         <option value="Lainnya">Lainnya (Umum)</option>
@@ -5153,7 +5196,7 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
 };
 
 // --- Komponen untuk Ekstraksi & Sintesis Data ---
-const SintesisData = ({ projectData, setProjectData, showInfoModal, geminiApiKey, handleCopyToClipboard, setCurrentSection }) => {
+const SintesisData = ({ projectData, setProjectData, showInfoModal, geminiApiKeys, handleCopyToClipboard, setCurrentSection }) => { // UPDATE: geminiApiKeys
     // State for managing the column definition modal
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState(null); // Can be a new column object or an existing one
@@ -5247,7 +5290,7 @@ Instruksi Penulisan:
 Tuliskan draf narasi sintesisnya.`;
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey);
+            const result = await geminiService.run(prompt, geminiApiKeys); // UPDATE: geminiApiKeys
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
 
             const separator = `\n\n---\n[Sintesis Naratif Dihasilkan pada ${new Date().toLocaleString()}]\n---\n`;
@@ -5301,7 +5344,7 @@ ${context}
         `;
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema }); // UPDATE: geminiApiKeys
             
             // Merge AI results with existing data without overwriting everything
             setCurrentExtractionData(prev => ({
@@ -5965,7 +6008,19 @@ Publisher Name: `;
     const [showModal, setShowModal] = useState(false);
     const [modalMessage, setModalMessage] = useState('');
     const [showSearchPromptModal, setShowSearchPromptModal] = useState(false);
-    const [geminiApiKey, setGeminiApiKey] = useState('');
+    
+    // --- UPDATE STATE: Multi-Keys ---
+const [geminiApiKeys, setGeminiApiKeys] = useState(['']); // Default array dengan 1 string kosong
+
+// Helper agar kode lama tidak error (mengambil kunci pertama)
+const geminiApiKey = geminiApiKeys[0] || '';
+const setGeminiApiKey = (val) => {
+    const newKeys = [...geminiApiKeys];
+    newKeys[0] = val;
+    setGeminiApiKeys(newKeys);
+};
+    // -------------------------------------------------
+
     const [scopusApiKey, setScopusApiKey] = useState(''); // State baru untuk Scopus API Key
     const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
     const [currentEditingRef, setCurrentEditingRef] = useState(null);
@@ -6132,10 +6187,19 @@ Publisher Name: `;
     // Efek untuk memuat data kunci API dari localStorage
     useEffect(() => {
         try {
-            const savedGeminiKey = localStorage.getItem('gemini-api-key');
+            // --- UPDATE LOCAL STORAGE LOAD ---
+            const savedGeminiKeys = localStorage.getItem('gemini-api-keys-list'); // Cek daftar kunci baru
+            const savedOldKey = localStorage.getItem('gemini-api-key'); // Cek kunci lama (fallback)
             const savedScopusKey = localStorage.getItem('scopus-api-key');
             
-            if (savedGeminiKey) setGeminiApiKey(savedGeminiKey);
+            if (savedGeminiKeys) {
+                // Jika ada daftar kunci, muat sebagai array
+                setGeminiApiKeys(JSON.parse(savedGeminiKeys));
+            } else if (savedOldKey) {
+                // Migrasi: Jika cuma ada kunci lama (single), bungkus dalam array
+                setGeminiApiKeys([savedOldKey]);
+            }
+
             if (savedScopusKey) setScopusApiKey(savedScopusKey);
         } catch (error) {
             console.error("Gagal memuat data dari localStorage:", error);
@@ -6145,11 +6209,14 @@ Publisher Name: `;
     // Efek untuk menyimpan kunci API Gemini
     useEffect(() => {
         try {
-            localStorage.setItem('gemini-api-key', geminiApiKey);
+            // --- UPDATE LOCAL STORAGE SAVE ---
+            localStorage.setItem('gemini-api-keys-list', JSON.stringify(geminiApiKeys));
+            // Kita juga simpan key pertama ke slot lama agar kompatibel jika reload
+            localStorage.setItem('gemini-api-key', geminiApiKeys[0] || '');
         } catch (error) {
             console.error("Gagal menyimpan kunci API ke localStorage:", error);
         }
-    }, [geminiApiKey]);
+    }, [geminiApiKeys]);
 
     // Efek untuk menyimpan kunci API Scopus
     useEffect(() => {
@@ -6187,6 +6254,23 @@ Publisher Name: `;
         setProjectData(prev => ({ ...prev, [name]: value }));
     };
 
+    // --- HELPER BARU: Update salah satu key dalam array ---
+    const handleGeminiKeyChange = (index, value) => {
+        const newKeys = [...geminiApiKeys];
+        newKeys[index] = value;
+        setGeminiApiKeys(newKeys);
+    };
+
+    const addGeminiKeyField = () => {
+        setGeminiApiKeys([...geminiApiKeys, '']);
+    };
+
+    const removeGeminiKeyField = (index) => {
+        const newKeys = geminiApiKeys.filter((_, i) => i !== index);
+        setGeminiApiKeys(newKeys.length > 0 ? newKeys : ['']); // Sisakan minimal 1
+    };
+    // ----------------------------------------------------
+
     // --- ALUR KERJA IDE KTI BARU ---
 
     const handleGenerateIdeKTI = async () => {
@@ -6222,7 +6306,7 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             setClarificationQuestions(result.questions);
             setClarificationAnswers({});
             setIsClarificationModalOpen(true);
@@ -6256,7 +6340,7 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             setAiStructuredResponse(result);
         } catch (error) {
             showInfoModal(`Gagal menghasilkan ide: ${error.message}`);
@@ -6354,12 +6438,12 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
         };
     
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             return result;
         } catch (error) {
             showInfoModal(`Gagal mereview paper: ${error.message}`);
         }
-    }, [geminiApiKey, projectData.topikTema, showInfoModal]);
+    }, [geminiApiKeys, projectData.topikTema, showInfoModal]);
     
     const parseManualReference = (text) => {
         const lines = text.split('\n');
@@ -6437,7 +6521,7 @@ Urai teks berikut:
         };
 
         try {
-            const parsedRef = await geminiService.run(prompt, geminiApiKey, { schema });
+            const parsedRef = await geminiService.run(prompt, geminiApiKeys, { schema });
             const newRef = { ...parsedRef, id: Date.now(), isiKutipan: '' };
             setProjectData(prev => ({ ...prev, allReferences: [...prev.allReferences, newRef] }));
             setFreeTextRef('');
@@ -6635,7 +6719,7 @@ ${context}
             }
         };
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             setProjectData(prev => ({ ...prev, aiReferenceClues: result }));
             showInfoModal("Clue referensi berhasil dibuat!");
         } catch (error) {
@@ -6675,7 +6759,7 @@ ${context}
             }
         };
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             setProjectData(prev => ({ ...prev, outlineDraft: result }));
             showInfoModal("Draf Outline KTI berhasil dibuat!");
         } catch (error) {
@@ -6752,7 +6836,7 @@ Satu paragraf pendek yang menjelaskan alur keseluruhan artikel, misalnya:
 Pastikan ada kesinambungan dan alur yang logis antar sub-bab.`;
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey);
+            const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, pendahuluanDraft: cleanResult }));
             showInfoModal("Draf Pendahuluan Lengkap berhasil dibuat!");
@@ -6804,7 +6888,7 @@ PENTING (Batasan):
         const prompt = `${instruction}\n\n---TEKS ASLI---\n${currentText}`;
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey);
+            const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, [draftKey]: cleanResult }));
             showInfoModal(`Draf berhasil diubah ke versi "${mode}".`);
@@ -6947,7 +7031,7 @@ Susun poin-poin di atas menjadi sebuah narasi bab metode yang koheren dan diduku
         // --- PERUBAHAN (LOGIKA INTEGRASI SLR) BERAKHIR DI SINI ---
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey);
+            const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, metodeDraft: cleanResult }));
             showInfoModal("Draf Bab Metode berhasil dibuat!");
@@ -6999,7 +7083,7 @@ ${kutipanString}
 4.  **Alur Logis:** Pastikan ada alur yang logis antar paragraf.
 `;
         try {
-            const result = await geminiService.run(prompt, geminiApiKey);
+            const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, studiLiteraturDraft: cleanResult }));
             showInfoModal("Draf Studi Literatur berhasil dibuat!");
@@ -7093,7 +7177,7 @@ Aturan Paling Penting (WAJIB DIPATUHI):
 Hasilkan teks biasa tanpa format markdown berlebihan.`;
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey);
+            const result = await geminiService.run(prompt, geminiApiKeys);
             setProjectData(p => ({ ...p, hasilPembahasanDraft: result }));
             showInfoModal("Draf Bab Hasil & Pembahasan (Terintegrasi Teori & Metode) berhasil dibuat!");
         } catch(error) {
@@ -7143,7 +7227,7 @@ ${context}
 Pastikan ada alur yang logis dan setiap bagian saling terkait.`;
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey);
+            const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(p => ({ ...p, kesimpulanDraft: cleanResult }));
             showInfoModal("Draf Bab Kesimpulan berhasil dibuat!");
@@ -7356,7 +7440,7 @@ const handleAddRegulationToReference = (regulationResult) => {
     Hasilkan HANYA frasa pencariannya saja, tanpa teks atau penjelasan tambahan.`;
 
     try {
-        const result = await geminiService.run(prompt, geminiApiKey);
+        const result = await geminiService.run(prompt, geminiApiKeys);
         return result.replace(/"/g, '').trim(); // Membersihkan tanda kutip
     } catch (error) {
         console.error("Gagal membuat kueri cerdas untuk Semantic Scholar:", error);
@@ -7389,7 +7473,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             setProjectData(prev => ({ ...prev, aiSuggestedVariables: result }));
             showInfoModal("Saran variabel berhasil dibuat! Silakan sunting dan simpan.");
         } catch (error) {
@@ -7428,7 +7512,7 @@ Berikan jawaban hanya dalam format JSON.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             setProjectData(prev => ({ ...prev, aiSuggestedHypotheses: result }));
             showInfoModal("Saran hipotesis berhasil dibuat! Silakan sunting dan simpan.");
         } catch (error) {
@@ -7477,7 +7561,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             setProjectData(prev => ({ ...prev, aiSuggestedKuesioner: result }));
             showInfoModal("Draf kuesioner berhasil dibuat! Silakan sunting dan simpan.");
         } catch (error) {
@@ -7529,7 +7613,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             setProjectData(prev => ({ ...prev, aiSuggestedWawancara: result }));
             showInfoModal("Draf panduan wawancara berhasil dibuat! Silakan sunting dan simpan.");
         } catch (error) {
@@ -7592,7 +7676,7 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             setProjectData(p => ({ ...p, aiGeneratedQueries: result }));
             showInfoModal("Kueri berjenjang berhasil dibuat!");
         } catch (error) {
@@ -7627,7 +7711,7 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
             
             Hasilkan HANYA kalimat pertanyaan penelitiannya saja.`;
              try {
-                const result = await geminiService.run(prompt, geminiApiKey);
+                const result = await geminiService.run(prompt, geminiApiKeys);
                 // --- PERUBAHAN DI SINI: Simpan hasil ke projectData ---
                 const newRQ = `- ${result}`;
                 setProjectData(p => ({ ...p, rumusanMasalahDraft: (p.rumusanMasalahDraft ? p.rumusanMasalahDraft + '\n' : '') + newRQ }));
@@ -7689,7 +7773,7 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema }); // UPDATE: geminiApiKeys (Cleanup Step 1)
             setProjectData(p => ({ ...p, aiGeneratedQueries: result }));
             showInfoModal("Kueri berjenjang dari PICOS berhasil dibuat!");
         } catch (error) {
@@ -7733,7 +7817,7 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
     Hasilkan HANYA string kueri final (mulai dengan TITLE-ABS-KEY). Jangan ada teks penjelasan pembuka atau penutup.`;
 
     try {
-        const result = await geminiService.run(prompt, geminiApiKey);
+        const result = await geminiService.run(prompt, geminiApiKeys);
         // Membersihkan hasil untuk memastikan hanya kueri yang dikembalikan
         return result.replace(/```/g, '').replace(/json/g, '').trim();
     } catch (error) {
@@ -7756,7 +7840,7 @@ ${rawData}
 Hasilkan teks narasi saja.`;
 
     try {
-        const result = await geminiService.run(prompt, geminiApiKey);
+        const result = await geminiService.run(prompt, geminiApiKeys);
         const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
         setProjectData(prev => ({ ...prev, deskripsiRespondenDraft: cleanResult }));
         showInfoModal("Deskripsi responden berhasil dibuat!");
@@ -7831,7 +7915,7 @@ Gunakan format teks biasa dengan sub-judul yang jelas (misal: "1. Statistik Desk
         }
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey);
+            const result = await geminiService.run(prompt, geminiApiKeys);
             setProjectData(p => ({ ...p, analisisKuantitatifHasil: result }));
             showInfoModal("Analisis data berhasil dibuat!");
         } catch(error) {
@@ -7888,7 +7972,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             setProjectData(p => ({ ...p, analisisKualitatifHasil: result }));
             showInfoModal("Analisis tematik berhasil dibuat! Silakan tinjau hasilnya.");
         } catch(error) {
@@ -7928,7 +8012,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey, { schema }, imageFile);
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema }, imageFile);
             setProjectData(p => ({
                 ...p,
                 deskripsiVisualisasi: result.deskripsi,
@@ -8086,9 +8170,9 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             case 'prisma':
                 return <PrismaSLR {...{ projectData, setProjectData, showInfoModal, handleAiReview }} />;
             case 'sintesis':
-                return <SintesisData {...{ projectData, setProjectData, showInfoModal, geminiApiKey, handleCopyToClipboard, setCurrentSection }} />;
+                return <SintesisData {...{ projectData, setProjectData, showInfoModal, geminiApiKeys, handleCopyToClipboard, setCurrentSection }} />; // UPDATE: geminiApiKeys
             case 'genLogKueri':
-                return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, handleCopyQuery, handleDeleteLog, includeIndonesianQuery, setIncludeIndonesianQuery, handleGenerateQueriesFromPicos, geminiApiKey, handleInputChange }} />;
+                return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, handleCopyQuery, handleDeleteLog, includeIndonesianQuery, setIncludeIndonesianQuery, handleGenerateQueriesFromPicos, geminiApiKeys, handleInputChange }} />; // UPDATE: geminiApiKeys
             case 'genVariabel':
     return <GeneratorVariabel {...{ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal, handleCopyToClipboard }} />;
 case 'genHipotesis':
@@ -8162,7 +8246,7 @@ case 'genWawancara':
             const titlePrompt = `Berdasarkan konsep penelitian "${conceptQuery}", berikan SATU judul referensi yang paling fundamental BESERTA penulis utamanya. Balas HANYA dengan objek JSON dengan format: {"judul": "Judul Referensi", "penulis": "Nama Penulis"}`;
             const titleSchema = { "type": "OBJECT", "properties": {"judul": {"type": "STRING"}, "penulis": {"type": "STRING"}}, "required": ["judul", "penulis"] };
             
-            const titleResponseJson = await geminiService.run(titlePrompt, geminiApiKey, { schema: titleSchema });
+            const titleResponseJson = await geminiService.run(titlePrompt, geminiApiKeys, { schema: titleSchema });
             
             const { judul: referenceTitle, penulis: authorName } = titleResponseJson;
     
@@ -8172,7 +8256,7 @@ case 'genWawancara':
     
             // Langkah 2: Setelah mendapatkan penulis, minta AI menjelaskan konsep dari perspektif penulis tersebut dengan grounding
             const quotePrompt = `Dari perspektif penulis "${authorName}", jelaskan konsep atau teori "${conceptQuery}" secara singkat dan padat dalam 2-3 kalimat. Jawab HANYA dengan penjelasannya.`;
-            const keyQuote = await geminiService.run(quotePrompt, geminiApiKey, { useGrounding: true });
+            const keyQuote = await geminiService.run(quotePrompt, geminiApiKeys, { useGrounding: true });
     
             // Langkah 3: Cari judul di database akademis
             const s2results = await semanticScholarService.search(referenceTitle, S2_API_KEY);
@@ -8234,7 +8318,7 @@ Format output HARUS mengikuti schema JSON berikut dengan ketat:
         // Panggil geminiService dengan grounding dan schema
 const results = await geminiService.run(
     prompt,         // Pertanyaan/instruksi untuk AI
-    geminiApiKey,   // Kunci API Google AI Anda
+    geminiApiKeys,   // Kunci API Google AI Anda
     { useGrounding: true} // Opsi: Aktifkan Google Search DAN kirim schema
 );
 // Tampilkan respons mentah di console untuk debug
@@ -8314,7 +8398,7 @@ try {
         Indonesian Topic: "${indonesianQuery}"`;
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKey);
+            const result = await geminiService.run(prompt, geminiApiKeys);
             return result.replace(/"/g, '').trim();
         } catch (error) {
             console.warn(`Translation failed for "${indonesianQuery}", using original. Error: ${error.message}`);
@@ -8865,14 +8949,44 @@ if (isPeraturan) {
                                 <label htmlFor="geminiApiKey" className="block text-gray-700 text-sm font-bold mb-2">
                                     Kunci Akses AI Pribadi (Unlimited & Private):
                                 </label>
-                                <input
-                                    type="password"
-                                    id="geminiApiKey"
-                                    value={geminiApiKey}
-                                    onChange={(e) => setGeminiApiKey(e.target.value)}
-                                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-                                    placeholder="Tempel Kunci API Google AI di sini..."
-                                />
+
+                                {/* --- UPDATE UI: Multi Key Input --- */}
+                                <div className="space-y-3">
+                                    {geminiApiKeys.map((key, index) => (
+                                        <div key={index} className="flex gap-2">
+                                            <input
+                                                type="password"
+                                                value={key}
+                                                onChange={(e) => handleGeminiKeyChange(index, e.target.value)}
+                                                className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                placeholder={`Tempel Kunci API Google AI #${index + 1}`}
+                                            />
+                                            {/* Tampilkan tombol hapus jika lebih dari 1 key */}
+                                            {geminiApiKeys.length > 1 && (
+                                                <button 
+                                                    onClick={() => removeGeminiKeyField(index)}
+                                                    className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-3 rounded-lg"
+                                                    title="Hapus Kunci Ini"
+                                                >
+                                                    <CloseIcon />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    
+                                    <button 
+                                        onClick={addGeminiKeyField}
+                                        className="text-sm bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+                                    >
+                                        <svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                        </svg>
+                                        Tambah Kunci API Cadangan
+                                    </button>
+                                </div>
+                                {/* ---------------------------------- */}
+
+                                
                                 <p className="text-xs text-gray-600 mt-2 leading-relaxed">
                                     <span className="font-semibold text-purple-700">Fitur Kebebasan & Privasi:</span> Bibliocobra menggunakan koneksi langsung (Direct-to-Google). Ini menjamin <strong>Privasi Data 100%</strong> (data tidak singgah di server kami) dan <strong>Akses Tanpa Batas</strong> sesuai akun Google Anda.
                                     <br/>
