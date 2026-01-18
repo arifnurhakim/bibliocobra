@@ -1671,7 +1671,7 @@ const Referensi = ({
                                                 </a>
                                             </div>
                                             <p className="text-xs text-orange-700 mt-2">
-                                                *API Key diperlukan. Gunakan <strong>Venom Konverter</strong> untuk mengonversi referensi dari format lain ke format standar.
+                                                *Wajib akses di jaringan institusi Anda. Gunakan <strong>Venom Konverter</strong> untuk konversi referensi dari format ScopusAI ke format Bibliocobra.
                                             </p>
                                         </div>
                                     </div>
