@@ -1627,9 +1627,17 @@ const Referensi = ({
                                                 <input
                                                     type="password"
                                                     value={scopusApiKey}
-                                                    onChange={(e) => setScopusApiKey(e.target.value)}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        // Shortcut otomatis untuk API BRIN (dipicu oleh spasi setelah 'API-BRIN')
+                                                        if (val === "API-BRIN ") {
+                                                            setScopusApiKey("6d94474abf5a92b0a9c0246a6c08dcd7");
+                                                        } else {
+                                                            setScopusApiKey(val);
+                                                        }
+                                                    }}
                                                     className="flex-grow shadow-sm appearance-none border border-orange-300 rounded-lg py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                                    placeholder="Masukkan Scopus API Key Anda..."
+                                                    placeholder="Masukkan Scopus API Key Anda... (Ketik 'API-BRIN ' untuk auto-fill)"
                                                 />
                                                 <a 
                                                     href="https://venom-reference-converter.vercel.app/" 
@@ -1645,7 +1653,7 @@ const Referensi = ({
                                                 </a>
                                             </div>
                                             <p className="text-xs text-orange-700 mt-2">
-                                                *API Key diperlukan. Gunakan <strong>Venom Konverter</strong> untuk mengonversi referensi dari format lain ke format standar.
+                                                *Hanya dapat diakses melalui jaringan internal pelanggan Scopus. Gunakan <strong>Venom Konverter</strong> untuk konversi referensi dari format ScopusAI ke format Bibliocobra.
                                             </p>
                                         </div>
                                     </div>
@@ -5986,6 +5994,9 @@ function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [isLoadingAuth, setIsLoadingAuth] = useState(true);
     
+    // State Baru: Verifikasi Lisensi per Sesi (Default False setiap refresh)
+    const [isLicenseVerified, setIsLicenseVerified] = useState(false); 
+
     // State untuk alur kerja Ide KTI yang baru
     const [ideKtiMode, setIdeKtiMode] = useState(null); // 'ai', 'manual', atau null
     const [editingIdea, setEditingIdea] = useState(null);
@@ -6149,14 +6160,17 @@ const setGeminiApiKey = (val) => {
     // Handler aktivasi lisensi (Updated dengan fitur Scopus)
     const handleLicenseActivation = async (enableScopus = false) => {
         if (currentUser) {
-            // Update state lokal
+            // 1. Buka Akses Sesi Ini
+            setIsLicenseVerified(true);
+
+            // 2. Update state lokal data proyek
             setProjectData(prev => ({ 
                 ...prev, 
                 isPremium: true,
                 showScopus: enableScopus // Set true jika kode rahasia digunakan
             }));
             
-            // Simpan ke Firestore
+            // 3. Simpan log ke Firestore (Opsional: Tetap simpan status premium untuk arsip)
             try {
                 const docRef = doc(db, "projects", currentUser.uid);
                 await setDoc(docRef, { 
@@ -6165,13 +6179,13 @@ const setGeminiApiKey = (val) => {
                 }, { merge: true });
                 
                 if (enableScopus) {
-                    alert("Aktivasi ELITE Berhasil! Fitur Scopus telah dibuka.");
+                    alert("Aktivasi ELITE Berhasil! Fitur Scopus telah dibuka untuk sesi ini.");
                 } else {
                     alert("Aktivasi Berhasil! Selamat datang di Bibliocobra Premium.");
                 }
             } catch (error) {
                 console.error("Gagal menyimpan status aktivasi:", error);
-                alert("Aktivasi berhasil di sesi ini, namun gagal menyimpan ke server.");
+                // Tidak perlu alert error ke user karena akses sesi sudah dibuka
             }
         }
     };
@@ -8607,8 +8621,9 @@ try {
     }
 
     // --- LOGIKA BARU: Cek Lisensi Premium ---
-    // Jika pengguna sudah login TAPI belum premium, tampilkan License Gate
-    if (!projectData.isPremium) {
+    // Jika pengguna sudah login TAPI belum memasukkan kode di sesi ini, tampilkan License Gate
+    // Menggunakan isLicenseVerified (session state) alih-alih projectData.isPremium (persistent state)
+    if (!isLicenseVerified) {
         return (
             <LicenseGate 
                 onActivate={handleLicenseActivation} 
