@@ -767,6 +767,194 @@ const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
 // KOMPONEN: Masing-masing Tab dipecah menjadi komponennya sendiri.
 // ============================================================================
 
+// --- Komponen Reusable: Selektor Referensi (Checkbox) ---
+const ReferenceSelector = ({ projectData, selectedRefIds, setSelectedRefIds }) => {
+    const [viewingRef, setViewingRef] = useState(null); // State untuk popup
+    const [isOpen, setIsOpen] = useState(false); // State untuk Accordion (Default: Tertutup)
+
+    // Fitur Check All / Uncheck All
+    const handleSelectAll = (isChecked) => {
+        if (isChecked) {
+            const allIds = projectData.allReferences.map(ref => ref.id);
+            setSelectedRefIds(allIds);
+        } else {
+            setSelectedRefIds([]);
+        }
+    };
+
+    const handleCheckboxChange = (id) => {
+        setSelectedRefIds(prev => {
+            if (prev.includes(id)) {
+                return prev.filter(item => item !== id);
+            } else {
+                return [...prev, id];
+            }
+        });
+    };
+
+    // Helper untuk Badge Kualitas Data
+    const getDataBadge = (ref) => {
+        const hasExtraction = projectData.extractedData && projectData.extractedData.some(e => String(e.refId) === String(ref.id));
+        if (hasExtraction) return <span className="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-200 whitespace-nowrap" title="Data Ekstraksi SLR Tersedia">High Quality</span>;
+        if (ref.isiKutipan && ref.isiKutipan.length > 50) return <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full border border-yellow-200 whitespace-nowrap" title="Catatan Manual Tersedia">Medium</span>;
+        return <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200 whitespace-nowrap" title="Hanya Metadata">Low</span>;
+    };
+
+    return (
+        <div className="mb-6 border rounded-lg overflow-hidden border-gray-300 shadow-sm relative transition-all duration-300">
+            {/* --- POPUP MODAL (Ditampilkan jika ada viewingRef) --- */}
+            {viewingRef && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-[9999] p-4 animate-fade-in" onClick={() => setViewingRef(null)}>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                        {/* Header Popup */}
+                        <div className="p-4 border-b bg-gray-50 flex justify-between items-start">
+                            <div>
+                                <h4 className="font-bold text-gray-800 text-sm line-clamp-2">{viewingRef.title}</h4>
+                                <p className="text-xs text-gray-500 mt-1">{viewingRef.author} ({viewingRef.year})</p>
+                            </div>
+                            <button onClick={() => setViewingRef(null)} className="text-gray-400 hover:text-red-500 p-1">
+                                <CloseIcon />
+                            </button>
+                        </div>
+                        
+                        {/* Content Popup - UPDATE: Dipisah jadi 3 Bagian */}
+                        <div className="p-4 overflow-y-auto custom-scrollbar text-sm space-y-5">
+                            
+                            {/* 1. Abstrak (Asli dari Paper) */}
+                            <div>
+                                <h5 className="font-bold text-gray-700 text-xs uppercase mb-1.5 flex items-center gap-1.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/>
+                                    </svg>
+                                    Abstrak
+                                </h5>
+                                <div className="bg-gray-50 p-3 rounded border border-gray-200 text-gray-700 text-justify leading-relaxed max-h-40 overflow-y-auto">
+                                    {viewingRef.abstract ? viewingRef.abstract : <span className="text-gray-400 italic">Tidak ada data abstrak.</span>}
+                                </div>
+                            </div>
+
+                            {/* 2. Catatan (Manual User / AI Review) */}
+                            <div>
+                                <h5 className="font-bold text-blue-800 text-xs uppercase mb-1.5 flex items-center gap-1.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h6.086a1.5 1.5 0 0 0 1.06-.44l4.915-4.914A1.5 1.5 0 0 0 15 8.586V2.5A1.5 1.5 0 0 0 13.5 1h-11zM2 2.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5V8H9.5A1.5 1.5 0 0 0 8 9.5V14H2.5a.5.5 0 0 1-.5-.5v-11zm7 11.293V9.5a.5.5 0 0 1 .5-.5h4.293L9 13.793z"/>
+                                    </svg>
+                                    Catatan / Kutipan
+                                </h5>
+                                <div className="bg-blue-50 p-3 rounded border border-blue-100 text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                    {viewingRef.isiKutipan ? viewingRef.isiKutipan : <span className="text-gray-400 italic">Tidak ada catatan manual.</span>}
+                                </div>
+                            </div>
+
+                            {/* 3. Data Sintesis (Dari Tabel SLR) */}
+                            <div>
+                                <h5 className="font-bold text-green-800 text-xs uppercase mb-1.5 flex items-center gap-1.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm15 2h-4v3h4V4zm0 4h-4v3h4V8zm0 4h-4v3h3a1 1 0 0 0 1-1v-2zm-5 3v-3H6v3h4zm-5 0v-3H1v2a1 1 0 0 0 1 1h3zm-4-4h4V8H1v3zm0-4h4V4H1v3zm5-3v3h4V4H6zm4 8V8H6v4h4z"/>
+                                    </svg>
+                                    Hasil Sintesis (SLR)
+                                </h5>
+                                {(() => {
+                                    const extraction = projectData.extractedData && projectData.extractedData.find(e => String(e.refId) === String(viewingRef.id));
+                                    if (extraction && extraction.data) {
+                                        return (
+                                            <div className="bg-green-50 p-3 rounded border border-green-100 space-y-2 max-h-60 overflow-y-auto">
+                                                {Object.entries(extraction.data).map(([key, val]) => (
+                                                    val && (
+                                                        <div key={key} className="border-b border-green-200 pb-1 last:border-0 last:pb-0">
+                                                            <span className="font-semibold text-green-800 text-xs block mb-0.5 capitalize">{key.replace(/_/g, ' ')}:</span>
+                                                            <span className="text-gray-700 text-xs whitespace-pre-wrap">{val}</span>
+                                                        </div>
+                                                    )
+                                                ))}
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <div className="bg-green-50 p-3 rounded border border-green-100 text-gray-400 italic text-xs">
+                                            Belum ada data ekstraksi/sintesis.
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* HEADER ACCORDION (Klik untuk Buka/Tutup) */}
+            <div 
+                className={`p-3 flex justify-between items-center cursor-pointer transition-colors ${isOpen ? 'bg-gray-100 border-b border-gray-200' : 'bg-white hover:bg-gray-50'}`}
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <h4 className="font-bold text-gray-700 text-sm flex items-center gap-2 select-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Pilih Referensi Pendukung <span className={`ml-1 text-xs font-normal ${selectedRefIds.length > 0 ? 'text-blue-600 font-bold' : 'text-gray-500'}`}>({selectedRefIds.length} terpilih)</span>
+                </h4>
+                
+                <div className="flex items-center gap-3">
+                    {/* Tombol Aksi (Hanya muncul jika terbuka) */}
+                    {isOpen && (
+                        <div className="space-x-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => handleSelectAll(true)} className="text-xs text-blue-600 hover:text-blue-800 font-semibold transition-colors">Pilih Semua</button>
+                            <button onClick={() => handleSelectAll(false)} className="text-xs text-red-600 hover:text-red-800 font-semibold transition-colors">Hapus Semua</button>
+                        </div>
+                    )}
+                    <ChevronDownIcon isOpen={isOpen} />
+                </div>
+            </div>
+
+            {/* ISI ACCORDION (Collapsible) */}
+            {isOpen && (
+                <div className="max-h-60 overflow-y-auto p-2 bg-white space-y-1 custom-scrollbar animate-fade-in">
+                    {projectData.allReferences.length > 0 ? (
+                        projectData.allReferences.map(ref => (
+                            <div key={ref.id} className={`flex items-start gap-2 p-2 rounded border transition-all ${selectedRefIds.includes(ref.id) ? 'bg-blue-50 border-blue-200' : 'bg-white border-transparent hover:bg-gray-50'}`}>
+                                <input 
+                                    type="checkbox" 
+                                    checked={selectedRefIds.includes(ref.id)}
+                                    onChange={() => handleCheckboxChange(ref.id)}
+                                    className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                                />
+                                
+                                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleCheckboxChange(ref.id)}>
+                                    <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                                        <span className="font-semibold text-xs text-gray-800 line-clamp-1 break-all">{ref.title}</span>
+                                        {getDataBadge(ref)}
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 truncate">{ref.author} ({ref.year})</p>
+                                </div>
+
+                                {/* Tombol Lihat Detail (Popup) */}
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation(); // Mencegah checkbox tercentang saat klik info
+                                        setViewingRef(ref);
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors flex-shrink-0"
+                                    title="Lihat Detail Abstrak & Sintesis"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                        <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="text-center py-6 text-gray-400 italic text-sm">
+                            Belum ada referensi di perpustakaan. Silakan tambahkan di menu "Literatur & Referensi".
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // --- Komponen BARU: Deskripsi Karakteristik Responden ---
 const DeskripsiResponden = ({ projectData, setProjectData, handleGenerateDeskripsiResponden, isLoading, handleCopyToClipboard }) => {
     const [rawData, setRawData] = useState('');
@@ -1118,6 +1306,7 @@ const Referensi = ({
     
     // --- STATE BARU: Untuk Checkbox Perpustakaan ---
     const [selectedLibraryIds, setSelectedLibraryIds] = useState([]);
+    const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false); // State Modal Konfirmasi Hapus
 
     // --- FUNGSI BARU: Manajemen Seleksi & Bulk Delete ---
     const handleSelectAllLibrary = (e) => {
@@ -1139,18 +1328,21 @@ const Referensi = ({
         });
     };
 
+    // 1. Tombol Hapus diklik -> Buka Modal
     const handleBulkDeleteLibrary = () => {
         if (selectedLibraryIds.length === 0) return;
-        
-        // Konfirmasi sederhana menggunakan window.confirm
-        if (window.confirm(`Apakah Anda yakin ingin menghapus ${selectedLibraryIds.length} referensi terpilih? Tindakan ini tidak dapat dibatalkan.`)) {
-            setProjectData(prev => ({
-                ...prev,
-                allReferences: prev.allReferences.filter(ref => !selectedLibraryIds.includes(ref.id))
-            }));
-            setSelectedLibraryIds([]); // Reset seleksi
-            showInfoModal(`${selectedLibraryIds.length} referensi berhasil dihapus.`);
-        }
+        setIsBulkDeleteConfirmOpen(true);
+    };
+
+    // 2. Konfirmasi di Modal -> Eksekusi Hapus
+    const confirmBulkDelete = () => {
+        setProjectData(prev => ({
+            ...prev,
+            allReferences: prev.allReferences.filter(ref => !selectedLibraryIds.includes(ref.id))
+        }));
+        setSelectedLibraryIds([]); // Reset seleksi
+        setIsBulkDeleteConfirmOpen(false); // Tutup modal
+        showInfoModal(`${selectedLibraryIds.length} referensi berhasil dihapus.`);
     };
     // ---------------------------------------------------
 
@@ -1225,6 +1417,39 @@ const Referensi = ({
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            {/* --- MODAL KONFIRMASI HAPUS BULK (Tambahan Baru) --- */}
+            {isBulkDeleteConfirmOpen && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-[9999] p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full flex flex-col animate-fade-in">
+                        <div className="flex items-center gap-3 mb-4 text-red-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                            </svg>
+                            <h3 className="text-xl font-bold text-gray-800">Konfirmasi Hapus</h3>
+                        </div>
+                        <p className="text-gray-700 mb-6 text-sm">
+                            Apakah Anda yakin ingin menghapus <strong>{selectedLibraryIds.length} referensi</strong> terpilih? <br/>
+                            <span className="text-red-500 font-semibold">Tindakan ini tidak dapat dibatalkan.</span>
+                        </p>
+                        <div className="flex justify-end gap-2">
+                            <button 
+                                onClick={() => setIsBulkDeleteConfirmOpen(false)} 
+                                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button 
+                                onClick={confirmBulkDelete} 
+                                className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors shadow-md"
+                            >
+                                Ya, Hapus Permanen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* --------------------------------------------------- */}
+
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Literatur & Referensi</h2>
             <p className="text-gray-600 mb-8 -mt-4">Pusat untuk mencari, menambah, dan mengelola semua referensi untuk proyek Anda.</p>
 
@@ -2016,217 +2241,265 @@ const Pendahuluan = ({
     handleCopyToClipboard,
     handleGenerateFullPendahuluan,
     handleModifyText
-}) => (
-    <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Pendahuluan</h2>
-        
-        <div className="p-4 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 mb-6">
-             <h3 className="text-lg font-semibold mb-2 text-blue-800">Generator Pendahuluan</h3>
-             <p className="text-sm text-blue-700 mb-4">Klik tombol di bawah untuk menghasilkan draf pendahuluan lengkap yang mencakup latar belakang, rumusan masalah, tujuan, dan sistematika penulisan berdasarkan data proyek Anda.</p>
-            <button onClick={handleGenerateFullPendahuluan} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300" disabled={isLoading}>
-                {isLoading ? 'Memproses...' : '✨ Tulis Draf Pendahuluan Lengkap'}
-            </button>
-        </div>
+}) => {
+    // 1. Tambahkan State Lokal
+    const [selectedRefIds, setSelectedRefIds] = useState([]);
 
-        <div className="mt-6">
-            <div className="flex justify-between items-center mb-2">
-                <label className="block text-gray-700 text-sm font-bold">Draf Final Bab Pendahuluan:</label>
-                <button onClick={() => handleCopyToClipboard(projectData.pendahuluanDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1 px-3 rounded-lg">Salin Teks</button>
-            </div>
-            <textarea
-                value={projectData.pendahuluanDraft}
-                onChange={(e) => setProjectData(p => ({ ...p, pendahuluanDraft: e.target.value }))}
-                className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                rows="20"
-                placeholder="Hasil generate akan muncul di sini..."
-            ></textarea>
-        </div>
-        
-        {/* Fitur Modifikasi Teks */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
-            <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf</h4>
-            <div className="flex flex-wrap gap-2">
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Pendahuluan</h2>
+            
+            <div className="p-4 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 mb-6">
+                <h3 className="text-lg font-semibold mb-2 text-blue-800">Generator Pendahuluan</h3>
+                <p className="text-sm text-blue-700 mb-4">Pilih referensi pendukung (data/fakta/studi terdahulu) untuk Latar Belakang, lalu klik tombol di bawah.</p>
+                
+                {/* 2. Pasang ReferenceSelector */}
+                <ReferenceSelector 
+                    projectData={projectData} 
+                    selectedRefIds={selectedRefIds} 
+                    setSelectedRefIds={setSelectedRefIds} 
+                />
+
+                {/* 3. Update onClick untuk mengirim selectedRefIds */}
                 <button 
-                    onClick={() => handleModifyText('shorten', 'pendahuluanDraft')}
-                    disabled={isLoading || !projectData.pendahuluanDraft}
-                    className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-yellow-300"
+                    onClick={() => handleGenerateFullPendahuluan(selectedRefIds)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 w-full" 
+                    disabled={isLoading}
                 >
-                    Buat Versi Pendek
-                </button>
-                <button 
-                    onClick={() => handleModifyText('medium', 'pendahuluanDraft')}
-                    disabled={isLoading || !projectData.pendahuluanDraft}
-                    className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-green-300"
-                >
-                    Buat Versi Sedang
-                </button>
-                <button 
-                    onClick={() => handleModifyText('lengthen', 'pendahuluanDraft')}
-                    disabled={isLoading || !projectData.pendahuluanDraft}
-                    className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-indigo-300"
-                >
-                    Buat Versi Panjang
+                    {isLoading ? 'Memproses...' : '✨ Tulis Draf Pendahuluan Lengkap'}
                 </button>
             </div>
-            {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
-<button 
-    onClick={() => handleModifyText('humanize', 'pendahuluanDraft')}
-    disabled={isLoading || !projectData.pendahuluanDraft}
-    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
->
-    Parafrasa (Humanisasi)
-</button>
-{/* --- AKHIR TOMBOL BARU --- */}
 
-
+            <div className="mt-6">
+                <div className="flex justify-between items-center mb-2">
+                    <label className="block text-gray-700 text-sm font-bold">Draf Final Bab Pendahuluan:</label>
+                    <button onClick={() => handleCopyToClipboard(projectData.pendahuluanDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1 px-3 rounded-lg">Salin Teks</button>
+                </div>
+                <textarea
+                    value={projectData.pendahuluanDraft}
+                    onChange={(e) => setProjectData(p => ({ ...p, pendahuluanDraft: e.target.value }))}
+                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+                    rows="20"
+                    placeholder="Hasil generate akan muncul di sini..."
+                ></textarea>
+            </div>
+            
+            {/* Fitur Modifikasi Teks */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+                <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf</h4>
+                <div className="flex flex-wrap gap-2">
+                    <button 
+                        onClick={() => handleModifyText('shorten', 'pendahuluanDraft')}
+                        disabled={isLoading || !projectData.pendahuluanDraft}
+                        className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-yellow-300"
+                    >
+                        Buat Versi Pendek
+                    </button>
+                    <button 
+                        onClick={() => handleModifyText('medium', 'pendahuluanDraft')}
+                        disabled={isLoading || !projectData.pendahuluanDraft}
+                        className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-green-300"
+                    >
+                        Buat Versi Sedang
+                    </button>
+                    <button 
+                        onClick={() => handleModifyText('lengthen', 'pendahuluanDraft')}
+                        disabled={isLoading || !projectData.pendahuluanDraft}
+                        className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-indigo-300"
+                    >
+                        Buat Versi Panjang
+                    </button>
+                </div>
+                {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
+                <button 
+                    onClick={() => handleModifyText('humanize', 'pendahuluanDraft')}
+                    disabled={isLoading || !projectData.pendahuluanDraft}
+                    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+                >
+                    Parafrasa (Humanisasi)
+                </button>
+                {/* --- AKHIR TOMBOL BARU --- */}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 // --- Komponen untuk Tab 6: Metode Penelitian ---
-const MetodePenelitian = ({ projectData, setProjectData, handleGenerateMetode, isLoading, handleCopyToClipboard, handleModifyText }) => (
-    <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Metode Penelitian</h2>
-        <p className="text-gray-700 mb-4">Gunakan informasi dari Tab 1 untuk menghasilkan draf bab metode penelitian yang terstruktur.</p>
-        <button onClick={handleGenerateMetode} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed" disabled={isLoading || !projectData.judulKTI}>
-            {isLoading ? 'Memproses...' : '✨ Tulis Draf Bab Metode'}
-        </button>
+const MetodePenelitian = ({ projectData, setProjectData, handleGenerateMetode, isLoading, handleCopyToClipboard, handleModifyText }) => {
+    const [selectedRefIds, setSelectedRefIds] = useState([]);
 
-        {isLoading && !projectData.metodeDraft && (
-            <div className="mt-6 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="ml-3 text-gray-600">AI sedang menulis draf...</p>
-            </div>
-        )}
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Metode Penelitian</h2>
+            <p className="text-gray-700 mb-4">Pilih referensi metodologi (buku/jurnal) untuk menjadi landasan bab ini.</p>
+            
+            <ReferenceSelector 
+                projectData={projectData} 
+                selectedRefIds={selectedRefIds} 
+                setSelectedRefIds={setSelectedRefIds} 
+            />
 
-        {projectData.metodeDraft && (
-             <div className="mt-6">
-                <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-lg font-bold text-gray-800">Draf Metode Penelitian</h3>
-                    <button onClick={() => handleCopyToClipboard(projectData.metodeDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-3 rounded-lg">
-                        Salin Teks
-                    </button>
+            <button 
+                onClick={() => handleGenerateMetode(selectedRefIds)} 
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed w-full" 
+                disabled={isLoading || !projectData.judulKTI}
+            >
+                {isLoading ? 'Memproses...' : '✨ Tulis Draf Bab Metode'}
+            </button>
+
+            {isLoading && !projectData.metodeDraft && (
+                <div className="mt-6 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <p className="ml-3 text-gray-600">AI sedang menulis draf...</p>
                 </div>
-                <textarea
-                    value={projectData.metodeDraft}
-                    onChange={(e) => setProjectData(p => ({ ...p, metodeDraft: e.target.value }))}
-                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                    rows="15"
-                ></textarea>
-                {/* Fitur Modifikasi Teks */}
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                    <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf</h4>
-                    <div className="flex flex-wrap gap-2">
-                        <button 
-                            onClick={() => handleModifyText('shorten', 'metodeDraft')}
-                            disabled={isLoading || !projectData.metodeDraft}
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-yellow-300"
-                        >
-                            Buat Versi Pendek
-                        </button>
-                        <button 
-                            onClick={() => handleModifyText('medium', 'metodeDraft')}
-                            disabled={isLoading || !projectData.metodeDraft}
-                            className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-green-300"
-                        >
-                            Buat Versi Sedang
-                        </button>
-                        <button 
-                            onClick={() => handleModifyText('lengthen', 'metodeDraft')}
-                            disabled={isLoading || !projectData.metodeDraft}
-                            className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-indigo-300"
-                        >
-                            Buat Versi Panjang
+            )}
+
+            {projectData.metodeDraft && (
+                <div className="mt-6">
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-lg font-bold text-gray-800">Draf Metode Penelitian</h3>
+                        <button onClick={() => handleCopyToClipboard(projectData.metodeDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-3 rounded-lg">
+                            Salin Teks
                         </button>
                     </div>
-                    {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
-<button 
-    onClick={() => handleModifyText('humanize', 'metodeDraft')}
-    disabled={isLoading || !projectData.metodeDraft}
-    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
->
-    Parafrasa (Humanisasi)
-</button>
-{/* --- AKHIR TOMBOL BARU --- */}
+                    <textarea
+                        value={projectData.metodeDraft}
+                        onChange={(e) => setProjectData(p => ({ ...p, metodeDraft: e.target.value }))}
+                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+                        rows="15"
+                    ></textarea>
+                    {/* Fitur Modifikasi Teks */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                        <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf</h4>
+                        <div className="flex flex-wrap gap-2">
+                            <button 
+                                onClick={() => handleModifyText('shorten', 'metodeDraft')}
+                                disabled={isLoading || !projectData.metodeDraft}
+                                className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-yellow-300"
+                            >
+                                Buat Versi Pendek
+                            </button>
+                            <button 
+                                onClick={() => handleModifyText('medium', 'metodeDraft')}
+                                disabled={isLoading || !projectData.metodeDraft}
+                                className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-green-300"
+                            >
+                                Buat Versi Sedang
+                            </button>
+                            <button 
+                                onClick={() => handleModifyText('lengthen', 'metodeDraft')}
+                                disabled={isLoading || !projectData.metodeDraft}
+                                className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-indigo-300"
+                            >
+                                Buat Versi Panjang
+                            </button>
+                        </div>
+                        {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
+                        <button 
+                            onClick={() => handleModifyText('humanize', 'metodeDraft')}
+                            disabled={isLoading || !projectData.metodeDraft}
+                            className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+                        >
+                            Parafrasa (Humanisasi)
+                        </button>
+                        {/* --- AKHIR TOMBOL BARU --- */}
+                    </div>
                 </div>
-            </div>
-        )}
-    </div>
-);
+            )}
+        </div>
+    );
+};
 
 // --- Komponen untuk Tab 7: Studi Literatur ---
-const StudiLiteratur = ({ projectData, setProjectData, handleGenerateStudiLiteratur, isLoading, handleCopyToClipboard, handleModifyText }) => (
-    <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Studi Literatur</h2>
-        <p className="text-gray-700 mb-4">Sintesis semua kutipan dan catatan dari perpustakaan referensi Anda menjadi sebuah narasi tinjauan pustaka yang koheren.</p>
-        <button onClick={handleGenerateStudiLiteratur} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed" disabled={isLoading || projectData.allReferences.length === 0}>
-            {isLoading ? 'Memproses...' : '✨ Tulis Draf Studi Literatur'}
-        </button>
+const StudiLiteratur = ({ projectData, setProjectData, handleGenerateStudiLiteratur, isLoading, handleCopyToClipboard, handleModifyText }) => {
+    const [selectedRefIds, setSelectedRefIds] = useState([]);
 
-        {isLoading && !projectData.studiLiteraturDraft && (
-            <div className="mt-6 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="ml-3 text-gray-600">AI sedang menyintesis referensi...</p>
-            </div>
-        )}
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Studi Literatur</h2>
+            <p className="text-gray-700 mb-4">Pilih referensi Grand Theory atau Konsep Utama yang ingin dibahas dalam Tinjauan Pustaka.</p>
+            
+            <ReferenceSelector 
+                projectData={projectData} 
+                selectedRefIds={selectedRefIds} 
+                setSelectedRefIds={setSelectedRefIds} 
+            />
 
-        {projectData.studiLiteraturDraft && (
-             <div className="mt-6">
-                <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-lg font-bold text-gray-800">Draf Studi Literatur</h3>
-                    <button onClick={() => handleCopyToClipboard(projectData.studiLiteraturDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-3 rounded-lg">
-                        Salin Teks
-                    </button>
+            <button 
+                onClick={() => handleGenerateStudiLiteratur(selectedRefIds)} 
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed w-full" 
+                disabled={isLoading || projectData.allReferences.length === 0}
+            >
+                {isLoading ? 'Memproses...' : '✨ Tulis Draf Studi Literatur'}
+            </button>
+
+            {isLoading && !projectData.studiLiteraturDraft && (
+                <div className="mt-6 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <p className="ml-3 text-gray-600">AI sedang menyintesis referensi...</p>
                 </div>
-                <textarea
-                    value={projectData.studiLiteraturDraft}
-                    onChange={(e) => setProjectData(p => ({ ...p, studiLiteraturDraft: e.target.value }))}
-                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                    rows="15"
-                ></textarea>
-                {/* Fitur Modifikasi Teks */}
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                    <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf</h4>
-                    <div className="flex flex-wrap gap-2">
-                        <button 
-                            onClick={() => handleModifyText('shorten', 'studiLiteraturDraft')}
-                            disabled={isLoading || !projectData.studiLiteraturDraft}
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-yellow-300"
-                        >
-                            Buat Versi Pendek
-                        </button>
-                        <button 
-                            onClick={() => handleModifyText('medium', 'studiLiteraturDraft')}
-                            disabled={isLoading || !projectData.studiLiteraturDraft}
-                            className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-green-300"
-                        >
-                            Buat Versi Sedang
-                        </button>
-                        <button 
-                            onClick={() => handleModifyText('lengthen', 'studiLiteraturDraft')}
-                            disabled={isLoading || !projectData.studiLiteraturDraft}
-                            className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-indigo-300"
-                        >
-                            Buat Versi Panjang
+            )}
+
+            {projectData.studiLiteraturDraft && (
+                <div className="mt-6">
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-lg font-bold text-gray-800">Draf Studi Literatur</h3>
+                        <button onClick={() => handleCopyToClipboard(projectData.studiLiteraturDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-3 rounded-lg">
+                            Salin Teks
                         </button>
                     </div>
-                    {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
-<button 
-    onClick={() => handleModifyText('humanize', 'studiLiteraturDraft')}
-    disabled={isLoading || !projectData.studiLiteraturDraft}
-    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
->
-    Parafrasa (Humanisasi)
-</button>
-{/* --- AKHIR TOMBOL BARU --- */}
+                    <textarea
+                        value={projectData.studiLiteraturDraft}
+                        onChange={(e) => setProjectData(p => ({ ...p, studiLiteraturDraft: e.target.value }))}
+                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
+                        rows="15"
+                    ></textarea>
+                    {/* Fitur Modifikasi Teks */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                        <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf</h4>
+                        <div className="flex flex-wrap gap-2">
+                            <button 
+                                onClick={() => handleModifyText('shorten', 'studiLiteraturDraft')}
+                                disabled={isLoading || !projectData.studiLiteraturDraft}
+                                className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-yellow-300"
+                            >
+                                Buat Versi Pendek
+                            </button>
+                            <button 
+                                onClick={() => handleModifyText('medium', 'studiLiteraturDraft')}
+                                disabled={isLoading || !projectData.studiLiteraturDraft}
+                                className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-green-300"
+                            >
+                                Buat Versi Sedang
+                            </button>
+                            <button 
+                                onClick={() => handleModifyText('lengthen', 'studiLiteraturDraft')}
+                                disabled={isLoading || !projectData.studiLiteraturDraft}
+                                className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-indigo-300"
+                            >
+                                Buat Versi Panjang
+                            </button>
+                        </div>
+                        {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
+                        <button 
+                            onClick={() => handleModifyText('humanize', 'studiLiteraturDraft')}
+                            disabled={isLoading || !projectData.studiLiteraturDraft}
+                            className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+                        >
+                            Parafrasa (Humanisasi)
+                        </button>
+                        {/* --- AKHIR TOMBOL BARU --- */}
+                    </div>
                 </div>
-            </div>
-        )}
-    </div>
-);
+            )}
+        </div>
+    );
+};
 
 // --- Komponen untuk Hasil & Pembahasan ---
 const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPembahasan, isLoading, handleCopyToClipboard, handleModifyText, geminiApiKey, showInfoModal }) => {
+    const [selectedRefIds, setSelectedRefIds] = useState([]); // <-- TAMBAH STATE INI DI AWAL
+
     const availableDrafts = [
         { key: 'analisisKuantitatifDraft', name: 'Analisis Kuantitatif' },
         { key: 'analisisKualitatifDraft', name: 'Analisis Kualitatif' },
@@ -2274,8 +2547,17 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                         </ul>
                     </div>
 
+                    {/* --- TAMBAHKAN BAGIAN INI --- */}
+                    <p className="text-sm text-gray-700 mb-2 font-bold">Pilih Referensi untuk Pembahasan (Comparison/Support):</p>
+                    <ReferenceSelector 
+                        projectData={projectData} 
+                        selectedRefIds={selectedRefIds} 
+                        setSelectedRefIds={setSelectedRefIds} 
+                    />
+                    {/* ---------------------------- */}
+
                     <button 
-                        onClick={handleGenerateHasilPembahasan} 
+                        onClick={() => handleGenerateHasilPembahasan(selectedRefIds)} 
                         className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed"
                         disabled={isLoading || !isReady}
                     >
@@ -7153,9 +7435,16 @@ ${context}
         }
     };
     
-    const handleGenerateFullPendahuluan = async () => {
+    // UPDATE: Menerima selectedIds untuk Pendahuluan
+    const handleGenerateFullPendahuluan = async (selectedIds = []) => {
         setIsLoading(true);
-        const kutipanString = projectData.allReferences
+        
+        // Filter referensi: Jika ada yang dipilih, pakai itu. Jika tidak, pakai semua (fallback).
+        const sourceRefs = (selectedIds && selectedIds.length > 0) 
+            ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
+            : projectData.allReferences;
+
+        const kutipanString = sourceRefs
             .filter(ref => ref.isiKutipan)
             .map(ref => `- Dari "${ref.title}" oleh ${ref.author} (${ref.year}): "${ref.isiKutipan}"`)
             .join('\n');
@@ -7283,7 +7572,8 @@ PENTING (Batasan):
         }
     };
 
-    const handleGenerateMetode = async () => {
+    // UPDATE: Menerima selectedIds untuk Metode
+    const handleGenerateMetode = async (selectedIds = []) => {
         setIsLoading(true);
         
         // --- PERUBAHAN (LOGIKA INTEGRASI SLR) DIMULAI DI SINI ---
@@ -7339,8 +7629,13 @@ ${extractionColumns}
 `;
         }
 
-        // 3. Mengambil kutipan metodologi (logika yang sudah ada)
-        const kutipanMetodologiString = projectData.allReferences
+        // 3. Mengambil kutipan metodologi (logika yang sudah ada) -> UPDATE: Filtered
+        // Filter referensi: Gunakan yang dipilih jika ada
+        const sourceRefs = (selectedIds && selectedIds.length > 0) 
+            ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
+            : projectData.allReferences;
+
+        const kutipanMetodologiString = sourceRefs
             .filter(ref => ref.isiKutipan)
             .map(ref => `- Dari "${ref.title}" oleh ${ref.author} (${ref.year}): "${ref.isiKutipan}"`)
             .join('\n');
@@ -7426,15 +7721,22 @@ Susun poin-poin di atas menjadi sebuah narasi bab metode yang koheren dan diduku
         }
     };
 
-    const handleGenerateStudiLiteratur = async () => {
+    // UPDATE: Menerima selectedIds untuk Studi Literatur
+    const handleGenerateStudiLiteratur = async (selectedIds = []) => {
         setIsLoading(true);
-        const kutipanString = projectData.allReferences
+        
+        // Filter referensi: Gunakan yang dipilih jika ada
+        const sourceRefs = (selectedIds && selectedIds.length > 0) 
+            ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
+            : projectData.allReferences;
+
+        const kutipanString = sourceRefs
             .filter(ref => ref.isiKutipan)
             .map(ref => `- Dari "${ref.title}" oleh ${ref.author} (${ref.year}): "${ref.isiKutipan}"`)
             .join('\n');
 
         if (!kutipanString) {
-            showInfoModal("Tidak ada kutipan/catatan yang ditemukan di perpustakaan referensi Anda. Tambahkan catatan terlebih dahulu.");
+            showInfoModal("Tidak ada kutipan/catatan dari referensi terpilih. Pastikan Anda memilih referensi yang memiliki catatan.");
             setIsLoading(false);
             return;
         }
@@ -7478,8 +7780,9 @@ ${kutipanString}
         }
     };
     
-    // --- UPDATE: handleGenerateHasilPembahasan (Context Injection Bab 4) ---
-    const handleGenerateHasilPembahasan = async () => {
+    // --- UPDATE: handleGenerateHasilPembahasan (Context Injection Bab 4 & References) ---
+    // Menerima selectedIds untuk Pembahasan
+    const handleGenerateHasilPembahasan = async (selectedIds = []) => {
         setIsLoading(true);
         setProjectData(p => ({ ...p, hasilPembahasanDraft: '' }));
 
@@ -7499,6 +7802,19 @@ ${kutipanString}
             ? `\n\n**Data Karakteristik Responden (Awal Bab 4):**\n${projectData.deskripsiRespondenDraft}\n` 
             : "";
 
+        // INJEKSI REFERENSI PEMBANDING (BARU)
+        // Filter referensi: Gunakan yang dipilih jika ada
+        const sourceRefs = (selectedIds && selectedIds.length > 0) 
+            ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
+            : projectData.allReferences;
+
+        const refPembandingString = sourceRefs
+            .map(ref => {
+                const content = ref.isiKutipan || ref.abstract || "(Tidak ada catatan)";
+                return `[REF] ${ref.author} (${ref.year}): "${content}"`;
+            })
+            .join('\n');
+
         const contextBab1 = projectData.pendahuluanDraft || "Belum ada draf Bab 1.";
         const contextBab2 = projectData.studiLiteraturDraft || "Belum ada draf Bab 2.";
         const contextBab3 = projectData.metodeDraft || "Belum ada draf Bab 3."; // <-- BAB 3 DITAMBAHKAN
@@ -7507,11 +7823,12 @@ ${kutipanString}
 
 Aturan Paling Penting (WAJIB DIPATUHI):
 1. **Theoretical Linking (WAJIB):** Pembahasan Anda JANGAN HANYA deskriptif. Anda WAJIB mengaitkan temuan data kembali ke teori-teori atau konsep yang telah disebutkan dalam "Konteks Bab 1 (Pendahuluan)" atau "Konteks Bab 2 (Tinjauan Pustaka)". Jika di Bab 1 ada teori motivasi atau keadilan, sebutkan kembali di pembahasan untuk memvalidasi atau menolak teori tersebut berdasarkan data.
-2. **No Hallucination:** Gunakan data dari "Data Hasil Analisis". Jangan mengarang angka atau kutipan baru.
-3. **Hasil penelitian wajib menjawab rumusan masalah dan tujuan penelitian pada "Konteks Bab 1 (Pendahuluan)":** JANGAN OUT OF CONTEXT, hasil penelitian harus bisa menjawab rumusan masalah dan tujuan penelitian yang disebutkan dalam "Konteks Bab 1 (Pendahuluan)".
-4. **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Sumber Data & Konteks". JANGAN membuat asumsi atau menambahkan informasi yang tidak ada.
-5. **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
-6. **Gunakan Sub-judul Bernomor:** Wajib gunakan format "4.1 ...", "4.2 ...", dst.
+2. **Gunakan Referensi Pembanding:** Gunakan data dari "Referensi Pembanding / Included Studies" untuk mendukung argumen pembahasan (misal: "Temuan ini sejalan dengan [Penulis, Tahun]...").
+3. **No Hallucination:** Gunakan data dari "Data Hasil Analisis". Jangan mengarang angka atau kutipan baru.
+4. **Hasil penelitian wajib menjawab rumusan masalah dan tujuan penelitian pada "Konteks Bab 1 (Pendahuluan)":** JANGAN OUT OF CONTEXT, hasil penelitian harus bisa menjawab rumusan masalah dan tujuan penelitian yang disebutkan dalam "Konteks Bab 1 (Pendahuluan)".
+5. **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Sumber Data & Konteks". JANGAN membuat asumsi atau menambahkan informasi yang tidak ada.
+6. **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
+7. **Gunakan Sub-judul Bernomor:** Wajib gunakan format "4.1 ...", "4.2 ...", dst.
 
 **Sumber Data & Konteks:**
 - Judul: "${projectData.judulKTI}"
@@ -7521,6 +7838,8 @@ Aturan Paling Penting (WAJIB DIPATUHI):
 - Konteks Bab 3 (Metode): ${contextBab3.substring(0, 3000)}
 - Deskripsi Responden: ${deskripsiResponden}
 - Data Hasil Analisis: ${dataSintesis}
+- Referensi Pembanding / Included Studies (WAJIB DIGUNAKAN DI PEMBAHASAN): 
+${refPembandingString || "Tidak ada referensi pembanding khusus yang dipilih."}
 
 **Instruksi untuk Penulisan Bab 4:**
 
@@ -7547,7 +7866,7 @@ Aturan Paling Penting (WAJIB DIPATUHI):
 - Hubungkan temuan dengan **kerangka teori** yang telah diuraikan di **Bab 1 dan Bab 2**, serta dengan **metode** yang digunakan di Bab 3.
 - Pembahasan harus mencakup:
   - **Analisis hasil temuan**: Jelaskan **makna dan implikasi** dari temuan utama, apakah temuan tersebut sesuai dengan literatur yang ada atau berbeda.
-  - **Perbandingan dengan studi terdahulu**: Bandingkan temuan penelitian ini dengan temuan-temuan lain di literatur yang relevan dan jelaskan **perbedaan atau kesamaannya**.
+  - **Perbandingan dengan studi terdahulu**: Bandingkan temuan penelitian ini dengan temuan-temuan lain di literatur yang relevan dan jelaskan **perbedaan atau kesamaannya**. Gunakan "Referensi Pembanding" yang disediakan di atas.
   - **Keterkaitan dengan tujuan penelitian**: Tunjukkan bagaimana temuan ini menjawab **pertanyaan penelitian** atau **tujuan penelitian** yang telah ditetapkan sebelumnya.
   - **Kebaruan penelitian**: Jelaskan apa yang **baru dan inovatif** dari temuan penelitian ini dalam konteks literatur yang ada.
   - **Implikasi teoretis dan praktis**: Bahas **implikasi teoretis** dari temuan penelitian terhadap perkembangan ilmu pengetahuan di bidang yang diteliti dan **implikasi praktis**nya terhadap kebijakan atau aplikasi nyata di laboratorium atau lembaga riset.
@@ -7712,9 +8031,11 @@ Pastikan ada alur yang logis dan setiap bagian saling terkait.`;
             doi: paper.externalIds?.DOI || '',
             url: paper.url || '',
             publisher: '',
+            // --- PERBAIKAN: Menambahkan field abstract agar tersimpan ---
+            abstract: paper.abstract || '', 
+            // -----------------------------------------------------------
             isiKutipan: initialNote
         };
-        // --- PERBAIKAN BERAKHIR DI SINI ---
 
         setProjectData(prev => ({
             ...prev,
