@@ -90,6 +90,8 @@ const initialProjectData = {
     deskripsiVisualisasi: '',
     interpretasiData: '',
     analisisVisualDraft: '',
+    analisisGapNoveltyDraft: '', 
+    // ---------------------------------------
 
     // Data Draf Bab
     teoriPenelitianDraft: '', // Tetap di sini untuk penggunaan lain
@@ -4245,6 +4247,236 @@ const AnalisisVisual = ({
   );
 };
 
+// ================ KOMPONEN BARU: ANALISIS GAP & NOVELTY ================
+const AnalisisGapNovelty = ({ 
+    projectData, 
+    setProjectData, 
+    geminiApiKeys, 
+    showInfoModal, 
+    handleCopyToClipboard 
+}) => {
+    const [selectedRefIds, setSelectedRefIds] = useState([]);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [targetDraft, setTargetDraft] = useState('pendahuluanDraft');
+
+    // Helper: Pilih Semua / Hapus Semua
+    const handleSelectAll = (select) => {
+        if (select) {
+            const allIds = projectData.allReferences.map(ref => ref.id);
+            setSelectedRefIds(allIds);
+        } else {
+            setSelectedRefIds([]);
+        }
+    };
+
+    const handleCheckboxChange = (id) => {
+        setSelectedRefIds(prev => {
+            if (prev.includes(id)) {
+                return prev.filter(item => item !== id);
+            } else {
+                return [...prev, id];
+            }
+        });
+    };
+
+    // Logika Utama: Analisis dengan AI
+    const handleAnalyze = async () => {
+        if (selectedRefIds.length === 0) {
+            showInfoModal("Pilih setidaknya satu referensi untuk dianalisis.");
+            return;
+        }
+        
+        if (!projectData.judulKTI) {
+            showInfoModal("Judul KTI belum diisi. Harap lengkapi di tab 'Ide KTI' terlebih dahulu.");
+            return;
+        }
+
+        setIsAnalyzing(true);
+
+        // 1. Siapkan Data Referensi
+        const selectedRefs = projectData.allReferences.filter(ref => selectedRefIds.includes(ref.id));
+        
+        const refsDataString = selectedRefs.map((ref, index) => {
+            // Cek apakah ada data ekstraksi SLR
+            const extraction = projectData.extractedData.find(e => String(e.refId) === String(ref.id));
+            let detailContent = "";
+
+            if (extraction) {
+                // Prioritas 1: Data Ekstraksi (Paling Kaya)
+                detailContent = `Data Ekstraksi SLR:\n${JSON.stringify(extraction.data)}`;
+            } else if (ref.isiKutipan) {
+                // Prioritas 2: Catatan Manual
+                detailContent = `Catatan/Kutipan:\n"${ref.isiKutipan}"`;
+            } else {
+                // Prioritas 3: Hanya Metadata
+                detailContent = "(Hanya Metadata Tersedia)";
+            }
+
+            return `[${index + 1}] ${ref.author} (${ref.year}). "${ref.title}".\n${detailContent}`;
+        }).join('\n\n----------------\n\n');
+
+        // 2. Siapkan Prompt
+        const prompt = `Anda adalah Reviewer Jurnal Akademik Q1 yang kritis. Tugas Anda adalah melakukan META-ANALISIS terhadap literatur terpilih untuk menemukan Kesenjangan Riset (Research Gap) dan merumuskan Kebaruan (Novelty) untuk penelitian pengguna.
+
+**PROFIL PENELITIAN PENGGUNA:**
+- Judul: "${projectData.judulKTI}"
+- Tujuan: "${projectData.tujuanPenelitianDraft || 'Belum ditentukan'}"
+
+**DAFTAR LITERATUR PEMBANDING:**
+${refsDataString}
+
+**INSTRUKSI ANALISIS:**
+Lakukan analisis mendalam dan hasilkan narasi akademis yang padat (siap pakai untuk Bab 1 atau Bab 2) dengan struktur berikut:
+
+1. **State of the Art (Peta Penelitian Terdahulu):**
+   - Secara ringkas, petakan tren dominan dari literatur di atas. Apa topik, metode, atau variabel yang sudah "jenuh" atau sering diteliti? (Sebutkan nama penulis sebagai bukti, misal: "Penelitian A (2020) dan B (2021) fokus pada...").
+
+2. **Identifikasi Kesenjangan (Research Gap Analysis):**
+   - Temukan apa yang BELUM ada atau KURANG dari literatur tersebut. Pilih sudut pandang gap yang paling relevan:
+     - *Empirical Gap:* Konteks/lokasi/populasi yang belum diteliti?
+     - *Theoretical Gap:* Teori yang belum diuji atau adanya kontradiksi hasil?
+     - *Methodological Gap:* Metode yang belum diterapkan?
+   - Gunakan kalimat tegas: "Namun, belum ada penelitian yang secara spesifik membahas..." atau "Terdapat inkonsistensi temuan mengenai..."
+
+3. **Pernyataan Kebaruan (Novelty Statement):**
+   - Berdasarkan gap di atas, jelaskan secara eksplisit bagaimana penelitian pengguna (Judul di atas) mengisi kekosongan tersebut.
+   - Mengapa penelitian ini penting dan berbeda? (Misal: "Penelitian ini menawarkan kebaruan dengan menggabungkan variabel X dan Y dalam konteks Z yang belum terjamah...").
+
+**Format Output:**
+Teks narasi akademis formal (Bahasa Indonesia). Gunakan sub-judul tebal untuk setiap bagian.`;
+
+        try {
+            // Menggunakan geminiApiKeys (Array) sesuai update Langkah 2 sebelumnya
+            const result = await geminiService.run(prompt, geminiApiKeys);
+            setProjectData(p => ({ ...p, analisisGapNoveltyDraft: result }));
+            showInfoModal("Analisis Gap & Novelty berhasil dibuat!");
+        } catch (error) {
+            showInfoModal(`Gagal menganalisis: ${error.message}`);
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    const handleAddToDraft = () => {
+        if (!projectData.analisisGapNoveltyDraft) return;
+        
+        const contentToAdd = `\n\n=== ANALISIS GAP & NOVELTY ===\n${projectData.analisisGapNoveltyDraft}\n`;
+        
+        setProjectData(p => ({
+            ...p,
+            [targetDraft]: (p[targetDraft] || '') + contentToAdd
+        }));
+        
+        showInfoModal("Hasil analisis berhasil ditambahkan ke draf yang dipilih!");
+    };
+
+    // Render Indikator Kualitas Data
+    const getDataBadge = (ref) => {
+        const hasExtraction = projectData.extractedData.some(e => String(e.refId) === String(ref.id));
+        if (hasExtraction) return <span className="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-200" title="Data Ekstraksi SLR Tersedia">High Quality Data</span>;
+        if (ref.isiKutipan && ref.isiKutipan.length > 50) return <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full border border-yellow-200" title="Catatan Manual Tersedia">Medium Data</span>;
+        return <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200" title="Hanya Metadata">Low Data</span>;
+    };
+
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-2 text-gray-800">Analisis Kesenjangan & Kebaruan (Gap & Novelty)</h2>
+            <p className="text-gray-600 mb-6">Fitur ini menggunakan AI untuk membaca literatur Anda, menemukan celah riset (Gap), dan merumuskan argumen kebaruan (Novelty) untuk penelitian Anda.</p>
+
+            {/* BAGIAN 1: SELEKSI DATA */}
+            <div className="mb-6 border rounded-lg overflow-hidden">
+                <div className="bg-gray-100 p-3 flex justify-between items-center border-b">
+                    <h3 className="font-bold text-gray-700">Pilih Literatur Pembanding ({selectedRefIds.length} dipilih)</h3>
+                    <div className="space-x-2">
+                        <button onClick={() => handleSelectAll(true)} className="text-xs text-blue-600 hover:underline">Pilih Semua</button>
+                        <button onClick={() => handleSelectAll(false)} className="text-xs text-red-600 hover:underline">Hapus Semua</button>
+                    </div>
+                </div>
+                <div className="max-h-60 overflow-y-auto p-4 bg-gray-50 space-y-2">
+                    {projectData.allReferences.length > 0 ? (
+                        projectData.allReferences.map(ref => (
+                            <label key={ref.id} className="flex items-start gap-3 p-2 hover:bg-white rounded border border-transparent hover:border-gray-200 cursor-pointer transition-colors">
+                                <input 
+                                    type="checkbox" 
+                                    checked={selectedRefIds.includes(ref.id)}
+                                    onChange={() => handleCheckboxChange(ref.id)}
+                                    className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                />
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-semibold text-sm text-gray-800">{ref.title}</span>
+                                        {getDataBadge(ref)}
+                                    </div>
+                                    <p className="text-xs text-gray-500">{ref.author} ({ref.year})</p>
+                                </div>
+                            </label>
+                        ))
+                    ) : (
+                        <p className="text-center text-gray-500 italic text-sm py-4">Belum ada referensi. Silakan tambahkan di menu "Literatur & Referensi".</p>
+                    )}
+                </div>
+            </div>
+
+            {/* BAGIAN 2: TOMBOL AKSI */}
+            <div className="flex justify-center mb-8">
+                <button 
+                    onClick={handleAnalyze}
+                    disabled={isAnalyzing || selectedRefIds.length === 0}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transform hover:-translate-y-1 transition-all disabled:bg-purple-300 disabled:cursor-not-allowed disabled:transform-none"
+                >
+                    {isAnalyzing ? (
+                        <span className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Menganalisis Kesenjangan...
+                        </span>
+                    ) : "✨ Analisis Kesenjangan & Kebaruan"}
+                </button>
+            </div>
+
+            {/* BAGIAN 3: HASIL & OUTPUT */}
+            {projectData.analisisGapNoveltyDraft && (
+                <div className="animate-fade-in border-t-2 border-dashed border-gray-200 pt-6">
+                    <div className="flex justify-between items-center mb-3">
+                        <h3 className="text-lg font-bold text-gray-800">Hasil Analisis AI</h3>
+                        <button onClick={() => handleCopyToClipboard(projectData.analisisGapNoveltyDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1 px-3 rounded-lg">
+                            Salin Teks
+                        </button>
+                    </div>
+                    
+                    <textarea
+                        value={projectData.analisisGapNoveltyDraft}
+                        onChange={(e) => setProjectData(p => ({...p, analisisGapNoveltyDraft: e.target.value}))}
+                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed mb-4"
+                        rows="12"
+                        placeholder="Hasil analisis akan muncul di sini..."
+                    ></textarea>
+
+                    <div className="bg-blue-50 p-4 rounded-lg flex flex-col sm:flex-row items-center gap-4 border border-blue-100">
+                        <div className="flex-1 w-full">
+                            <label className="block text-blue-800 text-xs font-bold mb-1">Simpan hasil ini ke:</label>
+                            <select 
+                                value={targetDraft}
+                                onChange={(e) => setTargetDraft(e.target.value)}
+                                className="block w-full bg-white border border-blue-300 text-gray-700 py-2 px-3 rounded leading-tight focus:outline-none focus:bg-white focus:border-blue-500 text-sm"
+                            >
+                                <option value="pendahuluanDraft">Bab 1: Pendahuluan (Latar Belakang)</option>
+                                <option value="studiLiteraturDraft">Bab 2: Tinjauan Pustaka</option>
+                                <option value="hasilPembahasanDraft">Bab 4: Pembahasan (Posisi Penelitian)</option>
+                            </select>
+                        </div>
+                        <button 
+                            onClick={handleAddToDraft}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg text-sm whitespace-nowrap"
+                        >
+                            Tambahkan ke Draf
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 // --- Komponen untuk Kesimpulan ---
 const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isLoading, handleCopyToClipboard, handleModifyText }) => {
@@ -5926,7 +6158,7 @@ const Tutorial = () => {
 };
 
 // --- Komponen BARU untuk Reset & Hapus Proyek ---
-const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGeminiApiKey, setScopusApiKey, showInfoModal }) => { 
+const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGeminiApiKey, setScopusApiKey, showInfoModal, setForceShowLicense, setGeminiApiKeys }) => { 
     
     // State lokal untuk modal konfirmasi
     const [isLocalResetConfirmOpen, setIsLocalResetConfirmOpen] = useState(false);
@@ -5934,12 +6166,13 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
     // Fungsi baru untuk menghapus data lokal (API Key) saja
     const handleClearLocalData = () => {
         // Hapus dari Local Storage
-        localStorage.removeItem('gemini-api-key');
+        localStorage.removeItem('gemini-api-key'); // Legacy
+        localStorage.removeItem('gemini-api-keys-list'); // Multi-key list
         localStorage.removeItem('scopus-api-key');
         localStorage.removeItem('hasSeenWelcomeModal');
         
         // Hapus dari State Aplikasi (agar UI langsung update tanpa reload)
-        setGeminiApiKey('');
+        setGeminiApiKeys(['']); // Reset ke array kosong (default)
         setScopusApiKey('');
         
         // Tutup modal dan beri notifikasi
@@ -5965,9 +6198,23 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
                 </button>
             </div>
 
-            {/* Bagian 2: Keamanan Lokal (API Key) */}
+            {/* Bagian 2: Manajemen Lisensi (Upgrade) */}
+            <div className="mb-8 p-4 border-2 border-dashed border-indigo-400 rounded-lg bg-indigo-50">
+                <h3 className="text-xl font-bold mb-2 text-indigo-800">2. Manajemen Lisensi</h3>
+                <p className="text-indigo-700 mb-4 text-sm">
+                    Ingin memasukkan kode lisensi baru? Gunakan tombol di bawah ini untuk membuka kembali halaman aktivasi.
+                </p>
+                <button
+                    onClick={() => setForceShowLicense(true)}
+                    className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-transform transform hover:scale-105"
+                >
+                    Input Ulang / Upgrade Lisensi
+                </button>
+            </div>
+
+            {/* Bagian 3: Keamanan Lokal (API Key) */}
             <div className="p-4 border-2 border-dashed border-gray-400 rounded-lg bg-gray-50">
-                <h3 className="text-xl font-bold mb-2 text-gray-800">2. Keamanan Perangkat (Hapus Kunci API)</h3>
+                <h3 className="text-xl font-bold mb-2 text-gray-800">3. Keamanan Perangkat (Hapus Kunci API)</h3>
                 <p className="text-gray-700 mb-4 text-sm">
                     Gunakan tombol di bawah ini jika Anda menggunakan komputer publik atau ingin mengganti Kunci API. Tindakan ini hanya akan menghapus <strong>Google AI API Key</strong> dan <strong>Scopus API Key</strong> yang tersimpan di browser ini. Data proyek Anda tetap aman di server.
                 </p>
@@ -6015,6 +6262,7 @@ function App() {
     
     // State Baru: Verifikasi Lisensi per Sesi (Default False setiap refresh)
     const [isLicenseVerified, setIsLicenseVerified] = useState(false); 
+    const [forceShowLicense, setForceShowLicense] = useState(false); // State baru untuk memaksa lisensi muncul
 
     // State untuk alur kerja Ide KTI yang baru
     const [ideKtiMode, setIdeKtiMode] = useState(null); // 'ai', 'manual', atau null
@@ -6181,6 +6429,7 @@ const setGeminiApiKey = (val) => {
         if (currentUser) {
             // 1. Buka Akses Sesi Ini
             setIsLicenseVerified(true);
+            setForceShowLicense(false); // Matikan paksaan lisensi setelah berhasil
 
             // 2. Update state lokal data proyek
             setProjectData(prev => ({ 
@@ -8222,6 +8471,8 @@ case 'genWawancara':
                 return <AnalisisKualitatif {...{ projectData, setProjectData, handleGenerateAnalisisKualitatif, isLoading, showInfoModal, handleCopyToClipboard }} />;
             case 'analisisVisual':
                 return <AnalisisVisual {...{ projectData, setProjectData, handleGenerateAnalisisVisual, isLoading, showInfoModal, handleCopyToClipboard }} />;
+            case 'analisisGap':
+                return <AnalisisGapNovelty {...{ projectData, setProjectData, geminiApiKeys, showInfoModal, handleCopyToClipboard }} />;
             case 'outline':
                 return <Outline {...{ projectData, setProjectData, handleGenerateOutline, isLoading }} />;
             case 'pendahuluan':
@@ -8257,6 +8508,8 @@ case 'genWawancara':
                     setGeminiApiKey={setGeminiApiKey}
                     setScopusApiKey={setScopusApiKey}
                     showInfoModal={showInfoModal}
+                    setForceShowLicense={setForceShowLicense} // Pass fungsi ini
+                    setGeminiApiKeys={setGeminiApiKeys} // Pass setter array untuk fix hapus kunci
                 />; 
             default:
                 return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
@@ -8544,6 +8797,7 @@ try {
             analisis: {
                 title: "Analisis Data",
                 items: [
+                    { id: 'analisisGap', name: 'Analisis Gap & Novelty' },
                     { id: 'deskripsiResponden', name: 'Karakteristik Responden' },
                     { id: 'analisisKuantitatif', name: 'Analisis Data Kuantitatif (Tabel)' },
                     { id: 'analisisKualitatif', name: 'Analisis Data Kualitatif (Dokumen)' },
@@ -8641,8 +8895,8 @@ try {
 
     // --- LOGIKA BARU: Cek Lisensi Premium ---
     // PERBAIKAN: Cek apakah pengguna belum verifikasi di sesi ini DAN juga belum tercatat Premium di database.
-    // Jika salah satu terpenuhi (misal sudah Premium di DB), gerbang lisensi tidak akan muncul.
-    if (!isLicenseVerified && !projectData.isPremium) {
+    // ATAU jika forceShowLicense bernilai true (dipicu dari menu pengaturan).
+    if ((!isLicenseVerified && !projectData.isPremium) || forceShowLicense) {
         return (
             <LicenseGate 
                 onActivate={handleLicenseActivation} 
