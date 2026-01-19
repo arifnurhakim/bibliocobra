@@ -688,10 +688,11 @@ class ErrorBoundary extends React.Component {
 const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
     const [inputCode, setInputCode] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
-    const adminContact = "6281234567890"; // Ganti dengan nomor WhatsApp Admin
+    const adminContact = "6285123048010"; // Ganti dengan nomor WhatsApp Admin
 
     const handleActivation = () => {
-        const STANDARD_CODES = ["BIBLIO-2025", "KTI-PREMIUM", "AKADEMIK-Q1", "TEST-USER"];
+        // UPDATE: Menambahkan "EL-COBRA" ke daftar kode standar
+        const STANDARD_CODES = ["BIBLIO-2025", "KTI-PREMIUM", "AKADEMIK-Q1", "TEST-USER", "EL-COBRA"];
         const ELITE_CODES = ["SCOPUS-MASTER", "PROFESSOR-MODE", "SOBATJRENG"]; // Kode Rahasia
         
         const code = inputCode.toUpperCase().trim();
@@ -716,7 +717,7 @@ const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
                 
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">Aktivasi Akun Premium</h2>
                 <p className="text-gray-600 mb-6">
-                    Bibliocobra adalah alat riset berbayar. Untuk melanjutkan, silakan masukkan <strong>Kode Lisensi</strong> yang Anda dapatkan setelah pembayaran.
+                    Untuk melanjutkan, silakan masukkan <strong>Kode Lisensi</strong> yang Anda dapatkan dari admin.
                 </p>
 
                 <div className="mb-6">
@@ -3164,20 +3165,38 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
             <div className="mb-8 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <h3 className="font-bold text-yellow-800 text-sm flex items-center gap-2">
-                        🐍 Utilitas Eksternal: Cobrasaurus
+                        🐍 Utilitas Eksternal: Cobrasaurus {projectData.showScopus ? "(Elite Access)" : "(Add-on)"}
                     </h3>
                     <p className="text-sm text-yellow-700 mt-1">
                         Punya daftar kata kunci yang berantakan atau tidak konsisten? Gunakan <strong>Cobrasaurus</strong> (Add-on mirip OpenRefine) untuk membersihkan dan menstandarisasi kata kunci Anda sebelum menyusun kueri.
                     </p>
                 </div>
-                <a 
-                    href="https://cobrasaurus.vercel.app/" 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-bold py-2 px-4 rounded-lg whitespace-nowrap shadow-sm transition-colors flex items-center gap-2"
-                >
-                    Buka Cobrasaurus ↗
-                </a>
+                
+                {/* LOGIKA KONDISIONAL: Cek apakah user Elite (showScopus=true) atau Biasa */}
+                {projectData.showScopus ? (
+                    /* Tampilan untuk User Elite: Akses Langsung */
+                    <a 
+                        href="https://cobrasaurus.vercel.app/" 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-bold py-2 px-4 rounded-lg whitespace-nowrap shadow-sm transition-colors flex items-center gap-2"
+                    >
+                        Buka Cobrasaurus ↗
+                    </a>
+                ) : (
+                    /* Tampilan untuk User Premium Biasa: Link ke Admin WA */
+                    <a 
+                        href={`https://wa.me/6285123048010?text=${encodeURIComponent("Halo Admin, saya pengguna Premium biasa ingin membeli akses add-on Cobrasaurus.")}`}
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="bg-gray-700 hover:bg-gray-800 text-white text-sm font-bold py-2 px-4 rounded-lg whitespace-nowrap shadow-sm transition-colors flex items-center gap-2"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                        </svg>
+                        Beli Akses Add-on
+                    </a>
+                )}
             </div>
             {/* --- PENEMPATAN LINK COBRASAURUS BERAKHIR DI SINI --- */}
             
@@ -3783,7 +3802,7 @@ const AnalisisKualitatif = ({
                 </p>
                 <div className="flex flex-col gap-2">
                     <a 
-                        href={`https://wa.me/6281234567890?text=${encodeURIComponent("Halo Admin, saya tertarik membeli akses Audiocobra.")}`}
+                        href={`https://wa.me/6285123048010?text=${encodeURIComponent("Halo Admin, saya tertarik membeli akses Audiocobra.")}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm transition-colors"
@@ -5796,10 +5815,10 @@ const Donasi = ({ handleCopyToClipboard }) => {
 // --- Komponen untuk Tutorial (Bantuan & Kontak) ---
 const Tutorial = () => {
     // Data Dummy Kontak
-    const adminWA = "6281234567890"; 
-    const displayWA = "+62 812-3456-7890";
-    const adminEmail = "support@bibliocobra.com";
-    const adminIG = "bibliocobra.id"; // Dummy Instagram
+    const adminWA = "6285123048010"; 
+    const displayWA = "+62 851-2304-8010";
+    const adminEmail = "ibracobra.production@gmail.com";
+    const adminIG = "ibracobra_production"; // Dummy Instagram
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
@@ -8621,9 +8640,9 @@ try {
     }
 
     // --- LOGIKA BARU: Cek Lisensi Premium ---
-    // Jika pengguna sudah login TAPI belum memasukkan kode di sesi ini, tampilkan License Gate
-    // Menggunakan isLicenseVerified (session state) alih-alih projectData.isPremium (persistent state)
-    if (!isLicenseVerified) {
+    // PERBAIKAN: Cek apakah pengguna belum verifikasi di sesi ini DAN juga belum tercatat Premium di database.
+    // Jika salah satu terpenuhi (misal sudah Premium di DB), gerbang lisensi tidak akan muncul.
+    if (!isLicenseVerified && !projectData.isPremium) {
         return (
             <LicenseGate 
                 onActivate={handleLicenseActivation} 
