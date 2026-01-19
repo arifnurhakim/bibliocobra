@@ -1063,6 +1063,7 @@ const IdeKTI = ({
 // --- Komponen untuk Tab 2: Referensi (UI Terpadu) ---
 const Referensi = ({ 
     projectData, 
+    setProjectData, // <-- PERBAIKAN: Tambahkan ini agar fungsi hapus bulk bisa berjalan
     manualRef,
     setManualRef,
     handleSaveManualReference,
@@ -8549,7 +8550,8 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             case 'ideKTI':
                 return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
             case 'referensi':
-                return <Referensi {...{ projectData, manualRef, setManualRef, handleSaveManualReference, freeTextRef, setFreeTextRef, handleImportFromText, handleEditReference, handleDeleteReference, handleGenerateApa, generatedApaReferences, handleCopyToClipboard, handleShowSearchPrompts, handleGenerateReferenceClues, isLoading, openNoteModal, triggerReferencesImport, handleExportReferences, handleSearchSemanticScholar, searchQuery, setSearchQuery, searchResults, isS2Searching, handleAddReferenceFromSearch, handleAiReview, showInfoModal, openMethod, setOpenMethod, handleConceptSearch, conceptQuery, setConceptQuery, isConceptSearching, conceptSearchResult, handleSearchScopus, isScopusSearching, scopusSearchResults, scopusApiKey, setScopusApiKey, handleRegulationSearch, isRegulationSearching, regulationSearchResults, handleAddRegulationToReference, conceptSearchMode, setConceptSearchMode, handleClueSearchRegulation }} />;
+                // PERBAIKAN: Tambahkan setProjectData ke dalam objek props yang dikirim
+                return <Referensi {...{ projectData, setProjectData, manualRef, setManualRef, handleSaveManualReference, freeTextRef, setFreeTextRef, handleImportFromText, handleEditReference, handleDeleteReference, handleGenerateApa, generatedApaReferences, handleCopyToClipboard, handleShowSearchPrompts, handleGenerateReferenceClues, isLoading, openNoteModal, triggerReferencesImport, handleExportReferences, handleSearchSemanticScholar, searchQuery, setSearchQuery, searchResults, isS2Searching, handleAddReferenceFromSearch, handleAiReview, showInfoModal, openMethod, setOpenMethod, handleConceptSearch, conceptQuery, setConceptQuery, isConceptSearching, conceptSearchResult, handleSearchScopus, isScopusSearching, scopusSearchResults, scopusApiKey, setScopusApiKey, handleRegulationSearch, isRegulationSearching, regulationSearchResults, handleAddRegulationToReference, conceptSearchMode, setConceptSearchMode, handleClueSearchRegulation }} />;
             case 'prisma':
                 return <PrismaSLR {...{ projectData, setProjectData, showInfoModal, handleAiReview }} />;
             case 'sintesis':
@@ -9324,7 +9326,7 @@ try {
                             
                             <div className="text-center mb-8">
                                 <h1 className="text-4xl font-bold text-gray-800">BIBLIOCOBRA KTI GENERATOR</h1>
-                                <p className="text-md text-gray-600">Inject the venom into your research! </p>
+                                <p className="text-md text-gray-600">Inject the venom into your research 🐍</p>
                             </div>
                             
                             <div className="bg-white rounded-xl shadow-lg p-6">
