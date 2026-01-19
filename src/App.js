@@ -9324,7 +9324,7 @@ try {
                             
                             <div className="text-center mb-8">
                                 <h1 className="text-4xl font-bold text-gray-800">BIBLIOCOBRA KTI GENERATOR</h1>
-                                <p className="text-md text-gray-600">Inject the venom into your research! 🐍</p>
+                                <p className="text-md text-gray-600">Inject the venom into your research! </p>
                             </div>
                             
                             <div className="bg-white rounded-xl shadow-lg p-6">
