@@ -3915,8 +3915,6 @@ const AnalisisKuantitatif = ({
   const [parsedData, setParsedData] = useState(null);
   const [quantitativeFocus, setQuantitativeFocus] = useState(''); // <-- BARU
   const [targetDraft, setTargetDraft] = useState('analisisKuantitatifDraft'); // <-- TAMBAHKAN INI
-  const [isEvolutionAnalyzing, setIsEvolutionAnalyzing] = useState(false);
-  const [evolutionCutoffYear, setEvolutionCutoffYear] = useState(2020); // Default sementara
   const fileInputRef = useRef(null);
 
   // Handle file upload
