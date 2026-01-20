@@ -92,6 +92,7 @@ const initialProjectData = {
     analisisVisualDraft: '',
     analisisGapNoveltyDraft: '', 
     // ---------------------------------------
+    thematicMapData: null, // <-- Penambahan State untuk Peta Tematik (Langkah 1)
 
     // Data Draf Bab
     teoriPenelitianDraft: '', // Tetap di sini untuk penggunaan lain
@@ -828,7 +829,8 @@ const ReferenceSelector = ({ projectData, selectedRefIds, setSelectedRefIds }) =
                                     </svg>
                                     Abstrak
                                 </h5>
-                                <div className="bg-gray-50 p-3 rounded border border-gray-200 text-gray-700 text-justify leading-relaxed max-h-40 overflow-y-auto">
+                                {/* PERBAIKAN FORMAT: Menggunakan whitespace-pre-wrap agar enter terbaca, menghapus text-justify agar tidak renggang */}
+                                <div className="bg-gray-50 p-3 rounded border border-gray-200 text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto leading-normal">
                                     {viewingRef.abstract ? viewingRef.abstract : <span className="text-gray-400 italic">Tidak ada data abstrak.</span>}
                                 </div>
                             </div>
@@ -1254,6 +1256,8 @@ const Referensi = ({
     setProjectData, // <-- PERBAIKAN: Tambahkan ini agar fungsi hapus bulk bisa berjalan
     manualRef,
     setManualRef,
+    manualMode, // <-- Props baru
+    setManualMode, // <-- Props baru
     handleSaveManualReference,
     freeTextRef,
     setFreeTextRef,
@@ -1298,15 +1302,60 @@ const Referensi = ({
     handleAddRegulationToReference,
     handleClueSearchRegulation,
     conceptSearchMode,
-    setConceptSearchMode
+    setConceptSearchMode,
+    // --- PROPS BARU UNTUK RIS ---
+    triggerImportRis,
+    handleExportRis
 }) => {
-    const [manualMode, setManualMode] = useState('template');
+    // HAPUS STATE LOKAL: const [manualMode, setManualMode] = useState('template');
     const [expandedAbstractId, setExpandedAbstractId] = useState(null);
     const [aiReviews, setAiReviews] = useState({});
     
     // --- STATE BARU: Untuk Checkbox Perpustakaan ---
     const [selectedLibraryIds, setSelectedLibraryIds] = useState([]);
     const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false); // State Modal Konfirmasi Hapus
+
+    // --- STATE BARU: Untuk Sorting (Pengurutan) ---
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+    // --- FUNGSI BARU: Logic Sorting ---
+    const handleSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedReferences = React.useMemo(() => {
+        let sortableItems = [...projectData.allReferences];
+        if (sortConfig.key !== null) {
+            sortableItems.sort((a, b) => {
+                let aValue = a[sortConfig.key];
+                let bValue = b[sortConfig.key];
+
+                // Penanganan khusus untuk Tahun (Konversi ke angka)
+                if (sortConfig.key === 'year') {
+                    // Ambil angka saja dari string tahun (misal "2020///" -> 2020)
+                    aValue = parseInt(String(aValue || '0').replace(/\D/g, ''), 10) || 0;
+                    bValue = parseInt(String(bValue || '0').replace(/\D/g, ''), 10) || 0;
+                } else {
+                    // Default string compare (Case insensitive)
+                    aValue = String(aValue || '').toLowerCase();
+                    bValue = String(bValue || '').toLowerCase();
+                }
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [projectData.allReferences, sortConfig]);
 
     // --- FUNGSI BARU: Manajemen Seleksi & Bulk Delete ---
     const handleSelectAllLibrary = (e) => {
@@ -2075,8 +2124,25 @@ const Referensi = ({
                            </button>
                        )}
                        {/* ------------------------------------------------------- */}
-                       <button onClick={triggerReferencesImport} className="bg-gray-500 hover:bg-gray-600 text-white text-xs font-bold py-1 px-3 rounded-lg">Impor</button>
-                       <button onClick={handleExportReferences} className="bg-gray-500 hover:bg-gray-600 text-white text-xs font-bold py-1 px-3 rounded-lg">Ekspor</button>
+                       <button onClick={triggerReferencesImport} className="bg-gray-500 hover:bg-gray-600 text-white text-xs font-bold py-1 px-3 rounded-lg">Impor JSON</button>
+                       <button onClick={handleExportReferences} className="bg-gray-500 hover:bg-gray-600 text-white text-xs font-bold py-1 px-3 rounded-lg">Ekspor JSON</button>
+                       {/* --- TOMBOL BARU: IMPOR/EKSPOR RIS (MENDELEY) --- */}
+                       <div className="h-6 w-px bg-gray-300 mx-1"></div>
+                       <button onClick={triggerImportRis} className="bg-green-700 hover:bg-green-800 text-white text-xs font-bold py-1 px-3 rounded-lg flex items-center gap-1" title="Impor dari Mendeley/Zotero (.ris)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 .5-.5z"/>
+                                <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                            </svg>
+                            Impor RIS
+                       </button>
+                       <button onClick={handleExportRis} className="bg-green-700 hover:bg-green-800 text-white text-xs font-bold py-1 px-3 rounded-lg flex items-center gap-1" title="Ekspor ke Mendeley/Zotero (.ris)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 .5-.5z"/>
+                                <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+                            </svg>
+                            Ekspor RIS
+                       </button>
+                       {/* ---------------------------------------------------- */}
                     </div>
                 </div>
                 {projectData.allReferences.length > 0 ? (
@@ -2095,15 +2161,41 @@ const Referensi = ({
                                                 title="Pilih Semua"
                                             />
                                         </th>
-                                        {/* ----------------------- */}
-                                        <th className="p-3 text-left text-sm font-semibold text-gray-700 border-b-2 border-gray-300">Referensi</th>
-                                        <th className="p-3 text-left text-sm font-semibold text-gray-700 border-b-2 border-gray-300">Kutipan / Catatan</th>
+                                        {/* --- HEADER REFERENSI DENGAN SORTING --- */}
+                                        <th className="p-3 text-left text-sm font-semibold text-gray-700 border-b-2 border-gray-300">
+                                            <div className="flex flex-col gap-1">
+                                                <span>Referensi</span>
+                                                <div className="flex gap-2 text-[10px] font-normal select-none">
+                                                    <button onClick={() => handleSort('title')} className={`hover:text-blue-600 transition-colors ${sortConfig.key === 'title' ? 'text-blue-600 font-bold bg-blue-50 px-1 rounded' : 'text-gray-500'}`}>
+                                                        Judul {sortConfig.key === 'title' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                                    </button>
+                                                    <span className="text-gray-300">|</span>
+                                                    <button onClick={() => handleSort('author')} className={`hover:text-blue-600 transition-colors ${sortConfig.key === 'author' ? 'text-blue-600 font-bold bg-blue-50 px-1 rounded' : 'text-gray-500'}`}>
+                                                        Penulis {sortConfig.key === 'author' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                                    </button>
+                                                    <span className="text-gray-300">|</span>
+                                                    <button onClick={() => handleSort('year')} className={`hover:text-blue-600 transition-colors ${sortConfig.key === 'year' ? 'text-blue-600 font-bold bg-blue-50 px-1 rounded' : 'text-gray-500'}`}>
+                                                        Tahun {sortConfig.key === 'year' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </th>
+                                        {/* --- HEADER KUTIPAN DENGAN SORTING --- */}
+                                        <th className="p-3 text-left text-sm font-semibold text-gray-700 border-b-2 border-gray-300">
+                                            <div className="flex flex-col gap-1">
+                                                <span>Kutipan / Catatan</span>
+                                                <button onClick={() => handleSort('isiKutipan')} className={`text-[10px] font-normal text-left hover:text-blue-600 w-fit select-none transition-colors ${sortConfig.key === 'isiKutipan' ? 'text-blue-600 font-bold bg-blue-50 px-1 rounded' : 'text-gray-500'}`}>
+                                                    Sort A-Z {sortConfig.key === 'isiKutipan' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                                </button>
+                                            </div>
+                                        </th>
                                         <th className="p-3 text-center text-sm font-semibold text-gray-700 border-b-2 border-gray-300" style={{ width: '120px' }}>Cek Kualitas</th>
                                         <th className="p-3 text-left text-sm font-semibold text-gray-700 border-b-2 border-gray-300">Tindakan</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {projectData.allReferences.map((ref, index) => (
+                                    {/* --- GUNAKAN sortedReferences, BUKAN projectData.allReferences --- */}
+                                    {sortedReferences.map((ref, index) => (
                                         <tr key={`${ref.id}-${index}`} className={`hover:bg-gray-50 ${selectedLibraryIds.includes(ref.id) ? 'bg-blue-50' : 'bg-white'}`}>
                                             {/* --- CHECKBOX ITEM --- */}
                                             <td className="p-3 border-b border-gray-200 text-center align-middle">
@@ -2158,6 +2250,17 @@ const Referensi = ({
                                                             >
                                                                 SCImago <span className="text-[10px] group-hover:translate-x-0.5 transition-transform">↗</span>
                                                             </a>
+                                                            {/* --- UPDATE: Tambahkan Link BRIN (Auto Search) --- */}
+                                                            <a 
+                                                                href={`https://reputasipublikasi.brin.go.id/?tahun=2025&option=judul&keyword=${encodeURIComponent(jName)}`} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold px-2 py-1.5 rounded border border-red-200 text-center transition-colors flex items-center justify-center gap-1 group"
+                                                                title="Cek Reputasi BRIN"
+                                                            >
+                                                                BRIN <span className="text-[10px] group-hover:translate-x-0.5 transition-transform">↗</span>
+                                                            </a>
+                                                            {/* ----------------------------------- */}
                                                         </div>
                                                     );
                                                 })()}
@@ -3812,6 +3915,8 @@ const AnalisisKuantitatif = ({
   const [parsedData, setParsedData] = useState(null);
   const [quantitativeFocus, setQuantitativeFocus] = useState(''); // <-- BARU
   const [targetDraft, setTargetDraft] = useState('analisisKuantitatifDraft'); // <-- TAMBAHKAN INI
+  const [isEvolutionAnalyzing, setIsEvolutionAnalyzing] = useState(false);
+  const [evolutionCutoffYear, setEvolutionCutoffYear] = useState(2020); // Default sementara
   const fileInputRef = useRef(null);
 
   // Handle file upload
@@ -4604,6 +4709,117 @@ const AnalisisVisual = ({
 };
 
 // ================ KOMPONEN BARU: ANALISIS GAP & NOVELTY ================
+
+// --- SUB-KOMPONEN: VISUALISASI PETA TEMATIK (SCATTER PLOT) ---
+const ThematicMapVisualizer = ({ data }) => {
+    if (!data || data.length === 0) return null;
+
+    // Konfigurasi Chart
+    const size = 320; // Ukuran SVG
+    const padding = 40;
+    const range = 10; // Skala 1-10
+
+    // Helper konversi koordinat (0-10 ke pixel SVG)
+    const scale = (val) => (val / range) * (size - 2 * padding) + padding;
+    // Y di SVG terbalik (0 di atas), jadi kita balik agar 10 di atas
+    const scaleY = (val) => size - ((val / range) * (size - 2 * padding) + padding);
+
+    return (
+        <div className="bg-white p-4 rounded-lg border border-gray-300 shadow-sm mb-6 flex flex-col items-center animate-fade-in">
+            <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="text-purple-600" viewBox="0 0 16 16">
+                    <path d="M1 0h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V1a1 1 0 0 1 1-1zm1 1v14h14V1H2z"/>
+                    <path d="M6 3a1 1 0 0 0 0 2h4a1 1 0 0 0 0-2H6zm0 4a1 1 0 0 0 0 2h4a1 1 0 0 0 0-2H6zm0 4a1 1 0 0 0 0 2h4a1 1 0 0 0 0-2H6z"/>
+                </svg>
+                Peta Tematik Strategis (AI Generated)
+            </h4>
+            
+            <div className="relative border border-gray-200 bg-gray-50 rounded shadow-inner" style={{ width: size, height: size }}>
+                
+                {/* Garis Kuadran (Crosshair) */}
+                <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gray-400 border-l border-dashed opacity-50"></div>
+                <div className="absolute left-0 right-0 top-1/2 h-px bg-gray-400 border-t border-dashed opacity-50"></div>
+
+                {/* Label Kuadran */}
+                <span className="absolute top-2 left-2 text-[9px] text-gray-500 font-bold bg-white/80 px-1 rounded shadow-sm border border-gray-100">Niche Themes<br/><span className="font-normal text-[8px]">(Terisolasi)</span></span>
+                <span className="absolute top-2 right-2 text-[9px] text-gray-500 font-bold bg-white/80 px-1 rounded shadow-sm border border-gray-100 text-right">Motor Themes<br/><span className="font-normal text-[8px]">(Matang & Penting)</span></span>
+                <span className="absolute bottom-2 left-2 text-[9px] text-gray-500 font-bold bg-white/80 px-1 rounded shadow-sm border border-gray-100">Emerging/Declining<br/><span className="font-normal text-[8px]">(Baru/Pudar)</span></span>
+                <span className="absolute bottom-2 right-2 text-[9px] text-gray-500 font-bold bg-white/80 px-1 rounded shadow-sm border border-gray-100 text-right">Basic Themes<br/><span className="font-normal text-[8px]">(Umum/Dasar)</span></span>
+
+                {/* Label Sumbu */}
+                <span className="absolute bottom-0.5 w-full text-center text-[10px] font-bold text-gray-600 tracking-wide">RELEVANSI (Centrality) &rarr;</span>
+                <span className="absolute left-0.5 bottom-12 origin-left -rotate-90 text-[10px] font-bold text-gray-600 tracking-wide">PENGEMBANGAN (Density) &rarr;</span>
+
+                {/* Titik Data (Bubbles) */}
+                <svg width={size} height={size} className="absolute top-0 left-0 overflow-visible">
+                    {data.map((item, i) => {
+                        // Tentukan warna berdasarkan kuadran
+                        let color = "#6B7280"; // Gray default
+                        if (item.x >= 5 && item.y >= 5) color = "#EF4444"; // Motor (Red)
+                        else if (item.x < 5 && item.y >= 5) color = "#3B82F6"; // Niche (Blue)
+                        else if (item.x < 5 && item.y < 5) color = "#10B981"; // Emerging (Green)
+                        else color = "#F59E0B"; // Basic (Yellow)
+
+                        return (
+                            <g key={i} className="transition-all duration-300 hover:opacity-100 cursor-default group">
+                                {/* Bubble */}
+                                <circle 
+                                    cx={scale(item.x)} 
+                                    cy={scaleY(item.y)} 
+                                    r={Math.max(5, (item.volume || 1) * 3)} 
+                                    fill={color} 
+                                    opacity="0.7"
+                                    stroke="white"
+                                    strokeWidth="1.5"
+                                    className="filter drop-shadow-sm group-hover:scale-110 transition-transform origin-center"
+                                />
+                                {/* Label Tema */}
+                                <text 
+                                    x={scale(item.x)} 
+                                    y={scaleY(item.y) - (Math.max(5, (item.volume || 1) * 3) + 4)} 
+                                    textAnchor="middle" 
+                                    fontSize="10" 
+                                    fill="#1F2937"
+                                    className="font-bold pointer-events-none"
+                                    style={{ textShadow: "0px 0px 4px white, 0px 0px 4px white" }}
+                                >
+                                    {item.theme}
+                                </text>
+                                {/* Tooltip sederhana via title (native) */}
+                                <title>{`${item.theme}\nRelevansi: ${item.x}/10\nPengembangan: ${item.y}/10`}</title>
+                            </g>
+                        );
+                    })}
+                </svg>
+            </div>
+            
+            <div className="mt-4 pt-3 border-t w-full max-w-md">
+                <p className="text-[10px] text-gray-400 italic text-center mb-3">
+                    *Visualisasi ini dihasilkan oleh AI berdasarkan analisis semantik judul & abstrak referensi terpilih. Posisi koordinat adalah estimasi kualitatif.
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-600 leading-tight">
+                    <div className="bg-red-50 p-2 rounded border border-red-100">
+                        <span className="font-bold text-red-700 block mb-0.5">Motor Themes (Kanan-Atas)</span>
+                        Topik penggerak utama yang matang & penting bagi struktur bidang penelitian.
+                    </div>
+                    <div className="bg-blue-50 p-2 rounded border border-blue-100">
+                        <span className="font-bold text-blue-700 block mb-0.5">Niche Themes (Kiri-Atas)</span>
+                        Topik yang sangat spesifik/khusus; sudah matang (developed) tetapi terisolasi.
+                    </div>
+                    <div className="bg-green-50 p-2 rounded border border-green-100">
+                        <span className="font-bold text-green-700 block mb-0.5">Emerging/Declining (Kiri-Bawah)</span>
+                        Topik yang baru muncul (emerging) atau mulai ditinggalkan (declining); relevansi & pengembangan rendah.
+                    </div>
+                    <div className="bg-yellow-50 p-2 rounded border border-yellow-100">
+                        <span className="font-bold text-yellow-700 block mb-0.5">Basic Themes (Kanan-Bawah)</span>
+                        Topik dasar/umum yang penting untuk bidang ini, namun belum dikembangkan secara mendalam.
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AnalisisGapNovelty = ({ 
     projectData, 
     setProjectData, 
@@ -4613,8 +4829,9 @@ const AnalisisGapNovelty = ({
 }) => {
     const [selectedRefIds, setSelectedRefIds] = useState([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isMapping, setIsMapping] = useState(false); 
     const [targetDraft, setTargetDraft] = useState('pendahuluanDraft');
-
+    
     // Helper: Pilih Semua / Hapus Semua
     const handleSelectAll = (select) => {
         if (select) {
@@ -4635,7 +4852,62 @@ const AnalisisGapNovelty = ({
         });
     };
 
-    // Logika Utama: Analisis dengan AI
+    // --- LOGIKA AI PETA TEMATIK (LANGKAH 3 SELESAI) ---
+    const handleGenerateThematicMap = async () => {
+        if (selectedRefIds.length === 0) {
+            showInfoModal("Pilih referensi terlebih dahulu untuk dipetakan.");
+            return;
+        }
+        setIsMapping(true);
+        setProjectData(p => ({ ...p, thematicMapData: null })); // Reset peta lama
+
+        // 1. Siapkan Data Referensi
+        const selectedRefs = projectData.allReferences.filter(ref => selectedRefIds.includes(ref.id));
+        const refsInput = selectedRefs.map((ref, i) => 
+            `[${i+1}] "${ref.title}" (${ref.year}). Ringkasan: ${ref.abstract ? ref.abstract.substring(0, 300) + "..." : (ref.isiKutipan || "Tidak ada data")}`
+        ).join('\n');
+
+        // 2. Prompt Strategis (Strategic Diagram / Thematic Map)
+        const prompt = `Anda adalah ahli Bibliometrik (Science Mapping). Tugas Anda adalah membuat "Thematic Map" (Peta Tematik) dari daftar literatur berikut.
+
+DAFTAR LITERATUR:
+${refsInput}
+
+INSTRUKSI ANALISIS:
+1. Kelompokkan literatur di atas menjadi 5-10 "Tema Utama" (Cluster).
+2. Untuk setiap tema, berikan nilai skor (Skala 1-10) untuk dua dimensi:
+   - **X (Centrality):** Seberapa penting/relevan tema ini terhadap topik umum kumpulan literatur ini? (1=Sangat Periferal/Sampingan, 10=Sangat Sentral/Inti).
+   - **Y (Density):** Seberapa matang/berkembang tema ini dibahas? (1=Baru muncul/Sedikit dibahas, 10=Sangat jenuh/Banyak dibahas).
+3. Hitung "Volume" (Ukuran Bubble): Berapa banyak paper yang masuk dalam tema ini? (Skala relatif 1-10).
+
+Berikan jawaban HANYA dalam format JSON Array.`;
+
+        const schema = {
+            type: "ARRAY",
+            items: {
+                type: "OBJECT",
+                properties: {
+                    theme: { type: "STRING", description: "Nama tema singkat (max 3 kata)." },
+                    x: { type: "NUMBER", description: "Nilai Centrality (1-10)." },
+                    y: { type: "NUMBER", description: "Nilai Density (1-10)." },
+                    volume: { type: "NUMBER", description: "Estimasi jumlah paper/volume (1-10)." }
+                },
+                required: ["theme", "x", "y", "volume"]
+            }
+        };
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            setProjectData(p => ({ ...p, thematicMapData: result }));
+            showInfoModal("Peta Tematik berhasil dipetakan!");
+        } catch (error) {
+            showInfoModal(`Gagal membuat peta: ${error.message}`);
+        } finally {
+            setIsMapping(false);
+        }
+    };
+
+    // Logika Utama: Analisis Teks Gap (Existing)
     const handleAnalyze = async () => {
         if (selectedRefIds.length === 0) {
             showInfoModal("Pilih setidaknya satu referensi untuk dianalisis.");
@@ -4698,8 +4970,14 @@ Lakukan analisis mendalam dan hasilkan narasi akademis yang padat (siap pakai un
    - Berdasarkan gap di atas, jelaskan secara eksplisit bagaimana penelitian pengguna (Judul di atas) mengisi kekosongan tersebut.
    - Mengapa penelitian ini penting dan berbeda? (Misal: "Penelitian ini menawarkan kebaruan dengan menggabungkan variabel X dan Y dalam konteks Z yang belum terjamah...").
 
+**ATURAN OUTPUT PENTING:**
+- **JANGAN** menggunakan kalimat pembuka seperti "Sebagai reviewer...", "Berikut adalah analisis...", atau salam pembuka.
+- Langsung mulai dengan analisis substansi.
+- Gunakan bahasa Indonesia baku dan gaya penulisan akademis formal.
+- Gunakan sub-judul tebal untuk memisahkan bagian.
+
 **Format Output:**
-Teks narasi akademis formal (Bahasa Indonesia). Gunakan sub-judul tebal untuk setiap bagian.`;
+Teks narasi akademis formal (Bahasa Indonesia).`;
 
         try {
             // Menggunakan geminiApiKeys (Array) sesuai update Langkah 2 sebelumnya
@@ -4773,8 +5051,39 @@ Teks narasi akademis formal (Bahasa Indonesia). Gunakan sub-judul tebal untuk se
                 </div>
             </div>
 
-            {/* BAGIAN 2: TOMBOL AKSI */}
-            <div className="flex justify-center mb-8">
+            {/* BAGIAN 1.5: TOMBOL & VISUALISASI PETA TEMATIK (BARU) */}
+            <div className="mb-8">
+                {/* Tombol Generasi Peta */}
+                <div className="flex justify-end mb-4">
+                    <button 
+                        onClick={handleGenerateThematicMap}
+                        disabled={isMapping || selectedRefIds.length === 0}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 disabled:bg-indigo-300 disabled:cursor-not-allowed text-sm"
+                    >
+                        {isMapping ? (
+                            <>
+                                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                Memetakan...
+                            </>
+                        ) : (
+                            <>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
+                                </svg>
+                                Analisis Visual Peta Tematik
+                            </>
+                        )}
+                    </button>
+                </div>
+
+                {/* Render Visualizer jika data ada */}
+                {projectData.thematicMapData && (
+                    <ThematicMapVisualizer data={projectData.thematicMapData} />
+                )}
+            </div>
+
+            {/* BAGIAN 2: TOMBOL AKSI UTAMA (NARASI) */}
+            <div className="flex justify-center mb-8 border-t pt-6">
                 <button 
                     onClick={handleAnalyze}
                     disabled={isAnalyzing || selectedRefIds.length === 0}
@@ -4783,9 +5092,9 @@ Teks narasi akademis formal (Bahasa Indonesia). Gunakan sub-judul tebal untuk se
                     {isAnalyzing ? (
                         <span className="flex items-center gap-2">
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Menganalisis Kesenjangan...
+                            Menulis Analisis Naratif...
                         </span>
-                    ) : "✨ Analisis Kesenjangan & Kebaruan"}
+                    ) : "✨ Tulis Analisis Kesenjangan & Kebaruan (Naratif)"}
                 </button>
             </div>
 
@@ -4793,7 +5102,7 @@ Teks narasi akademis formal (Bahasa Indonesia). Gunakan sub-judul tebal untuk se
             {projectData.analisisGapNoveltyDraft && (
                 <div className="animate-fade-in border-t-2 border-dashed border-gray-200 pt-6">
                     <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-lg font-bold text-gray-800">Hasil Analisis AI</h3>
+                        <h3 className="text-lg font-bold text-gray-800">Hasil Analisis Naratif</h3>
                         <button onClick={() => handleCopyToClipboard(projectData.analisisGapNoveltyDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1 px-3 rounded-lg">
                             Salin Teks
                         </button>
@@ -6641,6 +6950,7 @@ URL:
 DOI: 
 Publisher Name: `;
     const [manualRef, setManualRef] = useState({ id: null, text: manualRefTemplate });
+    const [manualMode, setManualMode] = useState('template'); // <-- Pindahkan State manualMode ke sini
     const [freeTextRef, setFreeTextRef] = useState('');
     const [generatedApaReferences, setGeneratedApaReferences] = useState('');
     const [showModal, setShowModal] = useState(false);
@@ -6678,6 +6988,7 @@ const setGeminiApiKey = (val) => {
 
     const importInputRef = useRef(null);
     const importReferencesInputRef = useRef(null);
+    const importRisInputRef = useRef(null); // <-- REF BARU UNTUK RIS
     const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
     const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
     const [importedData, setImportedData] = useState(null);
@@ -6909,6 +7220,232 @@ const setGeminiApiKey = (val) => {
         localStorage.setItem('hasSeenWelcomeModal', 'true');
         setShowWelcomeModal(false);
     };
+
+    // ============================================================================
+    // LOGIKA PARSER & GENERATOR RIS (MENDELEY SUPPORT)
+    // ============================================================================
+    
+    // 1. Fungsi Parser: String .ris -> Array of Objects
+    const parseRisFile = (content) => {
+        const references = [];
+        // Normalisasi baris baru
+        const lines = content.replace(/\r\n/g, '\n').split('\n');
+        
+        let currentRef = {};
+        let currentAuthors = [];
+        let hasStarted = false;
+
+        lines.forEach(line => {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) return;
+
+            // Pola tag RIS standar: 2 huruf kapital + 2 spasi + tanda hubung + 1 spasi
+            const match = trimmedLine.match(/^([A-Z0-9]{2})\s{2}-\s(.+)$/);
+            
+            if (match) {
+                const tag = match[1];
+                const value = match[2];
+
+                if (tag === 'TY') {
+                    // Mulai record baru
+                    if (hasStarted && (currentRef.title || currentRef.year)) {
+                        // Simpan record sebelumnya
+                        currentRef.author = currentAuthors.join(', ');
+                        // Generate ID unik
+                        currentRef.id = Date.now() + Math.random();
+                        references.push(currentRef);
+                    }
+                    // Reset
+                    currentRef = { isiKutipan: '', abstract: '' };
+                    currentAuthors = [];
+                    hasStarted = true;
+                } else if (hasStarted) {
+                    switch (tag) {
+                        case 'T1': // Title Primary
+                        case 'TI': // Title
+                        case 'CT': // Title of contribution
+                            currentRef.title = value;
+                            break;
+                        case 'A1': // Author Primary
+                        case 'AU': // Author
+                            currentAuthors.push(value);
+                            break;
+                        case 'Y1': // Year Primary
+                        case 'PY': // Publication Year
+                            // Bersihkan format aneh seperti "2020///"
+                            const yearMatch = value.match(/(\d{4})/);
+                            if (yearMatch) currentRef.year = yearMatch[1];
+                            else currentRef.year = value;
+                            break;
+                        case 'JO': // Journal Name
+                        case 'T2': // Secondary Title (Journal)
+                        case 'JF': // Journal Full
+                            currentRef.journal = value;
+                            break;
+                        case 'VL': // Volume
+                            currentRef.volume = value;
+                            break;
+                        case 'IS': // Issue
+                            currentRef.issue = value;
+                            break;
+                        case 'SP': // Start Page
+                            currentRef.pages = value;
+                            break;
+                        case 'EP': // End Page
+                            if (currentRef.pages) currentRef.pages += `-${value}`;
+                            else currentRef.pages = value;
+                            break;
+                        case 'PB': // Publisher
+                            currentRef.publisher = value;
+                            break;
+                        case 'DO': // DOI
+                            currentRef.doi = value;
+                            break;
+                        case 'UR': // URL
+                            currentRef.url = value;
+                            break;
+                        case 'L1': // Link to File (Fallback to URL if empty)
+                            if (!currentRef.url) currentRef.url = value;
+                            break;
+                        case 'N2': // Abstract/Notes
+                        case 'AB': // Abstract
+                            // Gabungkan jika ada multiple lines abstrak
+                            currentRef.abstract = (currentRef.abstract ? currentRef.abstract + ' ' : '') + value;
+                            break;
+                        case 'KW': // Keywords
+                            // Opsional: Bisa dimasukkan ke abstrak atau catatan jika mau
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+        });
+
+        // Push record terakhir
+        if (hasStarted && (currentRef.title || currentRef.year)) {
+            currentRef.author = currentAuthors.join(', ');
+            currentRef.id = Date.now() + Math.random();
+            references.push(currentRef);
+        }
+
+        return references;
+    };
+
+    // 2. Fungsi Generator: Array of Objects -> String .ris
+    const generateRisFile = (references) => {
+        let risContent = '';
+
+        references.forEach(ref => {
+            risContent += 'TY  - JOUR\n'; // Default ke Journal Article agar aman
+            if (ref.title) risContent += `T1  - ${ref.title}\n`;
+            
+            // Handle Authors: Pisahkan koma atau " and " jika ada, agar Mendeley baca per baris
+            if (ref.author) {
+                // Coba split sederhana
+                const authors = ref.author.split(/,| and /).map(a => a.trim()).filter(a => a);
+                authors.forEach(a => {
+                    risContent += `A1  - ${a}\n`;
+                });
+            } else {
+                risContent += `A1  - Anonim\n`;
+            }
+
+            if (ref.year) risContent += `Y1  - ${ref.year}///\n`; // Format tahun RIS sering pakai ///
+            
+            // Handle Journal (bisa string atau object)
+            const journalName = (typeof ref.journal === 'object' && ref.journal !== null) ? ref.journal.name : ref.journal;
+            if (journalName) risContent += `JO  - ${journalName}\n`;
+            
+            if (ref.volume) risContent += `VL  - ${ref.volume}\n`;
+            if (ref.issue) risContent += `IS  - ${ref.issue}\n`;
+            if (ref.pages) {
+                // Coba pisah start/end page
+                const pageParts = ref.pages.split('-');
+                if (pageParts[0]) risContent += `SP  - ${pageParts[0]}\n`;
+                if (pageParts[1]) risContent += `EP  - ${pageParts[1]}\n`;
+            }
+            if (ref.publisher) risContent += `PB  - ${ref.publisher}\n`;
+            if (ref.doi) risContent += `DO  - ${ref.doi}\n`;
+            if (ref.url) risContent += `UR  - ${ref.url}\n`;
+            if (ref.abstract) risContent += `N2  - ${ref.abstract}\n`;
+            
+            risContent += 'ER  - \n\n';
+        });
+
+        return risContent;
+    };
+
+    // Handler: Trigger File Dialog
+    const triggerImportRis = () => importRisInputRef.current.click();
+
+    // Handler: Proses File Import
+    const handleFileImportRis = (event) => {
+        const file = event.target.files[0];
+        if (file) { // Terima semua ekstensi, lalu cek nama file di logika (karena .ris kadang octet-stream)
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const content = e.target.result;
+                    const parsedRefs = parseRisFile(content);
+                    
+                    if (parsedRefs.length === 0) {
+                        showInfoModal("Tidak ada referensi yang valid ditemukan dalam file RIS.");
+                        return;
+                    }
+
+                    // Cek duplikat dan gabungkan
+                    const existingTitles = new Set(projectData.allReferences.map(ref => ref.title.toLowerCase().trim()));
+                    let addedCount = 0;
+                    
+                    const newUniqueRefs = parsedRefs.filter(newRef => {
+                        const titleLower = (newRef.title || '').toLowerCase().trim();
+                        if (existingTitles.has(titleLower)) return false;
+                        addedCount++;
+                        return true;
+                    });
+
+                    setProjectData(prev => ({
+                        ...prev,
+                        allReferences: [...prev.allReferences, ...newUniqueRefs]
+                    }));
+
+                    showInfoModal(`Berhasil mengimpor ${addedCount} referensi dari file RIS. (${parsedRefs.length - addedCount} duplikat diabaikan).`);
+
+                } catch (error) {
+                    console.error(error);
+                    showInfoModal("Gagal memproses file RIS. Pastikan formatnya benar.");
+                }
+            };
+            reader.readAsText(file);
+        }
+        event.target.value = null;
+    };
+
+    // Handler: Ekspor RIS
+    const handleExportRis = () => {
+        if (projectData.allReferences.length === 0) {
+            showInfoModal("Tidak ada referensi untuk diekspor.");
+            return;
+        }
+
+        try {
+            const risContent = generateRisFile(projectData.allReferences);
+            const blob = new Blob([risContent], { type: "application/x-research-info-systems;charset=utf-8" });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.href = url;
+            const date = new Date().toISOString().slice(0, 10);
+            link.download = `bibliocobra_references_${date}.ris`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            showInfoModal("Gagal mengekspor file RIS.");
+        }
+    };
+
     
     const showInfoModal = React.useCallback((message) => {
         setModalMessage(message);
@@ -7212,7 +7749,9 @@ URL: ${ref.url || ''}
 DOI: ${ref.doi || ''}
 Publisher Name: ${ref.publisher || ''}`;
         setManualRef({ id: ref.id, text: text });
-        window.scrollTo(0, 0);
+        setOpenMethod('method4'); // Otomatis buka accordion Metode 3 (Tambah Manual)
+        setManualMode('template'); // Otomatis pilih tab Template
+        window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll halus ke atas
     };
 
     const handleDeleteReference = (id) => setProjectData(prev => ({ ...prev, allReferences: prev.allReferences.filter(ref => ref.id !== id) }));
@@ -8872,7 +9411,59 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                 return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
             case 'referensi':
                 // PERBAIKAN: Tambahkan setProjectData ke dalam objek props yang dikirim
-                return <Referensi {...{ projectData, setProjectData, manualRef, setManualRef, handleSaveManualReference, freeTextRef, setFreeTextRef, handleImportFromText, handleEditReference, handleDeleteReference, handleGenerateApa, generatedApaReferences, handleCopyToClipboard, handleShowSearchPrompts, handleGenerateReferenceClues, isLoading, openNoteModal, triggerReferencesImport, handleExportReferences, handleSearchSemanticScholar, searchQuery, setSearchQuery, searchResults, isS2Searching, handleAddReferenceFromSearch, handleAiReview, showInfoModal, openMethod, setOpenMethod, handleConceptSearch, conceptQuery, setConceptQuery, isConceptSearching, conceptSearchResult, handleSearchScopus, isScopusSearching, scopusSearchResults, scopusApiKey, setScopusApiKey, handleRegulationSearch, isRegulationSearching, regulationSearchResults, handleAddRegulationToReference, conceptSearchMode, setConceptSearchMode, handleClueSearchRegulation }} />;
+                return <Referensi {...{ 
+                    projectData, 
+                    setProjectData, 
+                    manualRef, 
+                    setManualRef, 
+                    manualMode, 
+                    setManualMode, 
+                    handleSaveManualReference, 
+                    freeTextRef, 
+                    setFreeTextRef, 
+                    handleImportFromText, 
+                    handleEditReference, 
+                    handleDeleteReference, 
+                    handleGenerateApa, 
+                    generatedApaReferences, 
+                    handleCopyToClipboard, 
+                    handleShowSearchPrompts, 
+                    handleGenerateReferenceClues, 
+                    isLoading, 
+                    openNoteModal, 
+                    triggerReferencesImport, 
+                    handleExportReferences, 
+                    handleSearchSemanticScholar, 
+                    searchQuery, 
+                    setSearchQuery, 
+                    searchResults, 
+                    isS2Searching, 
+                    handleAddReferenceFromSearch, 
+                    handleAiReview, 
+                    showInfoModal, 
+                    openMethod, 
+                    setOpenMethod, 
+                    handleConceptSearch, 
+                    conceptQuery, 
+                    setConceptQuery, 
+                    isConceptSearching, 
+                    conceptSearchResult, 
+                    handleSearchScopus, 
+                    isScopusSearching, 
+                    scopusSearchResults, 
+                    scopusApiKey, 
+                    setScopusApiKey, 
+                    handleRegulationSearch, 
+                    isRegulationSearching, 
+                    regulationSearchResults, 
+                    handleAddRegulationToReference, 
+                    conceptSearchMode, 
+                    setConceptSearchMode, 
+                    handleClueSearchRegulation,
+                    // --- PROPS BARU DIOPER KE SINI ---
+                    triggerImportRis,
+                    handleExportRis
+                }} />;
             case 'prisma':
                 return <PrismaSLR {...{ projectData, setProjectData, showInfoModal, handleAiReview }} />;
             case 'sintesis':
@@ -9343,6 +9934,8 @@ try {
                 
                 <input type="file" ref={importInputRef} onChange={handleFileImport} style={{ display: 'none' }} accept=".json" />
                 <input type="file" ref={importReferencesInputRef} onChange={handleFileImportReferences} style={{ display: 'none' }} accept=".json" />
+                {/* --- INPUT FILE BARU UNTUK RIS --- */}
+                <input type="file" ref={importRisInputRef} onChange={handleFileImportRis} style={{ display: 'none' }} accept=".ris, .txt" />
 
                 {showWelcomeModal && (
                     <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex justify-center items-center z-50 p-4">
