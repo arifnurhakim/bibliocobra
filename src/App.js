@@ -4919,69 +4919,81 @@ Berikan jawaban HANYA dalam format JSON Array.`;
 
         setIsAnalyzing(true);
 
-        // 1. Siapkan Data Referensi
+        // 1. Siapkan Data Referensi (Updated: Prioritas Abstrak -> Catatan -> Metadata)
         const selectedRefs = projectData.allReferences.filter(ref => selectedRefIds.includes(ref.id));
         
         const refsDataString = selectedRefs.map((ref, index) => {
-            // Cek apakah ada data ekstraksi SLR
-            const extraction = projectData.extractedData.find(e => String(e.refId) === String(ref.id));
-            let detailContent = "";
-
+            let contentSource = "Tidak ada data konten rinci.";
+            
+            // Prioritas 1: Data Ekstraksi SLR (Paling terstruktur)
+            const extraction = projectData.extractedData?.find(e => String(e.refId) === String(ref.id));
+            
             if (extraction) {
-                // Prioritas 1: Data Ekstraksi (Paling Kaya)
-                detailContent = `Data Ekstraksi SLR:\n${JSON.stringify(extraction.data)}`;
-            } else if (ref.isiKutipan) {
-                // Prioritas 2: Catatan Manual
-                detailContent = `Catatan/Kutipan:\n"${ref.isiKutipan}"`;
+                contentSource = `Data Ekstraksi SLR:\n${JSON.stringify(extraction.data)}`;
+            } else if (ref.abstract && ref.abstract.trim().length > 20) {
+                // Prioritas 2: Abstrak (Sesuai request: baca abstrak jika ada)
+                contentSource = `Abstrak:\n"${ref.abstract}"`;
+            } else if (ref.isiKutipan && ref.isiKutipan.trim() !== "") {
+                // Prioritas 3: Catatan/Kutipan (Fallback jika abstrak tidak ada)
+                contentSource = `Catatan/Kutipan (Pengganti Abstrak):\n"${ref.isiKutipan}"`;
             } else {
-                // Prioritas 3: Hanya Metadata
-                detailContent = "(Hanya Metadata Tersedia)";
+                contentSource = "(Hanya Metadata Tersedia)";
             }
 
-            return `[${index + 1}] ${ref.author} (${ref.year}). "${ref.title}".\n${detailContent}`;
-        }).join('\n\n----------------\n\n');
+            // Hapus [index+1] agar AI tidak bingung menggunakannya sebagai nomor sitasi
+            return `--- REFERENSI ${index + 1} ---\nPenulis: ${ref.author}\nTahun: ${ref.year}\nJudul: "${ref.title}"\nKonten: ${contentSource}`;
+        }).join('\n\n');
 
-        // 2. Siapkan Prompt
-        const prompt = `Anda adalah Reviewer Jurnal Akademik Q1 yang kritis. Tugas Anda adalah melakukan META-ANALISIS terhadap literatur terpilih untuk menemukan Kesenjangan Riset (Research Gap) dan merumuskan Kebaruan (Novelty) untuk penelitian pengguna.
+        // Data Peta Tematik untuk Konteks
+        const thematicMapContext = projectData.thematicMapData 
+            ? JSON.stringify(projectData.thematicMapData) 
+            : "Data Peta Tematik belum dihasilkan oleh pengguna.";
 
-**PROFIL PENELITIAN PENGGUNA:**
+        // 2. Siapkan Prompt (Updated: Instruksi APA 7th & Pembersihan Angka)
+        const prompt = `Anda adalah seorang ahli meta-analisis riset akademik. Tugas Anda adalah menyusun sebuah narasi argumentatif yang padat untuk Bab Pendahuluan (Latar Belakang/Gap Analysis).
+
+**DATA PENELITIAN PENGGUNA:**
 - Judul: "${projectData.judulKTI}"
 - Tujuan: "${projectData.tujuanPenelitianDraft || 'Belum ditentukan'}"
 
-**DAFTAR LITERATUR PEMBANDING:**
+**SUMBER LITERATUR (REFERENSI):**
 ${refsDataString}
 
-**INSTRUKSI ANALISIS:**
-Lakukan analisis mendalam dan hasilkan narasi akademis yang padat (siap pakai untuk Bab 1 atau Bab 2) dengan struktur berikut:
+**DATA PETA TEMATIK (STRATEGIC DIAGRAM):**
+${thematicMapContext}
+*(Catatan Interpretasi: x=Centrality/Relevansi, y=Density/Pengembangan. Kuadran: Kanan-Atas=Motor/Matang, Kiri-Atas=Niche/Terisolasi, Kiri-Bawah=Emerging/Declining, Kanan-Bawah=Basic/Umum)*
 
-1. **State of the Art (Peta Penelitian Terdahulu):**
-   - Secara ringkas, petakan tren dominan dari literatur di atas. Apa topik, metode, atau variabel yang sudah "jenuh" atau sering diteliti? (Sebutkan nama penulis sebagai bukti, misal: "Penelitian A (2020) dan B (2021) fokus pada...").
+**INSTRUKSI PENULISAN (WAJIB DIIKUTI):**
 
-2. **Identifikasi Kesenjangan (Research Gap Analysis):**
-   - Temukan apa yang BELUM ada atau KURANG dari literatur tersebut. Pilih sudut pandang gap yang paling relevan:
-     - *Empirical Gap:* Konteks/lokasi/populasi yang belum diteliti?
-     - *Theoretical Gap:* Teori yang belum diuji atau adanya kontradiksi hasil?
-     - *Methodological Gap:* Metode yang belum diterapkan?
-   - Gunakan kalimat tegas: "Namun, belum ada penelitian yang secara spesifik membahas..." atau "Terdapat inkonsistensi temuan mengenai..."
+**A. ATURAN SITASI (APA 7th Style):**
+1.  **Gunakan Format Nama-Tahun:** Wajib menggunakan format (Author, Year) atau Author (Year). Contoh: "(Hanash et al., 2024)" atau "Menurut Papadopoli et al. (2020)...".
+2.  **DILARANG MENGGUNAKAN ANGKA KURUNG:** Jangan pernah menggunakan [1], [2], [31], [40], dst sebagai sitasi.
+3.  **PEMBERSIHAN DATA:** Jika di dalam teks Abstrak/Konten sumber terdapat angka-angka referensi bawaan (seperti [12], [31-33]), **ABAIKAN dan HAPUS** angka-angka tersebut dalam narasi Anda. Jangan menyalinnya.
 
-3. **Pernyataan Kebaruan (Novelty Statement):**
-   - Berdasarkan gap di atas, jelaskan secara eksplisit bagaimana penelitian pengguna (Judul di atas) mengisi kekosongan tersebut.
-   - Mengapa penelitian ini penting dan berbeda? (Misal: "Penelitian ini menawarkan kebaruan dengan menggabungkan variabel X dan Y dalam konteks Z yang belum terjamah...").
+**B. STRUKTUR NARASI:**
 
-**ATURAN OUTPUT PENTING:**
-- **JANGAN** menggunakan kalimat pembuka seperti "Sebagai reviewer...", "Berikut adalah analisis...", atau salam pembuka.
-- Langsung mulai dengan analisis substansi.
-- Gunakan bahasa Indonesia baku dan gaya penulisan akademis formal.
-- Gunakan sub-judul tebal untuk memisahkan bagian.
+1.  **Analisis Gap (Pola "X but not Y"):**
+    - Baca konten literatur di atas.
+    - Tulis paragraf pembuka dengan pola kalimat spesifik ini: **"Penelitian [Sebutkan Nama Penulis A (Tahun)] dan [Sebutkan Nama Penulis B (Tahun)] fokus pada aspek [X], namun belum menyentuh aspek [Y] secara mendalam."** (Ganti X dan Y dengan temuan nyata dari literatur).
+    - Lanjutkan langsung dengan kalimat: **"Oleh karena itu, penelitian ini mengisi celah tersebut dengan..."** (jelaskan kontribusi/novelty penelitian pengguna).
 
-**Format Output:**
-Teks narasi akademis formal (Bahasa Indonesia).`;
+2.  **Sintesis Peta Tematik:**
+    - Jika data peta tematik tersedia, tambahkan narasi yang mensintesis posisi tema-tema tersebut.
+    - Contoh narasi: "Hal ini didukung oleh pemetaan tematik strategis yang menunjukkan bahwa tema [A] berada di kuadran Motor Themes yang telah matang, sedangkan tema [B] masih bersifat Emerging..."
+    - Hubungkan posisi kuadran ini untuk memperkuat argumen urgensi penelitian pengguna.
+
+3.  **Kesimpulan Komprehensif:**
+    - Gabungkan poin 1 dan 2 menjadi satu kesatuan narasi yang mengalir (koheren).
+    - Akhiri dengan pernyataan tegas mengapa penelitian ini penting dilakukan sekarang.
+
+**FORMAT OUTPUT:**
+Teks narasi paragraf (Bahasa Indonesia akademis). Tanpa judul section, langsung ke isi paragraf.`;
 
         try {
             // Menggunakan geminiApiKeys (Array) sesuai update Langkah 2 sebelumnya
             const result = await geminiService.run(prompt, geminiApiKeys);
             setProjectData(p => ({ ...p, analisisGapNoveltyDraft: result }));
-            showInfoModal("Analisis Gap & Novelty berhasil dibuat!");
+            showInfoModal("Analisis Gap, Novelty, & Sintesis Peta Tematik berhasil dibuat!");
         } catch (error) {
             showInfoModal(`Gagal menganalisis: ${error.message}`);
         } finally {
