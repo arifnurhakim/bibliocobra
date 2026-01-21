@@ -96,7 +96,6 @@ const initialProjectData = {
 
     // Data Draf Bab
     teoriPenelitianDraft: '', // Tetap di sini untuk penggunaan lain
-    outlineDraft: null,
     pendahuluanDraft: '',
     metodeDraft: '',
     studiLiteraturDraft: '',
@@ -694,19 +693,28 @@ const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
     const adminContact = "6285123048010"; // Ganti dengan nomor WhatsApp Admin
 
     const handleActivation = () => {
-        // UPDATE: Menambahkan "EL-COBRA" ke daftar kode standar
-        const STANDARD_CODES = ["BIBLIO-2025", "KTI-PREMIUM", "AKADEMIK-Q1", "TEST-USER", "EL-COBRA"];
-        const ELITE_CODES = ["SCOPUS-MASTER", "PROFESSOR-MODE", "SOBATJRENG"]; // Kode Rahasia
+        // --- UPDATE TAHAP 1: Daftar Kode Lisensi Terpisah ---
+        const PREMIUM_CODES = ["BIBLIO-2025", "KTI-PRO", "AKADEMIK-Q1", "EL-COBRA"]; // Akses Premium (No Scopus)
+        // Menambahkan SOBATJRENG dan ABDISIKOBRA ke daftar Elite
+        const ELITE_CODES = ["BRIN-INTERNAL-X8", "KST-HABIBIE", "SCOPUS-MASTER", "PROFESSOR-MODE", "SOBATJRENG", "ABDISIKOBRA"]; // Akses Elite (With Scopus)
         
         const code = inputCode.toUpperCase().trim();
 
-        if (STANDARD_CODES.includes(code)) {
-            onActivate(false); // false = Premium Biasa (Tanpa Scopus)
+        if (PREMIUM_CODES.includes(code)) {
+            // Premium: isPremium=true, showScopus=false
+            onActivate(true, false); 
         } else if (ELITE_CODES.includes(code)) {
-            onActivate(true); // true = Premium + Scopus (Elite)
+            // Elite: isPremium=true, showScopus=true
+            onActivate(true, true); 
         } else {
             setErrorMsg("Kode lisensi tidak valid. Silakan periksa kembali atau hubungi admin.");
         }
+    };
+
+    // --- UPDATE TAHAP 1: Handler untuk Masuk Gratis ---
+    const handleFreeAccess = () => {
+        // Free: isPremium=false, showScopus=false
+        onActivate(false, false);
     };
 
     return (
@@ -718,12 +726,12 @@ const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
                     </svg>
                 </div>
                 
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">Aktivasi Akun Premium</h2>
-                <p className="text-gray-600 mb-6">
-                    Untuk melanjutkan, silakan masukkan <strong>Kode Lisensi</strong> yang Anda dapatkan dari admin.
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Aktivasi Akun</h2>
+                <p className="text-gray-600 mb-6 text-sm">
+                    Masukkan <strong>Kode Lisensi</strong> untuk akses Premium/Elite, atau lanjutkan dengan versi Gratis.
                 </p>
 
-                <div className="mb-6">
+                <div className="mb-4">
                     <input 
                         type="text" 
                         value={inputCode}
@@ -739,13 +747,22 @@ const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
 
                 <button 
                     onClick={handleActivation}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 mb-4"
                 >
-                    Aktifkan Akses
+                    Aktifkan Lisensi
                 </button>
 
+                {/* --- UPDATE TAHAP 1: Tombol Masuk Gratis --- */}
+                <button 
+                    onClick={handleFreeAccess}
+                    className="w-full bg-white border-2 border-gray-300 hover:border-gray-400 text-gray-600 hover:text-gray-800 font-bold py-2 px-6 rounded-lg transition-colors text-sm"
+                >
+                    Lanjutkan sebagai Pengguna Gratis (Free)
+                </button>
+                {/* ------------------------------------------- */}
+
                 <div className="mt-8 pt-6 border-t border-gray-100">
-                    <p className="text-sm text-gray-500 mb-3">Belum memiliki kode lisensi?</p>
+                    <p className="text-sm text-gray-500 mb-3">Ingin upgrade ke Premium?</p>
                     <a 
                         href={`https://wa.me/${adminContact}?text=Halo%20Admin,%20saya%20ingin%20membeli%20lisensi%20Bibliocobra.`}
                         target="_blank"
@@ -755,7 +772,7 @@ const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                             <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592z"/>
                         </svg>
-                        Dapatkan Lisensi via WhatsApp
+                        Hubungi Admin via WhatsApp
                     </a>
                 </div>
             </div>
@@ -960,6 +977,7 @@ const ReferenceSelector = ({ projectData, selectedRefIds, setSelectedRefIds }) =
 // --- Komponen BARU: Deskripsi Karakteristik Responden ---
 const DeskripsiResponden = ({ projectData, setProjectData, handleGenerateDeskripsiResponden, isLoading, handleCopyToClipboard }) => {
     const [rawData, setRawData] = useState('');
+    const isPremium = projectData.isPremium; // Cek Status Premium
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
@@ -984,11 +1002,13 @@ Pendidikan: S1 (80), S2 (20)."
 
             <button
                 onClick={() => handleGenerateDeskripsiResponden(rawData)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 mb-6"
-                disabled={isLoading || !rawData}
+                className={`font-bold py-2 px-4 rounded-lg mb-6 ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+                disabled={isLoading || !rawData || !isPremium}
+                title={!isPremium ? "Fitur Premium" : ""}
             >
-                {isLoading ? 'Memproses...' : '✨ Tulis Deskripsi Responden'}
+                {!isPremium ? '🔒 Tulis Deskripsi (Premium)' : (isLoading ? 'Memproses...' : '✨ Tulis Deskripsi Responden')}
             </button>
+            {!isPremium && <p className="text-xs text-red-500 -mt-4 mb-4">Upgrade ke Premium untuk menggunakan penulis otomatis AI.</p>}
 
             {projectData.deskripsiRespondenDraft && (
                 <div className="pt-6 border-t border-gray-200">
@@ -1305,12 +1325,20 @@ const Referensi = ({
     setConceptSearchMode,
     // --- PROPS BARU UNTUK RIS ---
     triggerImportRis,
-    handleExportRis
+    handleExportRis,
+    // --- PROPS BARU UNTUK SMART PASTE ---
+    smartPasteText,
+    setSmartPasteText,
+    handleSmartPaste
 }) => {
     // HAPUS STATE LOKAL: const [manualMode, setManualMode] = useState('template');
     const [expandedAbstractId, setExpandedAbstractId] = useState(null);
     const [aiReviews, setAiReviews] = useState({});
     
+    // Helper Akses
+    const isPremium = projectData.isPremium;
+    // Elite akses dikelola via projectData.showScopus
+
     // --- STATE BARU: Untuk Checkbox Perpustakaan ---
     const [selectedLibraryIds, setSelectedLibraryIds] = useState([]);
     const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false); // State Modal Konfirmasi Hapus
@@ -1339,7 +1367,20 @@ const Referensi = ({
                     // Ambil angka saja dari string tahun (misal "2020///" -> 2020)
                     aValue = parseInt(String(aValue || '0').replace(/\D/g, ''), 10) || 0;
                     bValue = parseInt(String(bValue || '0').replace(/\D/g, ''), 10) || 0;
-                } else {
+                } 
+                // --- UPDATE: Penanganan khusus untuk Jurnal (Cek Kualitas) ---
+                else if (sortConfig.key === 'journal') {
+                    const getJournalName = (val) => {
+                        if (!val) return '';
+                        // Handle jika journal berbentuk object (dari Semantic Scholar) atau string
+                        return (typeof val === 'object' && val !== null) ? val.name : String(val);
+                    };
+                    // Urutkan string kosong (tidak ada jurnal) agar berkumpul
+                    aValue = getJournalName(aValue).toLowerCase();
+                    bValue = getJournalName(bValue).toLowerCase();
+                }
+                // -------------------------------------------------------------
+                else {
                     // Default string compare (Case insensitive)
                     aValue = String(aValue || '').toLowerCase();
                     bValue = String(bValue || '').toLowerCase();
@@ -1522,9 +1563,15 @@ const Referensi = ({
                             {/* Fitur Clue Referensi */}
                             <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                                 <p className="text-sm font-semibold text-blue-800 mb-2">Langkah 1: Hasilkan Peta Jalan Pencarian (Clues)</p>
-                                <button onClick={handleGenerateReferenceClues} className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm disabled:bg-teal-300" disabled={isLoading || !projectData.topikTema}>
-                                    {isLoading ? 'Mencari...' : '🔍 Dapatkan Clue Referensi'}
+                                <button 
+                                    onClick={handleGenerateReferenceClues} 
+                                    className={`font-bold py-2 px-3 rounded-lg text-sm transition-colors ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
+                                    disabled={isLoading || !projectData.topikTema || !isPremium}
+                                    title={!isPremium ? "Fitur Premium" : ""}
+                                >
+                                    {!isPremium ? '🔒 Dapatkan Clue (Premium)' : (isLoading ? 'Mencari...' : '🔍 Dapatkan Clue Referensi')}
                                 </button>
+                                {!isPremium && <p className="text-xs text-red-500 mt-1">Upgrade ke Premium untuk menggunakan bantuan AI ini.</p>}
                             </div>
                             {projectData.aiReferenceClues && (
                                 <div className="mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800">
@@ -1563,7 +1610,7 @@ const Referensi = ({
                         onClick={() => toggleMethod('method2')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method2' ? 'bg-purple-100' : 'bg-purple-50 hover:bg-purple-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 2: Cari via Semantic Scholar</span>
+                        <span className="font-semibold text-gray-800">Metode 2: Cari via Semantic Scholar (Gratis)</span>
                         <ChevronDownIcon isOpen={openMethod === 'method2'} />
                     </button>
                     {openMethod === 'method2' && (
@@ -1643,12 +1690,14 @@ const Referensi = ({
                                                                 <button onClick={() => toggleAbstract(paper.paperId)} className="text-xs text-blue-600 hover:underline font-semibold">
                                                                     {expandedAbstractId === paper.paperId ? 'Sembunyikan Abstrak' : 'Tampilkan Abstrak'}
                                                                 </button>
+                                                                {/* TOMBOL REVIEW AI (LOCKED FOR FREE) */}
                                                                 <button 
                                                                     onClick={() => addReviewTask({ paper: paper, context: searchQuery })} 
-                                                                    className="text-xs text-purple-600 hover:underline font-semibold disabled:text-gray-400 disabled:no-underline"
-                                                                    disabled={reviewingId === paper.paperId}
+                                                                    className={`text-xs font-semibold ${!isPremium ? 'text-gray-400 cursor-not-allowed' : 'text-purple-600 hover:underline'}`}
+                                                                    disabled={!isPremium || reviewingId === paper.paperId}
+                                                                    title={!isPremium ? "Fitur Premium" : ""}
                                                                 >
-                                                                    {reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI'}
+                                                                    {!isPremium ? '🔒 Review AI (Premium)' : (reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI')}
                                                                 </button>
                                                             </div>
                                                             {expandedAbstractId === paper.paperId && (
@@ -1714,18 +1763,25 @@ const Referensi = ({
                         onClick={() => toggleMethod('method4')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method4' ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual</span>
+                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual & Smart Paste (Gratis)</span>
                         <ChevronDownIcon isOpen={openMethod === 'method4'} />
                     </button>
                     {openMethod === 'method4' && (
                         <div className="p-4 border-t border-gray-200 animate-fade-in">
-                            <div className="flex border-b border-green-300 mb-4">
-                                <button onClick={() => setManualMode('template')} className={`py-2 px-4 text-sm font-medium ${manualMode === 'template' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>Isi Template</button>
-                                <button onClick={() => setManualMode('text')} className={`py-2 px-4 text-sm font-medium ${manualMode === 'text' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>Impor dari Teks <span className="text-xs bg-yellow-200 text-yellow-800 rounded-full px-2 py-1">Eksperimental</span></button>
+                            <div className="flex border-b border-green-300 mb-4 overflow-x-auto no-scrollbar">
+                                <button onClick={() => setManualMode('template')} className={`py-2 px-4 text-sm font-medium whitespace-nowrap ${manualMode === 'template' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>1. Isi Template</button>
+                                <button onClick={() => setManualMode('text')} className={`py-2 px-4 text-sm font-medium whitespace-nowrap ${manualMode === 'text' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>2. Impor Daftar Pustaka</button>
+                                <button onClick={() => setManualMode('smartPaste')} className={`py-2 px-4 text-sm font-medium whitespace-nowrap flex items-center gap-1 ${manualMode === 'smartPaste' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M10 .5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5.5.5 0 0 1-.5.5.5.5 0 0 0-.5.5V2a.5.5 0 0 0 .5.5h5A.5.5 0 0 0 11 2v-.5a.5.5 0 0 0-.5-.5.5.5 0 0 1-.5-.5Z"/>
+                                        <path d="M4.085 1H3.5A1.5 1.5 0 0 0 2 2.5V12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2.5A1.5 1.5 0 0 0 12.5 1h-.585c.055.156.085.325.085.5V2a1.5 1.5 0 0 1-1.5 1.5h-5A1.5 1.5 0 0 1 4 2v-.5c0-.175.03-.344.085-.5ZM10 7a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-6.646 5.646a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L6.293 16H1.5a.5.5 0 0 1 0-1h4.793l-2.647-2.646a.5.5 0 0 1 0-.708Z"/>
+                                    </svg>
+                                    3. Smart Paste (PDF)
+                                </button>
                             </div>
                             
                             {manualMode === 'template' && (
-                                <div>
+                                <div className="animate-fade-in">
                                     <p className="text-sm text-green-700 mb-4">Isi detail referensi menggunakan template di bawah. Paling andal.</p>
                                     <textarea
                                         value={manualRef.text}
@@ -1740,8 +1796,8 @@ const Referensi = ({
                             )}
 
                             {manualMode === 'text' && (
-                                <div>
-                                    <p className="text-sm text-green-700 mb-4">Tempelkan satu referensi yang sudah diformat (misal: dari PDF). AI akan mencoba mengurainya. Hasilnya mungkin perlu diperiksa.</p>
+                                <div className="animate-fade-in">
+                                    <p className="text-sm text-green-700 mb-4">Tempelkan satu referensi format <strong>Daftar Pustaka</strong>. AI akan mengurai metadatanya.</p>
                                     <textarea
                                         value={freeTextRef}
                                         onChange={(e) => setFreeTextRef(e.target.value)}
@@ -1751,6 +1807,35 @@ const Referensi = ({
                                     ></textarea>
                                     <button onClick={handleImportFromText} className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg" disabled={isLoading || !freeTextRef}>
                                     {isLoading ? 'Mengimpor...' : 'Impor & Tambah ke Proyek'}
+                                    </button>
+                                </div>
+                            )}
+
+                            {manualMode === 'smartPaste' && (
+                                <div className="animate-fade-in">
+                                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded-r">
+                                        <p className="text-sm text-yellow-800">
+                                            <strong>Cara Kerja:</strong> Buka file PDF Jurnal Anda, tekan <strong>Ctrl+A</strong> (Pilih Semua) di halaman pertama, lalu <strong>Ctrl+C</strong> (Copy). Tempelkan teks mentah tersebut di bawah ini. AI akan membersihkan dan mengekstrak datanya ke dalam Formulir Template.
+                                        </p>
+                                    </div>
+                                    <textarea
+                                        value={smartPasteText}
+                                        onChange={(e) => setSmartPasteText(e.target.value)}
+                                        className="shadow-sm border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed font-mono text-xs"
+                                        rows="10"
+                                        placeholder="Tempel teks mentah dari PDF di sini..."
+                                    ></textarea>
+                                    <button onClick={handleSmartPaste} className="mt-4 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2" disabled={isLoading || !smartPasteText}>
+                                        {isLoading ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                Mengekstrak...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>✨ Ekstrak ke Formulir</span>
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             )}
@@ -1815,12 +1900,15 @@ const Referensi = ({
                                 <button 
                                     type="button"
                                     onClick={conceptSearchMode === 'concept' ? handleConceptSearch : () => handleRegulationSearch(conceptQuery)}
-                                    className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-teal-300 whitespace-nowrap" 
-                                    disabled={(conceptSearchMode === 'concept' ? isConceptSearching : isRegulationSearching) || !conceptQuery}
+                                    className={`font-bold py-2 px-4 rounded-lg whitespace-nowrap ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
+                                    disabled={!isPremium || (conceptSearchMode === 'concept' ? isConceptSearching : isRegulationSearching) || !conceptQuery}
+                                    title={!isPremium ? "Fitur Premium" : ""}
                                 >
-                                    {(conceptSearchMode === 'concept' ? isConceptSearching : isRegulationSearching) ? 'Mencari...' : (conceptSearchMode === 'concept' ? 'Cari Konsep' : 'Cari Peraturan')}
+                                    {!isPremium ? '🔒 Premium' : ((conceptSearchMode === 'concept' ? isConceptSearching : isRegulationSearching) ? 'Mencari...' : (conceptSearchMode === 'concept' ? 'Cari Konsep' : 'Cari Peraturan'))}
                                 </button>
                             </div>
+                            {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk menggunakan pencarian cerdas berbasis konsep & peraturan.</p>}
+
                             {/* --- LANGKAH D DIMULAI DI SINI: Tampilkan Hasil Pencarian Peraturan --- */}
                 {isRegulationSearching && regulationSearchResults === null && (
                     <div className="mt-6 flex items-center justify-center">
@@ -2041,10 +2129,11 @@ const Referensi = ({
                                                                 </button>
                                                                 <button 
                                                                     onClick={() => addReviewTask({ paper: paper, context: searchQuery })} 
-                                                                    className="text-xs text-orange-600 hover:underline font-semibold disabled:text-gray-400 disabled:no-underline"
-                                                                    disabled={reviewingId === paper.paperId}
+                                                                    className={`text-xs font-semibold ${!isPremium ? 'text-gray-400 cursor-not-allowed' : 'text-orange-600 hover:underline'}`}
+                                                                    disabled={!isPremium || reviewingId === paper.paperId}
+                                                                    title={!isPremium ? "Fitur Premium" : ""}
                                                                 >
-                                                                    {reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI'}
+                                                                    {!isPremium ? '🔒 Review AI (Premium)' : (reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI')}
                                                                 </button>
                                                             </div>
                                                             {expandedAbstractId === paper.paperId && (
@@ -2189,7 +2278,16 @@ const Referensi = ({
                                                 </button>
                                             </div>
                                         </th>
-                                        <th className="p-3 text-center text-sm font-semibold text-gray-700 border-b-2 border-gray-300" style={{ width: '120px' }}>Cek Kualitas</th>
+                                        {/* --- UPDATE: HEADER CEK KUALITAS DENGAN SORTING --- */}
+                                        <th className="p-3 text-center text-sm font-semibold text-gray-700 border-b-2 border-gray-300" style={{ width: '120px' }}>
+                                            <div className="flex flex-col gap-1 items-center">
+                                                <span>Cek Kualitas</span>
+                                                <button onClick={() => handleSort('journal')} className={`text-[10px] font-normal hover:text-blue-600 select-none transition-colors ${sortConfig.key === 'journal' ? 'text-blue-600 font-bold bg-blue-50 px-1 rounded' : 'text-gray-500'}`}>
+                                                    Sort Jurnal {sortConfig.key === 'journal' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                                                </button>
+                                            </div>
+                                        </th>
+                                        {/* -------------------------------------------------- */}
                                         <th className="p-3 text-left text-sm font-semibold text-gray-700 border-b-2 border-gray-300">Tindakan</th>
                                     </tr>
                                 </thead>
@@ -2302,39 +2400,6 @@ const Referensi = ({
     );
 };
 
-// --- Komponen untuk Tab 4: Outline KTI ---
-const Outline = ({ projectData, handleGenerateOutline, isLoading }) => (
-    <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Outline KTI</h2>
-        <p className="text-gray-700 mb-4">Buat kerangka penulisan KTI Anda secara otomatis berdasarkan ide yang telah dipilih.</p>
-        <button onClick={handleGenerateOutline} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed" disabled={isLoading || !projectData.judulKTI}>
-            {isLoading ? 'Memproses...' : '✨ Hasilkan Outline KTI'}
-        </button>
-
-        {isLoading && !projectData.outlineDraft && (
-            <div className="mt-6 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="ml-3 text-gray-600">AI sedang menyusun outline...</p>
-            </div>
-        )}
-
-        {projectData.outlineDraft && (
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Draf Outline KTI</h3>
-                {projectData.outlineDraft.map((bab, index) => (
-                    <div key={index} className="mb-4">
-                        <h4 className="font-bold text-blue-800">{bab.bab}: {bab.judul}</h4>
-                        <ul className="list-disc list-inside ml-4 text-gray-700">
-                            {bab.sub_bab.map((sub, subIndex) => (
-                                <li key={subIndex}>{sub}</li>
-                            ))}
-                        </ul>
-                    </div>
-                ))}
-            </div>
-        )}
-    </div>
-);
 
 // --- Komponen untuk Tab 5: Pendahuluan ---
 const Pendahuluan = ({ 
@@ -2347,6 +2412,7 @@ const Pendahuluan = ({
 }) => {
     // 1. Tambahkan State Lokal
     const [selectedRefIds, setSelectedRefIds] = useState([]);
+    const isPremium = projectData.isPremium;
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
@@ -2366,11 +2432,13 @@ const Pendahuluan = ({
                 {/* 3. Update onClick untuk mengirim selectedRefIds */}
                 <button 
                     onClick={() => handleGenerateFullPendahuluan(selectedRefIds)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 w-full" 
-                    disabled={isLoading}
+                    className={`font-bold py-2 px-4 rounded-lg w-full ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+                    disabled={isLoading || !isPremium}
+                    title={!isPremium ? "Fitur Premium" : ""}
                 >
-                    {isLoading ? 'Memproses...' : '✨ Tulis Draf Pendahuluan Lengkap'}
+                    {!isPremium ? '🔒 Tulis Draf Pendahuluan Lengkap (Premium)' : (isLoading ? 'Memproses...' : '✨ Tulis Draf Pendahuluan Lengkap')}
                 </button>
+                {!isPremium && <p className="text-xs text-red-500 mt-2 text-center">Upgrade ke Premium untuk menulis Bab 1 secara otomatis.</p>}
             </div>
 
             <div className="mt-6">
@@ -2389,37 +2457,37 @@ const Pendahuluan = ({
             
             {/* Fitur Modifikasi Teks */}
             <div className="mt-4 pt-4 border-t border-gray-200">
-                <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf</h4>
+                <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf {isPremium ? '' : '(Premium Only)'}</h4>
                 <div className="flex flex-wrap gap-2">
                     <button 
                         onClick={() => handleModifyText('shorten', 'pendahuluanDraft')}
-                        disabled={isLoading || !projectData.pendahuluanDraft}
-                        className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-yellow-300"
+                        disabled={isLoading || !projectData.pendahuluanDraft || !isPremium}
+                        className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300'}`}
                     >
-                        Buat Versi Pendek
+                        {!isPremium ? '🔒 Pendek' : 'Buat Versi Pendek'}
                     </button>
                     <button 
                         onClick={() => handleModifyText('medium', 'pendahuluanDraft')}
-                        disabled={isLoading || !projectData.pendahuluanDraft}
-                        className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-green-300"
+                        disabled={isLoading || !projectData.pendahuluanDraft || !isPremium}
+                        className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 disabled:bg-green-300'}`}
                     >
-                        Buat Versi Sedang
+                        {!isPremium ? '🔒 Sedang' : 'Buat Versi Sedang'}
                     </button>
                     <button 
                         onClick={() => handleModifyText('lengthen', 'pendahuluanDraft')}
-                        disabled={isLoading || !projectData.pendahuluanDraft}
-                        className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-indigo-300"
+                        disabled={isLoading || !projectData.pendahuluanDraft || !isPremium}
+                        className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300'}`}
                     >
-                        Buat Versi Panjang
+                        {!isPremium ? '🔒 Panjang' : 'Buat Versi Panjang'}
                     </button>
                 </div>
                 {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
                 <button 
                     onClick={() => handleModifyText('humanize', 'pendahuluanDraft')}
-                    disabled={isLoading || !projectData.pendahuluanDraft}
-                    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+                    disabled={isLoading || !projectData.pendahuluanDraft || !isPremium}
+                    className={`mt-2 text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300'}`}
                 >
-                    Parafrasa (Humanisasi)
+                    {!isPremium ? '🔒 Parafrasa (Premium)' : 'Parafrasa (Humanisasi)'}
                 </button>
                 {/* --- AKHIR TOMBOL BARU --- */}
             </div>
@@ -2430,6 +2498,7 @@ const Pendahuluan = ({
 // --- Komponen untuk Tab 6: Metode Penelitian ---
 const MetodePenelitian = ({ projectData, setProjectData, handleGenerateMetode, isLoading, handleCopyToClipboard, handleModifyText }) => {
     const [selectedRefIds, setSelectedRefIds] = useState([]);
+    const isPremium = projectData.isPremium;
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
@@ -2444,11 +2513,12 @@ const MetodePenelitian = ({ projectData, setProjectData, handleGenerateMetode, i
 
             <button 
                 onClick={() => handleGenerateMetode(selectedRefIds)} 
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed w-full" 
-                disabled={isLoading || !projectData.judulKTI}
+                className={`font-bold py-2 px-4 rounded-lg w-full ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+                disabled={isLoading || !projectData.judulKTI || !isPremium}
             >
-                {isLoading ? 'Memproses...' : '✨ Tulis Draf Bab Metode'}
+                {!isPremium ? '🔒 Tulis Draf Bab Metode (Premium)' : (isLoading ? 'Memproses...' : '✨ Tulis Draf Bab Metode')}
             </button>
+            {!isPremium && <p className="text-xs text-red-500 mt-2 text-center">Upgrade ke Premium untuk menulis Bab 3 secara otomatis.</p>}
 
             {isLoading && !projectData.metodeDraft && (
                 <div className="mt-6 flex items-center justify-center">
@@ -2473,37 +2543,37 @@ const MetodePenelitian = ({ projectData, setProjectData, handleGenerateMetode, i
                     ></textarea>
                     {/* Fitur Modifikasi Teks */}
                     <div className="mt-4 pt-4 border-t border-gray-200">
-                        <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf</h4>
+                        <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf {isPremium ? '' : '(Premium Only)'}</h4>
                         <div className="flex flex-wrap gap-2">
                             <button 
                                 onClick={() => handleModifyText('shorten', 'metodeDraft')}
-                                disabled={isLoading || !projectData.metodeDraft}
-                                className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-yellow-300"
+                                disabled={isLoading || !projectData.metodeDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300'}`}
                             >
-                                Buat Versi Pendek
+                                {!isPremium ? '🔒 Pendek' : 'Buat Versi Pendek'}
                             </button>
                             <button 
                                 onClick={() => handleModifyText('medium', 'metodeDraft')}
-                                disabled={isLoading || !projectData.metodeDraft}
-                                className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-green-300"
+                                disabled={isLoading || !projectData.metodeDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 disabled:bg-green-300'}`}
                             >
-                                Buat Versi Sedang
+                                {!isPremium ? '🔒 Sedang' : 'Buat Versi Sedang'}
                             </button>
                             <button 
                                 onClick={() => handleModifyText('lengthen', 'metodeDraft')}
-                                disabled={isLoading || !projectData.metodeDraft}
-                                className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-indigo-300"
+                                disabled={isLoading || !projectData.metodeDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300'}`}
                             >
-                                Buat Versi Panjang
+                                {!isPremium ? '🔒 Panjang' : 'Buat Versi Panjang'}
                             </button>
                         </div>
                         {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
                         <button 
                             onClick={() => handleModifyText('humanize', 'metodeDraft')}
-                            disabled={isLoading || !projectData.metodeDraft}
-                            className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+                            disabled={isLoading || !projectData.metodeDraft || !isPremium}
+                            className={`mt-2 text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300'}`}
                         >
-                            Parafrasa (Humanisasi)
+                            {!isPremium ? '🔒 Parafrasa (Premium)' : 'Parafrasa (Humanisasi)'}
                         </button>
                         {/* --- AKHIR TOMBOL BARU --- */}
                     </div>
@@ -2516,6 +2586,7 @@ const MetodePenelitian = ({ projectData, setProjectData, handleGenerateMetode, i
 // --- Komponen untuk Tab 7: Studi Literatur ---
 const StudiLiteratur = ({ projectData, setProjectData, handleGenerateStudiLiteratur, isLoading, handleCopyToClipboard, handleModifyText }) => {
     const [selectedRefIds, setSelectedRefIds] = useState([]);
+    const isPremium = projectData.isPremium;
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
@@ -2530,11 +2601,12 @@ const StudiLiteratur = ({ projectData, setProjectData, handleGenerateStudiLitera
 
             <button 
                 onClick={() => handleGenerateStudiLiteratur(selectedRefIds)} 
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed w-full" 
-                disabled={isLoading || projectData.allReferences.length === 0}
+                className={`font-bold py-2 px-4 rounded-lg w-full ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+                disabled={isLoading || projectData.allReferences.length === 0 || !isPremium}
             >
-                {isLoading ? 'Memproses...' : '✨ Tulis Draf Studi Literatur'}
+                {!isPremium ? '🔒 Tulis Draf Studi Literatur (Premium)' : (isLoading ? 'Memproses...' : '✨ Tulis Draf Studi Literatur')}
             </button>
+            {!isPremium && <p className="text-xs text-red-500 mt-2 text-center">Upgrade ke Premium untuk menulis Bab 2 secara otomatis.</p>}
 
             {isLoading && !projectData.studiLiteraturDraft && (
                 <div className="mt-6 flex items-center justify-center">
@@ -2559,37 +2631,37 @@ const StudiLiteratur = ({ projectData, setProjectData, handleGenerateStudiLitera
                     ></textarea>
                     {/* Fitur Modifikasi Teks */}
                     <div className="mt-4 pt-4 border-t border-gray-200">
-                        <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf</h4>
+                        <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf {isPremium ? '' : '(Premium Only)'}</h4>
                         <div className="flex flex-wrap gap-2">
                             <button 
                                 onClick={() => handleModifyText('shorten', 'studiLiteraturDraft')}
-                                disabled={isLoading || !projectData.studiLiteraturDraft}
-                                className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-yellow-300"
+                                disabled={isLoading || !projectData.studiLiteraturDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300'}`}
                             >
-                                Buat Versi Pendek
+                                {!isPremium ? '🔒 Pendek' : 'Buat Versi Pendek'}
                             </button>
                             <button 
                                 onClick={() => handleModifyText('medium', 'studiLiteraturDraft')}
-                                disabled={isLoading || !projectData.studiLiteraturDraft}
-                                className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-green-300"
+                                disabled={isLoading || !projectData.studiLiteraturDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 disabled:bg-green-300'}`}
                             >
-                                Buat Versi Sedang
+                                {!isPremium ? '🔒 Sedang' : 'Buat Versi Sedang'}
                             </button>
                             <button 
                                 onClick={() => handleModifyText('lengthen', 'studiLiteraturDraft')}
-                                disabled={isLoading || !projectData.studiLiteraturDraft}
-                                className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-indigo-300"
+                                disabled={isLoading || !projectData.studiLiteraturDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300'}`}
                             >
-                                Buat Versi Panjang
+                                {!isPremium ? '🔒 Panjang' : 'Buat Versi Panjang'}
                             </button>
                         </div>
                         {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
                         <button 
                             onClick={() => handleModifyText('humanize', 'studiLiteraturDraft')}
-                            disabled={isLoading || !projectData.studiLiteraturDraft}
-                            className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+                            disabled={isLoading || !projectData.studiLiteraturDraft || !isPremium}
+                            className={`mt-2 text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300'}`}
                         >
-                            Parafrasa (Humanisasi)
+                            {!isPremium ? '🔒 Parafrasa (Premium)' : 'Parafrasa (Humanisasi)'}
                         </button>
                         {/* --- AKHIR TOMBOL BARU --- */}
                     </div>
@@ -2601,7 +2673,8 @@ const StudiLiteratur = ({ projectData, setProjectData, handleGenerateStudiLitera
 
 // --- Komponen untuk Hasil & Pembahasan ---
 const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPembahasan, isLoading, handleCopyToClipboard, handleModifyText, geminiApiKey, showInfoModal }) => {
-    const [selectedRefIds, setSelectedRefIds] = useState([]); // <-- TAMBAH STATE INI DI AWAL
+    const [selectedRefIds, setSelectedRefIds] = useState([]); 
+    const isPremium = projectData.isPremium;
 
     const availableDrafts = [
         { key: 'analisisKuantitatifDraft', name: 'Analisis Kuantitatif' },
@@ -2661,12 +2734,13 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
 
                     <button 
                         onClick={() => handleGenerateHasilPembahasan(selectedRefIds)} 
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed"
-                        disabled={isLoading || !isReady}
+                        className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+                        disabled={isLoading || !isReady || !isPremium}
                     >
-                        {isLoading ? 'Memproses...' : '✨ Tulis Draf Bab Hasil & Pembahasan'}
+                        {!isPremium ? '🔒 Tulis Draf Pembahasan (Premium)' : (isLoading ? 'Memproses...' : '✨ Tulis Draf Bab Hasil & Pembahasan')}
                     </button>
                     {!isReady && <p className="text-xs text-red-600 mt-2">Tombol dinonaktifkan karena belum ada draf analisis yang disimpan.</p>}
+                    {!isPremium && <p className="text-xs text-red-500 mt-1">Upgrade ke Premium untuk menyintesis hasil analisis secara otomatis.</p>}
                 </>
             )}
 
@@ -2694,35 +2768,35 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                     ></textarea>
                     {/* Fitur Modifikasi Teks */}
                     <div className="mt-4 pt-4 border-t border-gray-200">
-                        <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf</h4>
+                        <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf {isPremium ? '' : '(Premium Only)'}</h4>
                         <div className="flex flex-wrap gap-2">
                             <button 
                                 onClick={() => handleModifyText('shorten', 'hasilPembahasanDraft')}
-                                disabled={isLoading || !projectData.hasilPembahasanDraft}
-                                className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-yellow-300"
+                                disabled={isLoading || !projectData.hasilPembahasanDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300'}`}
                             >
-                                Buat Versi Pendek
+                                {!isPremium ? '🔒 Pendek' : 'Buat Versi Pendek'}
                             </button>
                             <button 
                                 onClick={() => handleModifyText('medium', 'hasilPembahasanDraft')}
-                                disabled={isLoading || !projectData.hasilPembahasanDraft}
-                                className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-green-300"
+                                disabled={isLoading || !projectData.hasilPembahasanDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 disabled:bg-green-300'}`}
                             >
-                                Buat Versi Sedang
+                                {!isPremium ? '🔒 Sedang' : 'Buat Versi Sedang'}
                             </button>
                             <button 
                                 onClick={() => handleModifyText('lengthen', 'hasilPembahasanDraft')}
-                                disabled={isLoading || !projectData.hasilPembahasanDraft}
-                                className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-indigo-300"
+                                disabled={isLoading || !projectData.hasilPembahasanDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300'}`}
                             >
-                                Buat Versi Panjang
+                                {!isPremium ? '🔒 Panjang' : 'Buat Versi Panjang'}
                             </button>
                             <button 
                                 onClick={() => handleModifyText('humanize', 'hasilPembahasanDraft')}
-                                disabled={isLoading || !projectData.hasilPembahasanDraft}
-                                className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+                                disabled={isLoading || !projectData.hasilPembahasanDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300'}`}
                             >
-                                Parafrasa (Humanisasi)
+                                {!isPremium ? '🔒 Parafrasa (Premium)' : 'Parafrasa (Humanisasi)'}
                             </button>
                         </div>
                     </div>
@@ -2735,7 +2809,7 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
 
 // --- Komponen untuk Instrumen: Generator Variabel ---
 const GeneratorVariabel = ({ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal, handleCopyToClipboard }) => {
-    // State lokal untuk menampung hasil dari AI sebelum disimpan
+    // Variabel tetap GRATIS, jadi tidak ada perubahan di sini
     const [suggestedVariables, setSuggestedVariables] = useState(null);
     // State lokal untuk mode penyuntingan
     const [editingVariables, setEditingVariables] = useState(null);
@@ -2878,6 +2952,7 @@ const GeneratorVariabel = ({ projectData, setProjectData, handleGenerateVariabel
 // --- Komponen untuk Instrumen: Generator Hipotesis ---
 const GeneratorHipotesis = ({ projectData, setProjectData, handleGenerateHipotesis, isLoading, showInfoModal, handleCopyToClipboard }) => {
     const [editingHypotheses, setEditingHypotheses] = useState(null);
+    const isPremium = projectData.isPremium;
 
     useEffect(() => {
         if (projectData.aiSuggestedHypotheses) {
@@ -2943,9 +3018,15 @@ const GeneratorHipotesis = ({ projectData, setProjectData, handleGenerateHipotes
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Generator Hipotesis</h2>
             <p className="text-gray-700 mb-4">Berdasarkan variabel yang telah Anda tentukan, AI akan membuatkan draf hipotesis alternatif (H1) dan hipotesis nol (H0) untuk setiap hubungan antar variabel.</p>
             
-            <button onClick={handleGenerateHipotesis} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300" disabled={isLoading}>
-                {isLoading ? 'Memproses...' : '✨ Hasilkan Hipotesis'}
+            <button 
+                onClick={handleGenerateHipotesis} 
+                className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+                disabled={isLoading || !isPremium}
+                title={!isPremium ? "Fitur Premium" : ""}
+            >
+                {!isPremium ? '🔒 Hasilkan Hipotesis (Premium)' : (isLoading ? 'Memproses...' : '✨ Hasilkan Hipotesis')}
             </button>
+            {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk menggunakan generator hipotesis otomatis.</p>}
 
             {isLoading && !editingHypotheses && (
                 <div className="mt-6 flex items-center justify-center">
@@ -3023,6 +3104,7 @@ const GeneratorHipotesis = ({ projectData, setProjectData, handleGenerateHipotes
 // --- Komponen untuk Instrumen: Generator Kuesioner ---
 const GeneratorKuesioner = ({ projectData, setProjectData, handleGenerateKuesioner, isLoading, showInfoModal, handleCopyToClipboard }) => {
     const [editingKuesioner, setEditingKuesioner] = useState(null);
+    const isPremium = projectData.isPremium;
 
     useEffect(() => {
         if (projectData.aiSuggestedKuesioner) {
@@ -3106,9 +3188,15 @@ const GeneratorKuesioner = ({ projectData, setProjectData, handleGenerateKuesion
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Generator Kuesioner</h2>
             <p className="text-gray-700 mb-4">Berdasarkan variabel yang telah Anda tentukan, AI akan membuatkan draf item pernyataan untuk kuesioner Anda.</p>
             
-            <button onClick={handleGenerateKuesioner} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300" disabled={isLoading}>
-                {isLoading ? 'Memproses...' : '✨ Hasilkan Draf Kuesioner'}
+            <button 
+                onClick={handleGenerateKuesioner} 
+                className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+                disabled={isLoading || !isPremium}
+                title={!isPremium ? "Fitur Premium" : ""}
+            >
+                {!isPremium ? '🔒 Hasilkan Draf Kuesioner (Premium)' : (isLoading ? 'Memproses...' : '✨ Hasilkan Draf Kuesioner')}
             </button>
+            {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk menggunakan generator kuesioner otomatis.</p>}
 
             {isLoading && !editingKuesioner && (
                 <div className="mt-6 flex items-center justify-center">
@@ -3173,6 +3261,7 @@ const GeneratorKuesioner = ({ projectData, setProjectData, handleGenerateKuesion
 // --- Komponen untuk Instrumen: Generator Pertanyaan Wawancara ---
 const GeneratorWawancara = ({ projectData, setProjectData, handleGenerateWawancara, isLoading, showInfoModal, handleCopyToClipboard }) => {
     const [editingWawancara, setEditingWawancara] = useState(null);
+    const isPremium = projectData.isPremium;
 
     useEffect(() => {
         if (projectData.aiSuggestedWawancara) {
@@ -3257,9 +3346,15 @@ const GeneratorWawancara = ({ projectData, setProjectData, handleGenerateWawanca
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Generator Pertanyaan Wawancara</h2>
             <p className="text-gray-700 mb-4">Berdasarkan tujuan penelitian Anda, AI akan membuatkan draf panduan wawancara semi-terstruktur.</p>
             
-            <button onClick={handleGenerateWawancara} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300" disabled={isLoading}>
-                {isLoading ? 'Memproses...' : '✨ Hasilkan Draf Panduan Wawancara'}
+            <button 
+                onClick={handleGenerateWawancara} 
+                className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+                disabled={isLoading || !isPremium}
+                title={!isPremium ? "Fitur Premium" : ""}
+            >
+                {!isPremium ? '🔒 Hasilkan Draf Panduan (Premium)' : (isLoading ? 'Memproses...' : '✨ Hasilkan Draf Panduan Wawancara')}
             </button>
+            {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk menggunakan generator panduan wawancara otomatis.</p>}
 
             {isLoading && !editingWawancara && (
                 <div className="mt-6 flex items-center justify-center">
@@ -3348,6 +3443,7 @@ const GeneratorLogKueri = ({
     });
     const [editingLog, setEditingLog] = useState(null);
     const today = new Date().toISOString().slice(0, 10);
+    const isPremium = projectData.isPremium;
 
     // State baru untuk PICOS
    
@@ -3670,10 +3766,11 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                 <div className="mb-6">
                     <button
                         onClick={handleAiFillPicos}
-                        disabled={isLoading || isPicosLoading || (!projectData.topikTema && !projectData.judulKTI)}
-                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-purple-300 disabled:cursor-not-allowed"
+                        disabled={isLoading || isPicosLoading || (!projectData.topikTema && !projectData.judulKTI) || !isPremium}
+                        className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-purple-600 hover:bg-purple-700 text-white disabled:bg-purple-300'}`}
+                        title={!isPremium ? "Fitur Premium" : ""}
                     >
-                        {isPicosLoading ? 'Memproses...' : '✨ Isi Otomatis dengan AI'}
+                        {!isPremium ? '🔒 Isi Otomatis dengan AI (Premium)' : (isPicosLoading ? 'Memproses...' : '✨ Isi Otomatis dengan AI')}
                     </button>
                 </div>
                 {/* --- KODE BARU BERAKHIR DI SINI --- */}
@@ -3707,10 +3804,11 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                 </div>
                  <button 
                     onClick={() => handleGenerateQueriesFromPicos(projectData.picos, 'rq')}
-                    className="mt-4 bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-teal-300" 
-                    disabled={isLoading || !projectData.picos.population || !projectData.picos.intervention || !projectData.picos.outcome}
+                    className={`mt-4 font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-teal-600 hover:bg-teal-700 text-white disabled:bg-teal-300'}`}
+                    disabled={isLoading || !projectData.picos.population || !projectData.picos.intervention || !projectData.picos.outcome || !isPremium}
+                    title={!isPremium ? "Fitur Premium" : ""}
                 >
-                    {isLoading ? 'Memproses...' : 'Formulasikan Pertanyaan Penelitian'}
+                    {!isPremium ? '🔒 Formulasikan RQ (Premium)' : (isLoading ? 'Memproses...' : 'Formulasikan Pertanyaan Penelitian')}
                 </button>
                 
                 {/* --- KOTAK PERTANYAAN PENELITIAN BARU --- */}
@@ -3760,20 +3858,23 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                 </div>
                 <button 
                     onClick={handleGenerateQueries} 
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300" 
-                    disabled={isLoading || !projectData.judulKTI}
+                    className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`} 
+                    disabled={isLoading || !projectData.judulKTI || !isPremium}
                     aria-label="Hasilkan kueri berjenjang"
+                    title={!isPremium ? "Fitur Premium" : ""}
                 >
-                    {isLoading ? 'Memproses...' : '✨ Hasilkan Kueri (dari Judul)'}
+                    {!isPremium ? '🔒 Hasilkan Kueri (Premium)' : (isLoading ? 'Memproses...' : '✨ Hasilkan Kueri (dari Judul)')}
                 </button>
                  <button 
                     onClick={() => handleGenerateQueriesFromPicos(projectData.picos, 'query')}
-                    className="ml-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-green-300" 
-                    disabled={isLoading || !projectData.picos.population || !projectData.picos.intervention || !projectData.picos.outcome}
+                    className={`ml-4 font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-green-600 hover:bg-green-700 text-white disabled:bg-green-300'}`}
+                    disabled={isLoading || !projectData.picos.population || !projectData.picos.intervention || !projectData.picos.outcome || !isPremium}
                     aria-label="Hasilkan kueri dari PICOS"
+                    title={!isPremium ? "Fitur Premium" : ""}
                 >
-                    {isLoading ? 'Memproses...' : '✨ Hasilkan Kueri (dari PICOS)'}
+                    {!isPremium ? '🔒 Hasilkan Kueri (Premium)' : (isLoading ? 'Memproses...' : '✨ Hasilkan Kueri (dari PICOS)')}
                 </button>
+                {!isPremium && <p className="text-xs text-red-500 mt-2">Mode Gratis: Silakan gunakan Log Kueri di bawah untuk mencatat kueri manual Anda.</p>}
             </div>
 
             {isLoading && !projectData.aiGeneratedQueries && (
@@ -3916,6 +4017,7 @@ const AnalisisKuantitatif = ({
   const [quantitativeFocus, setQuantitativeFocus] = useState(''); // <-- BARU
   const [targetDraft, setTargetDraft] = useState('analisisKuantitatifDraft'); // <-- TAMBAHKAN INI
   const fileInputRef = useRef(null);
+  const isPremium = projectData.isPremium;
 
   // Handle file upload
   const handleFileChange = (event) => {
@@ -4043,19 +4145,22 @@ const AnalisisKuantitatif = ({
           <div className="flex flex-wrap gap-4">
             <button 
               onClick={() => handleGenerateAnalisis(parsedData, 'konfirmatif', quantitativeFocus)} // <-- PERUBAHAN
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300"
-              disabled={isLoading}
+              className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+              disabled={isLoading || !isPremium}
+              title={!isPremium ? "Fitur Premium" : ""}
             >
-              {isLoading ? 'Menganalisis...' : 'Analisis Konfirmatif (Uji Hipotesis)'}
+              {!isPremium ? '🔒 Analisis Konfirmatif (Premium)' : (isLoading ? 'Menganalisis...' : 'Analisis Konfirmatif (Uji Hipotesis)')}
             </button>
             <button 
               onClick={() => handleGenerateAnalisis(parsedData, 'eksploratif', quantitativeFocus)} // <-- PERUBAHAN
-              className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-green-300"
-              disabled={isLoading}
+              className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-green-600 hover:bg-green-700 text-white disabled:bg-green-300'}`}
+              disabled={isLoading || !isPremium}
+              title={!isPremium ? "Fitur Premium" : ""}
             >
-              {isLoading ? 'Menganalisis...' : 'Analisis Eksploratif (Temukan Wawasan)'}
+              {!isPremium ? '🔒 Analisis Eksploratif (Premium)' : (isLoading ? 'Menganalisis...' : 'Analisis Eksploratif (Temukan Wawasan)')}
             </button>
           </div>
+          {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk menjalankan analisis statistik otomatis dengan AI.</p>}
         </div>
       )}
 
@@ -4161,6 +4266,7 @@ const AnalisisKualitatif = ({
   const [qualitativeFocus, setQualitativeFocus] = useState(''); // <-- BARU
   const [showPromoModal, setShowPromoModal] = useState(false); // <-- STATE BARU UNTUK POP-UP PROMO
   const fileInputRef = useRef(null);
+  const isPremium = projectData.isPremium;
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -4323,11 +4429,13 @@ const AnalisisKualitatif = ({
           {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
           <button 
             onClick={handleAnalysis} 
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300"
-            disabled={isLoading}
+            className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+            disabled={isLoading || !isPremium}
+            title={!isPremium ? "Fitur Premium" : ""}
           >
-            {isLoading ? 'Menganalisis...' : '✨ Lakukan Analisis Tematik'}
+            {!isPremium ? '🔒 Analisis Tematik (Premium)' : (isLoading ? 'Menganalisis...' : '✨ Lakukan Analisis Tematik')}
           </button>
+          {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk analisis kualitatif otomatis.</p>}
         </div>
       )}
       
@@ -4460,6 +4568,7 @@ const AnalisisVisual = ({
   const [analysisFocus, setAnalysisFocus] = useState('');
   const [targetDraft, setTargetDraft] = useState('analisisVisualDraft'); // <-- State baru untuk dropdown
   const fileInputRef = useRef(null);
+  const isPremium = projectData.isPremium;
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -4588,10 +4697,11 @@ const AnalisisVisual = ({
           <div className="flex flex-wrap gap-2">
             <button 
               onClick={handleAnalysis} 
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300"
-              disabled={isLoading}
+              className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+              disabled={isLoading || !isPremium}
+              title={!isPremium ? "Fitur Premium" : ""}
             >
-              {isLoading ? 'Menganalisis...' : '✨ Analisis Gambar dengan AI'}
+              {!isPremium ? '🔒 Analisis Gambar (Premium)' : (isLoading ? 'Menganalisis...' : '✨ Analisis Gambar dengan AI')}
             </button>
             <button 
               onClick={handleResetCurrent}
@@ -4600,6 +4710,7 @@ const AnalisisVisual = ({
               Reset
             </button>
           </div>
+          {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk analisis visual otomatis.</p>}
         </div>
       )}
 
@@ -4829,6 +4940,7 @@ const AnalisisGapNovelty = ({
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isMapping, setIsMapping] = useState(false); 
     const [targetDraft, setTargetDraft] = useState('pendahuluanDraft');
+    const isPremium = projectData.isPremium;
     
     // Helper: Pilih Semua / Hapus Semua
     const handleSelectAll = (select) => {
@@ -4852,18 +4964,38 @@ const AnalisisGapNovelty = ({
 
     // --- LOGIKA AI PETA TEMATIK (LANGKAH 3 SELESAI) ---
     const handleGenerateThematicMap = async () => {
-        if (selectedRefIds.length === 0) {
-            showInfoModal("Pilih referensi terlebih dahulu untuk dipetakan.");
+        // --- UPDATE: Validasi Jumlah Referensi Minimal ---
+        if (selectedRefIds.length < 5) {
+            showInfoModal(`Analisis Peta Tematik membutuhkan minimal 5 referensi agar hasilnya valid dan membentuk cluster yang bermakna. Saat ini Anda hanya memilih ${selectedRefIds.length} referensi.`);
             return;
         }
+        // ------------------------------------------------
+
         setIsMapping(true);
         setProjectData(p => ({ ...p, thematicMapData: null })); // Reset peta lama
 
         // 1. Siapkan Data Referensi
         const selectedRefs = projectData.allReferences.filter(ref => selectedRefIds.includes(ref.id));
-        const refsInput = selectedRefs.map((ref, i) => 
-            `[${i+1}] "${ref.title}" (${ref.year}). Ringkasan: ${ref.abstract ? ref.abstract.substring(0, 300) + "..." : (ref.isiKutipan || "Tidak ada data")}`
-        ).join('\n');
+        const refsInput = selectedRefs.map((ref, i) => {
+            let content = "Tidak ada data ringkasan.";
+            
+            // Prioritas 1: Abstrak (jika ada dan cukup panjang)
+            if (ref.abstract && ref.abstract.trim().length > 20) {
+                // Ambil 500 karakter pertama agar muat di context window tapi cukup detail
+                content = ref.abstract.substring(0, 500) + (ref.abstract.length > 500 ? "..." : "");
+            } 
+            // Prioritas 2: Kutipan / Catatan (jika abstrak kosong)
+            else if (ref.isiKutipan && ref.isiKutipan.trim().length > 0) {
+                content = `[Dari Catatan/Kutipan]: ${ref.isiKutipan.substring(0, 500)}`;
+            }
+
+            return `[${i+1}] "${ref.title}" (${ref.year}). Ringkasan: ${content}`;
+        }).join('\n');
+
+        // --- UPDATE: Logika Jumlah Tema (Sekarang Statis karena Min 5) ---
+        // Karena data dijamin >= 5, kita bisa langsung minta clustering standar.
+        const themeInstruction = "Kelompokkan literatur menjadi 5-10 'Tema Utama' (Cluster).";
+        // ------------------------------------------
 
         // 2. Prompt Strategis (Strategic Diagram / Thematic Map)
         const prompt = `Anda adalah ahli Bibliometrik (Science Mapping). Tugas Anda adalah membuat "Thematic Map" (Peta Tematik) dari daftar literatur berikut.
@@ -4872,7 +5004,7 @@ DAFTAR LITERATUR:
 ${refsInput}
 
 INSTRUKSI ANALISIS:
-1. Kelompokkan literatur di atas menjadi 5-10 "Tema Utama" (Cluster).
+1. ${themeInstruction} Gunakan Ringkasan (Abstrak atau Catatan) yang tersedia.
 2. Untuk setiap tema, berikan nilai skor (Skala 1-10) untuk dua dimensi:
    - **X (Centrality):** Seberapa penting/relevan tema ini terhadap topik umum kumpulan literatur ini? (1=Sangat Periferal/Sampingan, 10=Sangat Sentral/Inti).
    - **Y (Density):** Seberapa matang/berkembang tema ini dibahas? (1=Baru muncul/Sedikit dibahas, 10=Sangat jenuh/Banyak dibahas).
@@ -5067,8 +5199,9 @@ Teks narasi paragraf (Bahasa Indonesia akademis). Tanpa judul section, langsung 
                 <div className="flex justify-end mb-4">
                     <button 
                         onClick={handleGenerateThematicMap}
-                        disabled={isMapping || selectedRefIds.length === 0}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 disabled:bg-indigo-300 disabled:cursor-not-allowed text-sm"
+                        disabled={isMapping || selectedRefIds.length === 0 || !isPremium}
+                        className={`font-bold py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 text-sm ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-indigo-300'}`}
+                        title={!isPremium ? "Fitur Premium" : ""}
                     >
                         {isMapping ? (
                             <>
@@ -5077,10 +5210,14 @@ Teks narasi paragraf (Bahasa Indonesia akademis). Tanpa judul section, langsung 
                             </>
                         ) : (
                             <>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                    <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
-                                </svg>
-                                Analisis Visual Peta Tematik
+                                {!isPremium ? '🔒 Peta Tematik (Premium)' : (
+                                    <>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
+                                        </svg>
+                                        Analisis Visual Peta Tematik
+                                    </>
+                                )}
                             </>
                         )}
                     </button>
@@ -5093,19 +5230,21 @@ Teks narasi paragraf (Bahasa Indonesia akademis). Tanpa judul section, langsung 
             </div>
 
             {/* BAGIAN 2: TOMBOL AKSI UTAMA (NARASI) */}
-            <div className="flex justify-center mb-8 border-t pt-6">
+            <div className="flex flex-col items-center mb-8 border-t pt-6">
                 <button 
                     onClick={handleAnalyze}
-                    disabled={isAnalyzing || selectedRefIds.length === 0}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transform hover:-translate-y-1 transition-all disabled:bg-purple-300 disabled:cursor-not-allowed disabled:transform-none"
+                    disabled={isAnalyzing || selectedRefIds.length === 0 || !isPremium}
+                    className={`font-bold py-3 px-8 rounded-full shadow-lg transform transition-all ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-purple-600 hover:bg-purple-700 text-white hover:-translate-y-1 disabled:bg-purple-300 disabled:transform-none'}`}
+                    title={!isPremium ? "Fitur Premium" : ""}
                 >
                     {isAnalyzing ? (
                         <span className="flex items-center gap-2">
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                             Menulis Analisis Naratif...
                         </span>
-                    ) : "✨ Tulis Analisis Kesenjangan & Kebaruan (Naratif)"}
+                    ) : (!isPremium ? '🔒 Tulis Analisis Gap (Premium)' : "✨ Tulis Analisis Kesenjangan & Kebaruan (Naratif)")}
                 </button>
+                {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk membuka fitur analisis cerdas ini.</p>}
             </div>
 
             {/* BAGIAN 3: HASIL & OUTPUT */}
@@ -5162,6 +5301,7 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
     ];
 
     const isReady = prerequisites.every(p => projectData[p.key] && projectData[p.key].trim() !== '');
+    const isPremium = projectData.isPremium;
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
@@ -5186,12 +5326,14 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
                 </div>
                 <button 
                     onClick={handleGenerateKesimpulan} 
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed"
-                    disabled={isLoading || !isReady}
+                    className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+                    disabled={isLoading || !isReady || !isPremium}
+                    title={!isPremium ? "Fitur Premium" : ""}
                 >
-                    {isLoading ? 'Memproses...' : '✨ Tulis Draf Bab Kesimpulan'}
+                    {!isPremium ? '🔒 Tulis Draf Kesimpulan (Premium)' : (isLoading ? 'Memproses...' : '✨ Tulis Draf Bab Kesimpulan')}
                 </button>
                 {!isReady && <p className="text-xs text-red-600 mt-2">Tombol dinonaktifkan karena belum semua draf prasyarat selesai.</p>}
+                {!isPremium && <p className="text-xs text-red-500 mt-1">Upgrade ke Premium untuk menulis Bab 5 otomatis.</p>}
             </div>
 
             {isLoading && !projectData.kesimpulanDraft && (
@@ -5217,37 +5359,37 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
                     ></textarea>
                     {/* Fitur Modifikasi Teks */}
                     <div className="mt-4 pt-4 border-t border-gray-200">
-                        <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf</h4>
+                        <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf {isPremium ? '' : '(Premium Only)'}</h4>
                         <div className="flex flex-wrap gap-2">
                             <button 
                                 onClick={() => handleModifyText('shorten', 'kesimpulanDraft')}
-                                disabled={isLoading || !projectData.kesimpulanDraft}
-                                className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-yellow-300"
+                                disabled={isLoading || !projectData.kesimpulanDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300'}`}
                             >
-                                Buat Versi Pendek
+                                {!isPremium ? '🔒 Pendek' : 'Buat Versi Pendek'}
                             </button>
                             <button 
                                 onClick={() => handleModifyText('medium', 'kesimpulanDraft')}
-                                disabled={isLoading || !projectData.kesimpulanDraft}
-                                className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-green-300"
+                                disabled={isLoading || !projectData.kesimpulanDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 disabled:bg-green-300'}`}
                             >
-                                Buat Versi Sedang
+                                {!isPremium ? '🔒 Sedang' : 'Buat Versi Sedang'}
                             </button>
                             <button 
                                 onClick={() => handleModifyText('lengthen', 'kesimpulanDraft')}
-                                disabled={isLoading || !projectData.kesimpulanDraft}
-                                className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-indigo-300"
+                                disabled={isLoading || !projectData.kesimpulanDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300'}`}
                             >
-                                Buat Versi Panjang
+                                {!isPremium ? '🔒 Panjang' : 'Buat Versi Panjang'}
                             </button>
                         </div>
                         {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
 <button 
     onClick={() => handleModifyText('humanize', 'kesimpulanDraft')}
-    disabled={isLoading || !projectData.kesimpulanDraft}
-    className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-2 px-3 rounded-lg disabled:bg-purple-300"
+    disabled={isLoading || !projectData.kesimpulanDraft || !isPremium}
+    className={`mt-2 text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300'}`}
 >
-    Parafrasa (Humanisasi)
+    {!isPremium ? '🔒 Parafrasa (Premium)' : 'Parafrasa (Humanisasi)'}
 </button>
 {/* --- AKHIR TOMBOL BARU --- */}
                     </div>
@@ -6142,6 +6284,7 @@ const SintesisData = ({ projectData, setProjectData, showInfoModal, geminiApiKey
     const [currentExtractionData, setCurrentExtractionData] = useState(null); // Holds the data for the paper being extracted
     const [isExtracting, setIsExtracting] = useState(false); // For AI loading state
     const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
+    const isPremium = projectData.isPremium;
 
     const handleExportToCSV = () => {
         if (!projectData.extractedData || projectData.extractedData.length === 0) {
@@ -6489,10 +6632,11 @@ ${context}
                         <div className="mt-6 pt-4 border-t flex justify-between items-center">
                             <button
                                 onClick={handleAiExtract} // To be implemented in the next step
-                                disabled={isExtracting}
-                                className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-purple-300"
+                                disabled={isExtracting || !isPremium}
+                                className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-purple-600 hover:bg-purple-700 text-white disabled:bg-purple-300'}`}
+                                title={!isPremium ? "Fitur Premium" : ""}
                             >
-                                {isExtracting ? 'Mengekstrak...' : '✨ Ekstrak dengan AI'}
+                                {!isPremium ? '🔒 Ekstrak AI (Premium)' : (isExtracting ? 'Mengekstrak...' : '✨ Ekstrak dengan AI')}
                             </button>
                             <div className="flex gap-2">
                                 <button onClick={() => setIsExtractionModalOpen(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Batal</button>
@@ -6632,11 +6776,13 @@ ${context}
                     <p className="text-sm text-blue-700 mb-4">Setelah data terkumpul di tabel sintesis, klik tombol di bawah untuk meminta AI menyintesis semua informasi menjadi sebuah narasi yang koheren.</p>
                     <button
                         onClick={handleGenerateNarrative}
-                        disabled={isNarrativeLoading || projectData.extractedData.length === 0}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-blue-300 disabled:cursor-not-allowed"
+                        disabled={isNarrativeLoading || projectData.extractedData.length === 0 || !isPremium}
+                        className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+                        title={!isPremium ? "Fitur Premium" : ""}
                     >
-                        {isNarrativeLoading ? 'Memproses...' : '✨ Tulis Draf Sintesis Naratif'}
+                        {!isPremium ? '🔒 Tulis Sintesis (Premium)' : (isNarrativeLoading ? 'Memproses...' : '✨ Tulis Draf Sintesis Naratif')}
                     </button>
+                    {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk sintesis naratif otomatis.</p>}
                  </div>
 
                  {isNarrativeLoading && !projectData.sintesisNaratifDraft && (
@@ -6948,6 +7094,7 @@ function App() {
     const [editingIdea, setEditingIdea] = useState(null);
     const [aiStructuredResponse, setAiStructuredResponse] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    // --- UPDATE 1: Menambahkan Field Abstract pada Template ---
     const manualRefTemplate = `Journal Article Title: 
 Journal Name: 
 Date: 
@@ -6958,10 +7105,13 @@ Issue:
 Pages: 
 URL: 
 DOI: 
-Publisher Name: `;
+Publisher Name: 
+Abstract: `;
+    // ---------------------------------------------------------
     const [manualRef, setManualRef] = useState({ id: null, text: manualRefTemplate });
     const [manualMode, setManualMode] = useState('template'); // <-- Pindahkan State manualMode ke sini
     const [freeTextRef, setFreeTextRef] = useState('');
+    const [smartPasteText, setSmartPasteText] = useState(''); // State untuk Smart Paste
     const [generatedApaReferences, setGeneratedApaReferences] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [modalMessage, setModalMessage] = useState('');
@@ -7126,28 +7276,33 @@ const setGeminiApiKey = (val) => {
         }
     }, [projectData, currentUser, isLoadingAuth]);
 
-    // Handler aktivasi lisensi (Updated dengan fitur Scopus)
-    const handleLicenseActivation = async (enableScopus = false) => {
+    // --- UPDATE TAHAP 1: Handler Aktivasi Lisensi Dinamis ---
+    const handleLicenseActivation = async (enablePremium = false, enableScopus = false) => {
         // 1. Buka Akses Sesi Ini & Update Refs
         setIsLicenseVerified(true);
         setForceShowLicense(false); 
         
-        licenseVerifiedRef.current = true;
-        eliteStatusRef.current = enableScopus;
+        licenseVerifiedRef.current = enablePremium; // Premium true/false
+        eliteStatusRef.current = enableScopus;      // Scopus true/false
 
         // 2. Update state lokal data proyek
         setProjectData(prev => ({ 
             ...prev, 
-            isPremium: true,
+            isPremium: enablePremium,
             showScopus: enableScopus 
         }));
         
         // 3. Jika pengguna SUDAH login, simpan langsung ke Firestore
-        if (currentUser) {
+        // Kita hanya simpan jika statusnya Premium/Elite. 
+        // Jika Free (enablePremium=false), kita TIDAK menimpa data di DB menjadi false 
+        // (untuk mencegah user Premium yang iseng login lewat tombol Free kehilangan statusnya di DB).
+        // TAPI: Jika ini pendaftaran baru, nilai default di DB sudah false.
+        
+        if (currentUser && enablePremium) {
             try {
                 const docRef = doc(db, "projects", currentUser.uid);
                 await setDoc(docRef, { 
-                    isPremium: true,
+                    isPremium: enablePremium,
                     showScopus: enableScopus 
                 }, { merge: true });
             } catch (error) {
@@ -7155,11 +7310,15 @@ const setGeminiApiKey = (val) => {
             }
         }
         
-        // Notifikasi
-        if (enableScopus) {
-            alert("Aktivasi ELITE Berhasil! Fitur Scopus telah dibuka.");
+        // Notifikasi UI
+        if (enablePremium) {
+            if (enableScopus) {
+                alert("Aktivasi ELITE Berhasil! Akses Scopus Institusi dibuka.");
+            } else {
+                alert("Aktivasi PREMIUM Berhasil! Fitur AI Lanjutan dibuka.");
+            }
         } else {
-            alert("Aktivasi Berhasil! Selamat datang di Bibliocobra Premium.");
+            // Mode Free: Tidak perlu alert mengganggu, langsung masuk
         }
     };
 
@@ -7663,7 +7822,7 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
         const reference = {
             title: '', journal: '', year: '', author: '', editors: '',
             volume: '', issue: '', pages: '', url: '', doi: '',
-            publisher: ''
+            publisher: '', abstract: '' // <-- Tambahkan inisialisasi abstract
         };
         lines.forEach(line => {
             const [key, ...valueParts] = line.split(':');
@@ -7683,6 +7842,9 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
                 case 'url': reference.url = value; break;
                 case 'doi': reference.doi = value; break;
                 case 'publisher name': reference.publisher = value; break;
+                // --- UPDATE 2: Tambahkan Case untuk Abstract ---
+                case 'abstract': reference.abstract = value; break;
+                // ----------------------------------------------
                 default: break;
             }
         });
@@ -7746,7 +7908,79 @@ Urai teks berikut:
         }
     };
 
+    // --- FITUR BARU: SMART PASTE HANDLER ---
+    const handleSmartPaste = async () => {
+        setIsLoading(true);
+        
+        const prompt = `Anda adalah asisten riset yang cerdas. Pengguna akan memberikan teks mentah yang disalin langsung dari halaman pertama sebuah jurnal ilmiah (PDF). Teks ini mungkin berantakan, berisi header/footer, dan line break yang salah.
+
+Tugas Anda:
+1. Analisis teks tersebut untuk menemukan metadata bibliografi.
+2. Temukan dan rekonstruksi paragraf **ABSTRAK** agar menjadi satu paragraf yang rapi (hilangkan line break yang tidak perlu).
+3. Kembalikan data dalam format JSON yang valid.
+
+Teks Mentah:
+"""
+${smartPasteText}
+"""
+
+Hasilkan JSON dengan key: title, author (semua penulis dipisah koma), year, journal, volume, issue, pages, doi, publisher, abstract.`;
+
+        const schema = {
+            type: "OBJECT",
+            properties: {
+                title: { type: "STRING" },
+                author: { type: "STRING" },
+                year: { type: "STRING" },
+                journal: { type: "STRING" },
+                volume: { type: "STRING" },
+                issue: { type: "STRING" },
+                pages: { type: "STRING" },
+                doi: { type: "STRING" },
+                publisher: { type: "STRING" },
+                abstract: { type: "STRING" }
+            },
+            required: ["title", "author", "year"]
+        };
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            
+            // Format hasil ke dalam Template Manual
+            const filledTemplate = `Journal Article Title: ${result.title || ''}
+Journal Name: ${result.journal || ''}
+Date: ${result.year || ''}
+Contributing Authors: ${result.author || ''}
+Editors Name: 
+Volume: ${result.volume || ''}
+Issue: ${result.issue || ''}
+Pages: ${result.pages || ''}
+URL: 
+DOI: ${result.doi || ''}
+Publisher Name: ${result.publisher || ''}
+Abstract: ${result.abstract || ''}`;
+
+            // Masukkan ke state manualRef
+            setManualRef({ id: null, text: filledTemplate });
+            
+            // Pindah tab ke "Isi Template" agar user bisa cek
+            setManualMode('template');
+            
+            // Bersihkan input smart paste
+            setSmartPasteText('');
+            
+            showInfoModal("Data berhasil diekstrak! Silakan periksa di tab 'Isi Template' dan klik 'Tambah ke Proyek' jika sudah sesuai.");
+
+        } catch (error) {
+            showInfoModal(`Gagal mengekstrak data (Smart Paste): ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    // ---------------------------------------
+
     const handleEditReference = (ref) => {
+        // --- UPDATE 3: Masukkan Data Abstract ke dalam Template Edit ---
         const text = `Journal Article Title: ${ref.title || ''}
 Journal Name: ${ref.journal || ''}
 Date: ${ref.year || ''}
@@ -7757,7 +7991,9 @@ Issue: ${ref.issue || ''}
 Pages: ${ref.pages || ''}
 URL: ${ref.url || ''}
 DOI: ${ref.doi || ''}
-Publisher Name: ${ref.publisher || ''}`;
+Publisher Name: ${ref.publisher || ''}
+Abstract: ${ref.abstract || ''}`;
+        // -------------------------------------------------------------
         setManualRef({ id: ref.id, text: text });
         setOpenMethod('method4'); // Otomatis buka accordion Metode 3 (Tambah Manual)
         setManualMode('template'); // Otomatis pilih tab Template
@@ -7943,47 +8179,7 @@ ${context}
             setIsLoading(false);
         }
     };
-
-    const handleGenerateOutline = async () => {
-        setIsLoading(true);
-        // --- PERBAIKAN DIMULAI DI SINI: Mengganti prompt yang rusak ---
-        const prompt = `Anda adalah seorang asisten penulisan akademik. Buatkan draf outline (kerangka bab) standar untuk sebuah ${projectData.jenisKaryaTulis} dengan judul "${projectData.judulKTI}".
-
-        Gunakan struktur bab standar berikut:
-        - Bab I: Pendahuluan
-        - Bab II: Tinjauan Pustaka (atau Studi Literatur)
-        - Bab III: Metode Penelitian
-        - Bab IV: Hasil dan Pembahasan
-        - Bab V: Kesimpulan (sertakan sub-bab untuk Keterbatasan dan Saran Penelitian Selanjutnya)
-
-        Untuk setiap bab, berikan beberapa sub-bab (poin-poin) yang relevan dan umum ditemukan dalam struktur tersebut, sesuaikan sedikit dengan konteks judul jika memungkinkan, tetapi prioritas utama adalah struktur standar.
-
-        Hasil harus dalam format JSON yang diminta.`;
-        // --- PERBAIKAN BERAKHIR DI SINI ---
-
-        const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    bab: { type: "STRING" },
-                    judul: { type: "STRING" },
-                    sub_bab: { type: "ARRAY", items: { type: "STRING" } }
-                },
-                required: ["bab", "judul", "sub_bab"]
-            }
-        };
-        try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
-            setProjectData(prev => ({ ...prev, outlineDraft: result }));
-            showInfoModal("Draf Outline KTI berhasil dibuat!");
-        } catch (error) {
-            showInfoModal(`Gagal membuat outline: ${error.message}`);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    
+  
     // UPDATE: Menerima selectedIds untuk Pendahuluan
     const handleGenerateFullPendahuluan = async (selectedIds = []) => {
         setIsLoading(true);
@@ -7998,7 +8194,7 @@ ${context}
             .map(ref => `- Dari "${ref.title}" oleh ${ref.author} (${ref.year}): "${ref.isiKutipan}"`)
             .join('\n');
         
-        const outlineString = projectData.outlineDraft ? projectData.outlineDraft.map(bab => `- ${bab.bab}: ${bab.judul}`).join('\n') : 'Outline belum dibuat.';
+        // [BAGIAN OUTLINE SUDAH DIHAPUS DISINI]
 
         // --- PERBAIKAN PROMPT DI SINI (AKSI 1 & AKSI 2 LENGKAP) ---
         const prompt = `Anda adalah seorang penulis akademik ahli yang sangat teliti. Tugas Anda adalah menulis draf Bab 1: Pendahuluan yang lengkap dan koheren HANYA berdasarkan informasi yang disediakan.
@@ -8016,8 +8212,6 @@ ${context}
 - Tujuan Penelitian: "${projectData.tujuanPenelitianDraft}"
 - Catatan dari Referensi (untuk mendukung latar belakang):
 ${kutipanString || "Tidak ada catatan spesifik dari referensi."}
-- Outline KTI (untuk sistematika penulisan):
-${outlineString || "Outline belum dibuat."}
 
 **Struktur Bab Pendahuluan yang Harus Anda Hasilkan:**
 1.1 Latar Belakang / Konteks Ilmiah
@@ -8290,15 +8484,13 @@ Susun poin-poin di atas menjadi sebuah narasi bab metode yang koheren dan diduku
             return;
         }
 
-        // --- PENAMBAHAN KONTEKS BARU (AKSI 1) ---
-        const outlineString = projectData.outlineDraft ? projectData.outlineDraft.map(bab => `- ${bab.bab}: ${bab.judul}`).join('\n') : 'Outline belum dibuat.';
+        // [BAGIAN OUTLINE SUDAH DIHAPUS DISINI]
 
         // --- PERBAIKAN PROMPT DI SINI ---
         const prompt = `Anda adalah seorang penulis akademik yang sangat teliti. Tugas Anda adalah menulis draf Bab 2: Tinjauan Pustaka HANYA berdasarkan informasi yang disediakan.
 
 **Aturan Paling Penting (WAJIB DIPATUHI):**
 - **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek". JANGAN menambahkan informasi, konsep, atau teori lain.
-- **Wajib Ikuti Outline:** Anda HARUS menggunakan struktur sub-bab dari "Outline KTI" (khususnya Bab 2) sebagai kerangka tulisan Anda. Jika "Outline KTI" kosong, barulah Anda boleh membuat tema sendiri.
 - **Fokus pada Rumusan Masalah:** Prioritaskan sintesis catatan yang paling relevan untuk memberikan landasan teoretis bagi "Rumusan Masalah".
 - **Format Teks:** Tulis seluruhnya sebagai teks biasa (plain text). Jangan gunakan markdown (*, _, **), HTML.
 - **Wajib Sitasi:** Saat Anda menggunakan ide dari 'Catatan dari Referensi', Anda WAJIB menyertakan sitasinya (Penulis, Tahun).
@@ -8306,8 +8498,6 @@ Susun poin-poin di atas menjadi sebuah narasi bab metode yang koheren dan diduku
 **Konteks Proyek (Satu-satunya Sumber Informasi Anda):**
 - Judul Karya Tulis: "${projectData.judulKTI}"
 - Rumusan Masalah (Fokus Utama): "${projectData.rumusanMasalahDraft || 'Belum ada'}"
-- Outline KTI (Struktur Wajib):
-${outlineString}
 - Catatan dari Referensi (Konten):
 ${kutipanString}
 
@@ -9472,7 +9662,11 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     handleClueSearchRegulation,
                     // --- PROPS BARU DIOPER KE SINI ---
                     triggerImportRis,
-                    handleExportRis
+                    handleExportRis,
+                    // --- PROPS BARU UNTUK SMART PASTE ---
+                    smartPasteText,
+                    setSmartPasteText,
+                    handleSmartPaste
                 }} />;
             case 'prisma':
                 return <PrismaSLR {...{ projectData, setProjectData, showInfoModal, handleAiReview }} />;
@@ -9498,8 +9692,7 @@ case 'genWawancara':
                 return <AnalisisVisual {...{ projectData, setProjectData, handleGenerateAnalisisVisual, isLoading, showInfoModal, handleCopyToClipboard }} />;
             case 'analisisGap':
                 return <AnalisisGapNovelty {...{ projectData, setProjectData, geminiApiKeys, showInfoModal, handleCopyToClipboard }} />;
-            case 'outline':
-                return <Outline {...{ projectData, setProjectData, handleGenerateOutline, isLoading }} />;
+            // [CASE OUTLINE SUDAH DIHAPUS DISINI]
             case 'pendahuluan':
                 return <Pendahuluan {...{ projectData, setProjectData, isLoading, handleCopyToClipboard, handleGenerateFullPendahuluan, handleModifyText }} />;
             case 'studiLiteratur':
@@ -9794,6 +9987,15 @@ try {
     };
 
     const getNavigationItems = () => {
+        const isPremium = projectData.isPremium;
+        // Helper untuk label menu (tambah gembok jika user Free dan fitur itu Premium)
+        const label = (name, premiumOnly = false) => {
+            if (premiumOnly && !isPremium) {
+                return `${name} 🔒`;
+            }
+            return name;
+        };
+
         const navigation = {
             perencanaan: {
                 title: "Perencanaan & Ide",
@@ -9805,14 +10007,14 @@ try {
             slr_workflow: {
                 title: "Alur Kerja SLR",
                 items: [
-                    { id: 'genLogKueri', name: 'Generator & Log Kueri'},
-                    { id: 'prisma', name: 'Generator PRISMA SLR'}
+                    { id: 'genLogKueri', name: 'Generator & Log Kueri'}, // Campuran (Manual Free, AI Premium)
+                    { id: 'prisma', name: 'Generator PRISMA SLR'} // Campuran
                 ]
             },
             sintesis: {
                 title: "Ekstraksi & Sintesis",
                 items: [
-                    { id: 'sintesis', name: 'Ekstraksi & Sintesis Data' }
+                    { id: 'sintesis', name: 'Ekstraksi & Sintesis Data' } // Campuran
                 ]
             },
             instrumen: {
@@ -9822,22 +10024,22 @@ try {
             analisis: {
                 title: "Analisis Data",
                 items: [
-                    { id: 'analisisGap', name: 'Analisis Gap & Novelty' },
-                    { id: 'deskripsiResponden', name: 'Karakteristik Responden' },
-                    { id: 'analisisKuantitatif', name: 'Analisis Data Kuantitatif (Tabel)' },
-                    { id: 'analisisKualitatif', name: 'Analisis Data Kualitatif (Dokumen)' },
-                    { id: 'analisisVisual', name: 'Analisis Visual (Gambar)' },
+                    { id: 'analisisGap', name: label('Analisis Gap & Novelty', true) },
+                    { id: 'deskripsiResponden', name: label('Karakteristik Responden', true) },
+                    { id: 'analisisKuantitatif', name: label('Analisis Kuantitatif', true) },
+                    { id: 'analisisKualitatif', name: label('Analisis Kualitatif', true) },
+                    { id: 'analisisVisual', name: label('Analisis Visual', true) },
                 ]
             },
             penulisan: {
                 title: "Penulisan KTI",
                 items: [
                     // MENU OUTLINE DIHAPUS SESUAI PERMINTAAN
-                    { id: 'pendahuluan', name: 'Pendahuluan' },
-                    { id: 'studiLiteratur', name: 'Studi Literatur' },
-                    { id: 'metode', name: 'Metode Penelitian' },
-                    { id: 'hasil', name: 'Hasil & Pembahasan' },
-                    { id: 'kesimpulan', name: 'Kesimpulan' },
+                    { id: 'pendahuluan', name: label('Pendahuluan', true) },
+                    { id: 'studiLiteratur', name: label('Studi Literatur', true) },
+                    { id: 'metode', name: label('Metode Penelitian', true) },
+                    { id: 'hasil', name: label('Hasil & Pembahasan', true) },
+                    { id: 'kesimpulan', name: label('Kesimpulan', true) },
                 ]
             },
             proyek: {
@@ -9850,9 +10052,9 @@ try {
                 ]
             },
             tutorial: {
-                title: "Panduan Aplikasi", // UBAH: Dari "Tutorial" menjadi "Panduan Aplikasi"
+                title: "Panduan Aplikasi", 
                 items: [
-                    { id: 'tutorial', name: 'Bantuan & Kontak' } // UBAH: Dari "Panduan Aplikasi" menjadi "Bantuan & Kontak"
+                    { id: 'tutorial', name: 'Bantuan & Kontak' }
                 ]
             },
             donasi: {
@@ -9876,14 +10078,14 @@ try {
 
         if (pendekatan === 'Kuantitatif' || pendekatan === 'Metode Campuran') {
             navigation.instrumen.items.push(
-                { id: 'genVariabel', name: 'Generator Variabel' },
-                { id: 'genHipotesis', name: 'Generator Hipotesis' },
-                { id: 'genKuesioner', name: 'Generator Kuesioner' }
+                { id: 'genVariabel', name: 'Generator Variabel' }, // Gratis
+                { id: 'genHipotesis', name: label('Generator Hipotesis', true) },
+                { id: 'genKuesioner', name: label('Generator Kuesioner', true) }
             );
         }
         
         if (pendekatan === 'Kualitatif' || pendekatan === 'Metode Campuran') {
-            navigation.instrumen.items.push({ id: 'genWawancara', name: 'Generator Pertanyaan Wawancara' });
+            navigation.instrumen.items.push({ id: 'genWawancara', name: label('Generator Wawancara', true) });
         }
 
         // FIX: Tampilkan placeholder agar menu tidak hilang jika pendekatan belum dipilih
@@ -10215,7 +10417,7 @@ try {
                                                 <button 
                                                     key={item.id} 
                                                     onClick={() => item.action ? item.action() : setCurrentSection(item.id)}
-                                                    className={`w-full text-left block p-2 rounded-md text-sm ${currentSection === item.id ? 'bg-blue-600' : 'hover:bg-gray-700'}`}
+                                                    className={`w-full text-left block p-2 rounded-md text-sm ${currentSection === item.id ? 'bg-blue-600' : 'hover:bg-gray-700'} ${item.name.includes('🔒') ? 'text-gray-400' : 'text-gray-200'}`}
                                                 >
                                                     {item.name}
                                                 </button>
@@ -10228,17 +10430,42 @@ try {
                         </nav>
                         
                         {/* ============================================================================ */}
-                        {/* LANGKAH B5: Tambah Tombol Logout */}
+                        {/* LANGKAH B5: Tambah Tombol Logout & Status Akun */}
                         {/* ============================================================================ */}
                         {isSidebarOpen && (
                             <div className="mt-4 pt-4 border-t border-gray-700 flex-shrink-0">
-                                <p className="text-xs text-gray-400 mb-2 truncate" title={currentUser.email || currentUser.uid}>
-                                    Login sebagai: {currentUser.email || currentUser.uid}
+                                {/* --- STATUS BADGE --- */}
+                                <div className="mb-3 px-2">
+                                    <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Status Akun:</span>
+                                    <div className={`mt-1 text-xs font-bold px-2 py-1 rounded border inline-block w-full text-center
+                                        ${projectData.showScopus ? 'bg-purple-900 text-purple-200 border-purple-700' : 
+                                          projectData.isPremium ? 'bg-yellow-600 text-white border-yellow-500' : 
+                                          'bg-gray-600 text-gray-200 border-gray-500'}`}>
+                                        {projectData.showScopus ? 'ELITE (BRIN)' : (projectData.isPremium ? 'PREMIUM' : 'FREE MEMBER')}
+                                    </div>
+                                    {/* Link Upgrade untuk Free Member */}
+                                    {!projectData.isPremium && (
+                                        <button 
+                                            onClick={() => setForceShowLicense(true)}
+                                            className="mt-2 text-[10px] text-yellow-400 hover:text-yellow-300 underline w-full text-center"
+                                        >
+                                            Upgrade ke Premium
+                                        </button>
+                                    )}
+                                </div>
+                                {/* -------------------- */}
+
+                                <p className="text-xs text-gray-400 mb-2 truncate px-2" title={currentUser.email || currentUser.uid}>
+                                    {currentUser.email || currentUser.uid}
                                 </p>
                                 <button
                                     onClick={() => signOut(auth)}
-                                    className="w-full text-left p-2 rounded-md text-sm bg-red-600 hover:bg-red-700 text-white font-semibold"
+                                    className="w-full text-left p-2 rounded-md text-sm bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center justify-center gap-2"
                                 >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path fillRule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
+                                        <path fillRule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+                                    </svg>
                                     Logout
                                 </button>
                             </div>
