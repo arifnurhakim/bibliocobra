@@ -1763,7 +1763,7 @@ const Referensi = ({
                         onClick={() => toggleMethod('method4')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method4' ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual & Smart Paste (Gratis)</span>
+                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual</span>
                         <ChevronDownIcon isOpen={openMethod === 'method4'} />
                     </button>
                     {openMethod === 'method4' && (
