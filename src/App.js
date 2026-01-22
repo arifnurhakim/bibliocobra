@@ -2041,7 +2041,7 @@ const Referensi = ({
                                                         }
                                                     }}
                                                     className="flex-grow shadow-sm appearance-none border border-orange-300 rounded-lg py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                                    placeholder="Masukkan Scopus API Key Anda... (Ketik 'API-BRIN ' untuk auto-fill)"
+                                                    placeholder="Masukkan Scopus API Key Anda"
                                                 />
                                                 <a 
                                                     href="https://venom-reference-converter.vercel.app/" 
