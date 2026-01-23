@@ -727,8 +727,9 @@ const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
                 </div>
                 
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">Aktivasi Akun</h2>
+                {/* UPDATE: Menghapus referensi teks ke "Elite" agar tidak dianggap dijual umum */}
                 <p className="text-gray-600 mb-6 text-sm">
-                    Masukkan <strong>Kode Lisensi</strong> untuk akses Premium/Elite, atau lanjutkan dengan versi Gratis.
+                    Masukkan <strong>Kode Lisensi</strong> untuk akses Premium (atau Kode Internal), atau lanjutkan dengan versi Gratis.
                 </p>
 
                 <div className="mb-4">
@@ -1104,7 +1105,12 @@ const IdeKTI = ({
     handleStartEditing,
     handleSaveIdea,
     ideKtiMode,
+    handleGenerateMirrorReflection,
+    handleValidateMirrorReflection,
 }) => {
+    // Helper status premium
+    const isPremium = projectData.isPremium;
+
     // Jika proyek sudah punya judul, tampilkan ringkasan dan tombol edit
     if (projectData.judulKTI && !editingIdea && !ideKtiMode) {
         return (
@@ -1174,15 +1180,66 @@ const IdeKTI = ({
                     </div>
                     
                     {/* --- PERUBAHAN DIMULAI DI SINI --- */}
+                    {/* --- KODE BARU MIRROR REFLECTION --- */}
                     <div className="md:col-span-2">
                         <label className="block text-gray-700 text-sm font-bold mb-2">Fakta/Pokok Masalah:</label>
                         <textarea name="faktaMasalahDraft" value={projectData.faktaMasalahDraft} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Jelaskan masalah utama atau fenomena yang ingin Anda teliti." rows="4"></textarea>
                     </div>
-                    <div className="md:col-span-2">
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Tujuan Penelitian:</label>
-                        <textarea name="tujuanPenelitianDraft" value={projectData.tujuanPenelitianDraft} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Sebutkan tujuan-tujuan yang ingin dicapai melalui penelitian ini." rows="3"></textarea>
+
+                    {/* AREA MIRROR REFLECTION (LOGIKA BAB I) - UPDATE PREMIUM CHECK */}
+                    <div className="md:col-span-2 bg-indigo-50 p-4 rounded-lg border border-indigo-200 animate-fade-in">
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-indigo-900 text-sm font-bold">Rumusan Masalah (Pertanyaan):</label>
+                            <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-1 rounded font-bold uppercase tracking-wide">Basis Logika</span>
+                        </div>
+                        <textarea 
+                            name="rumusanMasalahDraft" 
+                            value={projectData.rumusanMasalahDraft} 
+                            onChange={handleInputChange} 
+                            className="shadow appearance-none border border-indigo-300 rounded-lg w-full py-2 px-3 text-gray-700 mb-3 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                            placeholder="Contoh: 1. Bagaimana pengaruh X terhadap Y?..." 
+                            rows="4"
+                        ></textarea>
+
+                        {/* VISUAL CONNECTOR & CONTROLS */}
+                        <div className="flex flex-col items-center justify-center my-3 space-y-3">
+                            <div className="flex items-center gap-2 text-indigo-500 font-bold text-xs uppercase tracking-wider bg-white px-3 py-1 rounded-full border border-indigo-100 shadow-sm">
+                                <span>⬇️ Mirror Reflection (Konsistensi 1:1) ⬇️</span>
+                            </div>
+                            <div className="flex gap-2 w-full">
+                                <button 
+                                    onClick={handleGenerateMirrorReflection}
+                                    disabled={isLoading || !isPremium}
+                                    className={`flex-1 font-bold py-2 px-4 rounded-lg text-xs flex items-center justify-center gap-2 transition-colors shadow-sm ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+                                    title={!isPremium ? "Fitur Premium" : ""}
+                                >
+                                    <span>{!isPremium ? '🔒' : '🔄'}</span> {!isPremium ? 'Selaraskan (Premium)' : 'Selaraskan Otomatis (AI)'}
+                                </button>
+                                <button 
+                                    onClick={handleValidateMirrorReflection}
+                                    disabled={isLoading || !isPremium}
+                                    className={`flex-1 font-bold py-2 px-4 rounded-lg text-xs flex items-center justify-center gap-2 transition-colors shadow-sm ${!isPremium ? 'bg-gray-300 text-gray-500 cursor-not-allowed border border-gray-300' : 'bg-white border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50'}`}
+                                    title={!isPremium ? "Fitur Premium" : ""}
+                                >
+                                    <span>{!isPremium ? '🔒' : '🔍'}</span> {!isPremium ? 'Validasi (Premium)' : 'Cek Validasi Logika'}
+                                </button>
+                            </div>
+                            {!isPremium && <p className="text-[10px] text-red-500 italic">Upgrade ke Premium untuk membuka fitur logika otomatis.</p>}
+                        </div>
+
+                        <div className="mt-3">
+                            <label className="block text-indigo-900 text-sm font-bold mb-2">Tujuan Penelitian (Jawaban):</label>
+                            <textarea 
+                                name="tujuanPenelitianDraft" 
+                                value={projectData.tujuanPenelitianDraft} 
+                                onChange={handleInputChange} 
+                                className="shadow appearance-none border border-indigo-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                placeholder="Akan diisi otomatis oleh AI agar selaras dengan pertanyaan..." 
+                                rows="4"
+                            ></textarea>
+                        </div>
                     </div>
-                    {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
+                    {/* --- AKHIR KODE BARU --- */}
 
                     <div className="md:col-span-2">
                         <label className="block text-gray-700 text-sm font-bold mb-2">Metode Spesifik:</label>
@@ -1763,7 +1820,7 @@ const Referensi = ({
                         onClick={() => toggleMethod('method4')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method4' ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual</span>
+                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual & Smart Paste (Gratis)</span>
                         <ChevronDownIcon isOpen={openMethod === 'method4'} />
                     </button>
                     {openMethod === 'method4' && (
@@ -2031,17 +2088,9 @@ const Referensi = ({
                                                 <input
                                                     type="password"
                                                     value={scopusApiKey}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        // Shortcut otomatis untuk API BRIN (dipicu oleh spasi setelah 'API-BRIN')
-                                                        if (val === "API-BRIN ") {
-                                                            setScopusApiKey("6d94474abf5a92b0a9c0246a6c08dcd7");
-                                                        } else {
-                                                            setScopusApiKey(val);
-                                                        }
-                                                    }}
+                                                    onChange={(e) => setScopusApiKey(e.target.value)}
                                                     className="flex-grow shadow-sm appearance-none border border-orange-300 rounded-lg py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                                    placeholder="Masukkan Scopus API Key Anda"
+                                                    placeholder="Masukkan Scopus API Key Anda..."
                                                 />
                                                 <a 
                                                     href="https://venom-reference-converter.vercel.app/" 
@@ -2584,9 +2633,62 @@ const MetodePenelitian = ({ projectData, setProjectData, handleGenerateMetode, i
 };
 
 // --- Komponen untuk Tab 7: Studi Literatur ---
-const StudiLiteratur = ({ projectData, setProjectData, handleGenerateStudiLiteratur, isLoading, handleCopyToClipboard, handleModifyText }) => {
+const StudiLiteratur = ({ 
+    projectData, 
+    setProjectData, 
+    handleGenerateStudiLiteratur, 
+    isLoading, 
+    handleCopyToClipboard, 
+    handleModifyText,
+    handleClassifyTheories 
+}) => {
     const [selectedRefIds, setSelectedRefIds] = useState([]);
     const isPremium = projectData.isPremium;
+
+    // --- FUNGSI BARU: Pindahkan Teori Antar Kategori ---
+    const handleMoveTheory = (item, fromCategory, toCategory) => {
+        const newClassification = { ...projectData.theoryClassification };
+        
+        // 1. Hapus dari kategori asal
+        newClassification[fromCategory] = newClassification[fromCategory].filter(t => t.id !== item.id);
+        
+        // 2. Tambahkan ke kategori tujuan (dengan reason default jika dipindah manual)
+        const itemMoved = { ...item, reason: "Dipindahkan secara manual oleh pengguna." };
+        newClassification[toCategory] = [...(newClassification[toCategory] || []), itemMoved];
+
+        // 3. Simpan state
+        setProjectData(p => ({ ...p, theoryClassification: newClassification }));
+    };
+
+    // Helper untuk merender Kartu Teori
+    const renderTheoryCard = (item, category, colorClass) => (
+        <div key={item.id} className="bg-white p-3 rounded border shadow-sm mb-2 text-left group hover:shadow-md transition-all">
+            <p className="font-bold text-gray-800 text-xs mb-1">{item.title}</p>
+            <p className="text-[10px] text-gray-500 italic leading-tight mb-2">{item.reason}</p>
+            
+            {/* Kontrol Pemindahan */}
+            <div className="flex justify-between items-center pt-2 border-t border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity">
+                {category !== 'grand' && (
+                    <button 
+                        onClick={() => handleMoveTheory(item, category, category === 'applied' ? 'middle' : 'grand')}
+                        className="text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded flex items-center gap-1"
+                        title="Naik Level"
+                    >
+                        ← Naik
+                    </button>
+                )}
+                {category !== 'applied' && (
+                    <button 
+                        onClick={() => handleMoveTheory(item, category, category === 'grand' ? 'middle' : 'applied')}
+                        className={`text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded flex items-center gap-1 ${category === 'grand' ? 'ml-auto' : ''}`}
+                        title="Turun Level"
+                    >
+                        Turun →
+                    </button>
+                )}
+            </div>
+        </div>
+    );
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
@@ -2599,6 +2701,88 @@ const StudiLiteratur = ({ projectData, setProjectData, handleGenerateStudiLitera
                 setSelectedRefIds={setSelectedRefIds} 
             />
 
+            {/* --- AREA KLASIFIKASI TEORI (UI TAHAP 2) --- */}
+            <div className="mb-6 border-2 border-dashed border-indigo-200 rounded-xl bg-indigo-50 p-4">
+                <div className="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 className="font-bold text-indigo-900 text-lg">Peta Struktur Teori (Bab II)</h3>
+                        <p className="text-xs text-indigo-700">Gunakan AI untuk memilah referensi menjadi struktur hierarkis.</p>
+                    </div>
+                    <button 
+                        onClick={() => handleClassifyTheories(selectedRefIds)} 
+                        className={`font-bold py-2 px-4 rounded-lg text-xs shadow-sm flex items-center gap-2 ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-indigo-300'}`}
+                        disabled={isLoading || selectedRefIds.length === 0 || !isPremium}
+                    >
+                        {isLoading ? (
+                            <>
+                                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                Sedang Memilah...
+                            </>
+                        ) : (
+                            <>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
+                                {!projectData.theoryClassification ? "Klasifikasikan Referensi Terpilih" : "Klasifikasi Ulang"}
+                            </>
+                        )}
+                    </button>
+                </div>
+
+                {/* VISUALISASI 3 KOLOM */}
+                {projectData.theoryClassification ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in">
+                        {/* KOLOM 1: GRAND THEORY */}
+                        <div className="bg-blue-100 rounded-lg p-3 border border-blue-200 flex flex-col">
+                            <div className="mb-3 text-center border-b border-blue-200 pb-2">
+                                <span className="font-bold text-blue-900 block text-sm">GRAND THEORY</span>
+                                <span className="text-[10px] text-blue-700 block">(Payung/Induk)</span>
+                            </div>
+                            <div className="flex-grow min-h-[100px]">
+                                {projectData.theoryClassification.grand?.length > 0 ? (
+                                    projectData.theoryClassification.grand.map(item => renderTheoryCard(item, 'grand'))
+                                ) : (
+                                    <div className="text-center text-blue-400 text-xs italic py-4 border-2 border-dashed border-blue-200 rounded">Kosong</div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* KOLOM 2: MIDDLE-RANGE */}
+                        <div className="bg-teal-100 rounded-lg p-3 border border-teal-200 flex flex-col">
+                            <div className="mb-3 text-center border-b border-teal-200 pb-2">
+                                <span className="font-bold text-teal-900 block text-sm">MIDDLE-RANGE THEORY</span>
+                                <span className="text-[10px] text-teal-700 block">(Penghubung/Variabel)</span>
+                            </div>
+                            <div className="flex-grow min-h-[100px]">
+                                {projectData.theoryClassification.middle?.length > 0 ? (
+                                    projectData.theoryClassification.middle.map(item => renderTheoryCard(item, 'middle'))
+                                ) : (
+                                    <div className="text-center text-teal-400 text-xs italic py-4 border-2 border-dashed border-teal-200 rounded">Kosong</div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* KOLOM 3: APPLIED THEORY */}
+                        <div className="bg-orange-100 rounded-lg p-3 border border-orange-200 flex flex-col">
+                            <div className="mb-3 text-center border-b border-orange-200 pb-2">
+                                <span className="font-bold text-orange-900 block text-sm">APPLIED THEORY</span>
+                                <span className="text-[10px] text-orange-700 block">(Operasional/Indikator)</span>
+                            </div>
+                            <div className="flex-grow min-h-[100px]">
+                                {projectData.theoryClassification.applied?.length > 0 ? (
+                                    projectData.theoryClassification.applied.map(item => renderTheoryCard(item, 'applied'))
+                                ) : (
+                                    <div className="text-center text-orange-400 text-xs italic py-4 border-2 border-dashed border-orange-200 rounded">Kosong</div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-center py-8 text-indigo-400 border-2 border-dashed border-indigo-200 rounded-lg bg-white/50">
+                        <p className="text-sm italic">Belum ada peta teori. Pilih referensi di atas lalu klik tombol klasifikasi.</p>
+                    </div>
+                )}
+            </div>
+            {/* ------------------------------------------- */}
+
             <button 
                 onClick={() => handleGenerateStudiLiteratur(selectedRefIds)} 
                 className={`font-bold py-2 px-4 rounded-lg w-full ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
@@ -2608,10 +2792,10 @@ const StudiLiteratur = ({ projectData, setProjectData, handleGenerateStudiLitera
             </button>
             {!isPremium && <p className="text-xs text-red-500 mt-2 text-center">Upgrade ke Premium untuk menulis Bab 2 secara otomatis.</p>}
 
-            {isLoading && !projectData.studiLiteraturDraft && (
+            {isLoading && !projectData.studiLiteraturDraft && !projectData.theoryClassification && (
                 <div className="mt-6 flex items-center justify-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    <p className="ml-3 text-gray-600">AI sedang menyintesis referensi...</p>
+                    <p className="ml-3 text-gray-600">AI sedang bekerja...</p>
                 </div>
             )}
 
@@ -5081,51 +5265,37 @@ Berikan jawaban HANYA dalam format JSON Array.`;
             ? JSON.stringify(projectData.thematicMapData) 
             : "Data Peta Tematik belum dihasilkan oleh pengguna.";
 
-        // 2. Siapkan Prompt (Updated: Instruksi APA 7th & Pembersihan Angka)
-        const prompt = `Anda adalah seorang ahli meta-analisis riset akademik. Tugas Anda adalah menyusun sebuah narasi argumentatif yang padat untuk Bab Pendahuluan (Latar Belakang/Gap Analysis).
+        // 2. Siapkan Prompt (Updated: Strict APA & Clean Output)
+        const prompt = `Anda adalah ahli riset strategis. Tugas Anda adalah menyusun narasi "Gap & Novelty" yang **SINGKAT, PADAT, dan TO-THE-POINT**.
 
-**DATA PENELITIAN PENGGUNA:**
+**FOKUS UTAMA:** Gunakan interpretasi dari **Peta Tematik Strategis** (Visual) sebagai landasan utama argumen.
+
+**KONTEKS PENELITIAN:**
 - Judul: "${projectData.judulKTI}"
 - Tujuan: "${projectData.tujuanPenelitianDraft || 'Belum ditentukan'}"
 
-**SUMBER LITERATUR (REFERENSI):**
+**DATA PETA TEMATIK (VISUAL):**
+${thematicMapContext}
+*(Panduan Interpretasi: Tema di 'Motor Themes' = Jenuh/Matang. Tema di 'Emerging/Declining' atau 'Niche' = Celah/Peluang Riset).*
+
+**DATA LITERATUR (PENDUKUNG):**
 ${refsDataString}
 
-**DATA PETA TEMATIK (STRATEGIC DIAGRAM):**
-${thematicMapContext}
-*(Catatan Interpretasi: x=Centrality/Relevansi, y=Density/Pengembangan. Kuadran: Kanan-Atas=Motor/Matang, Kiri-Atas=Niche/Terisolasi, Kiri-Bawah=Emerging/Declining, Kanan-Bawah=Basic/Umum)*
+**ATURAN PENULISAN WAJIB (STRICT MODE):**
+1.  **DILARANG MENULIS ANGKA SKOR/KOORDINAT:** Jangan pernah menyertakan nilai angka dalam kurung seperti "(9.5/9)" atau "(4/5)" di dalam narasi. Cukup sebutkan nama kuadran (Motor/Niche/Emerging/Basic) untuk menggambarkan posisi tema.
+2.  **SITASI APA 7th MURNI:** Wajib menggunakan format (Author, Year) atau Author (Year). **DILARANG KERAS** menggunakan format seperti "(Ref 12, 33)", "[1]", "(Ref 1)", atau angka referensi lainnya. Abaikan label "REFERENSI X" pada data input.
+3.  **BERSIH DARI META-TEKS:** Jangan sertakan hitungan kata (word count), label "Hasil:", atau komentar penutup di akhir teks.
 
-**INSTRUKSI PENULISAN (WAJIB DIIKUTI):**
-
-**A. ATURAN SITASI (APA 7th Style):**
-1.  **Gunakan Format Nama-Tahun:** Wajib menggunakan format (Author, Year) atau Author (Year). Contoh: "(Hanash et al., 2024)" atau "Menurut Papadopoli et al. (2020)...".
-2.  **DILARANG MENGGUNAKAN ANGKA KURUNG:** Jangan pernah menggunakan [1], [2], [31], [40], dst sebagai sitasi.
-3.  **PEMBERSIHAN DATA:** Jika di dalam teks Abstrak/Konten sumber terdapat angka-angka referensi bawaan (seperti [12], [31-33]), **ABAIKAN dan HAPUS** angka-angka tersebut dalam narasi Anda. Jangan menyalinnya.
-
-**B. STRUKTUR NARASI:**
-
-1.  **Analisis Gap (Pola "X but not Y"):**
-    - Baca konten literatur di atas.
-    - Tulis paragraf pembuka dengan pola kalimat spesifik ini: **"Penelitian [Sebutkan Nama Penulis A (Tahun)] dan [Sebutkan Nama Penulis B (Tahun)] fokus pada aspek [X], namun belum menyentuh aspek [Y] secara mendalam."** (Ganti X dan Y dengan temuan nyata dari literatur).
-    - Lanjutkan langsung dengan kalimat: **"Oleh karena itu, penelitian ini mengisi celah tersebut dengan..."** (jelaskan kontribusi/novelty penelitian pengguna).
-
-2.  **Sintesis Peta Tematik:**
-    - Jika data peta tematik tersedia, tambahkan narasi yang mensintesis posisi tema-tema tersebut.
-    - Contoh narasi: "Hal ini didukung oleh pemetaan tematik strategis yang menunjukkan bahwa tema [A] berada di kuadran Motor Themes yang telah matang, sedangkan tema [B] masih bersifat Emerging..."
-    - Hubungkan posisi kuadran ini untuk memperkuat argumen urgensi penelitian pengguna.
-
-3.  **Kesimpulan Komprehensif:**
-    - Gabungkan poin 1 dan 2 menjadi satu kesatuan narasi yang mengalir (koheren).
-    - Akhiri dengan pernyataan tegas mengapa penelitian ini penting dilakukan sekarang.
-
-**FORMAT OUTPUT:**
-Teks narasi paragraf (Bahasa Indonesia akademis). Tanpa judul section, langsung ke isi paragraf.`;
+**ALUR NARASI:**
+1.  **Analisis Visual Langsung:** Langsung jelaskan posisi tema pada kuadran. Contoh: "Berdasarkan pemetaan tematik, topik [A] berada di kuadran Motor Themes yang mengindikasikan saturasi riset, sedangkan aspek [C] masih berada di kuadran Emerging/Niche..."
+2.  **Gap & Novelty:** Sambungkan temuan visual tersebut dengan judul penelitian pengguna. Nyatakan tegas bahwa penelitian ini mengisi celah pada tema yang masih *Emerging* atau *Niche* tersebut.
+3.  **Format:** Maksimal 2 paragraf. Langsung ke substansi.`;
 
         try {
             // Menggunakan geminiApiKeys (Array) sesuai update Langkah 2 sebelumnya
             const result = await geminiService.run(prompt, geminiApiKeys);
             setProjectData(p => ({ ...p, analisisGapNoveltyDraft: result }));
-            showInfoModal("Analisis Gap, Novelty, & Sintesis Peta Tematik berhasil dibuat!");
+            showInfoModal("Analisis Gap & Novelty (Fokus Visual) berhasil dibuat!");
         } catch (error) {
             showInfoModal(`Gagal menganalisis: ${error.message}`);
         } finally {
@@ -6978,8 +7148,8 @@ const Tutorial = () => {
     );
 };
 
-// --- Komponen BARU untuk Reset & Hapus Proyek ---
-const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGeminiApiKey, setScopusApiKey, showInfoModal, setForceShowLicense, setGeminiApiKeys }) => { 
+// --- Komponen BARU untuk Reset & Hapus Proyek (MANAJEMEN APLIKASI) ---
+const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGeminiApiKey, setScopusApiKey, showInfoModal, setForceShowLicense, setGeminiApiKeys, projectData }) => { 
     
     // State lokal untuk modal konfirmasi
     const [isLocalResetConfirmOpen, setIsLocalResetConfirmOpen] = useState(false);
@@ -7001,9 +7171,58 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
         showInfoModal("Kunci API dan pengaturan lokal berhasil dihapus dari browser ini.");
     };
 
+    // --- LOGIKA ADD-ON ---
+    const isElite = projectData ? projectData.showScopus : false;
+    const isPremium = projectData ? projectData.isPremium : false; // Ambil status Premium
+
+    const addons = [
+        {
+            name: "Audiocobra",
+            description: "Transkripsi audio wawancara ke teks otomatis berbasis AI.",
+            url: "https://audiocobra.vercel.app/",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" className="text-pink-600" viewBox="0 0 16 16">
+                    <path d="M11.536 14.01A8.473 8.473 0 0 1 8 15a8.476 8.476 0 0 1-3.536-.99.5.5 0 0 1 .5-.866A7.472 7.472 0 0 0 8 14c1.99 0 3.803-.787 5.143-2.072a.5.5 0 1 1 .695.73A8.473 8.473 0 0 1 11.536 14.01z"/>
+                    <path d="M5.5 2A3.5 3.5 0 0 0 2 5.5v5A3.5 3.5 0 0 0 5.5 14h5a3.5 3.5 0 0 0 3.5-3.5v-5A3.5 3.5 0 0 0 10.5 2h-5zm0 1h5a2.5 2.5 0 0 1 2.5 2.5v5a2.5 2.5 0 0 1-2.5 2.5h-5A2.5 2.5 0 0 1 3 10.5v-5A2.5 2.5 0 0 1 5.5 3z"/>
+                    <path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+                </svg>
+            ),
+            color: "bg-pink-50 border-pink-200",
+            premiumOnly: true // Kunci untuk Free
+        },
+        {
+            name: "Cobrasaurus",
+            description: "Tools pembersihan dan standarisasi kata kunci riset (Thesaurus).",
+            url: "https://cobrasaurus.vercel.app/",
+            icon: (
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" className="text-green-600" viewBox="0 0 16 16">
+                    <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/>
+                </svg>
+            ),
+            color: "bg-green-50 border-green-200",
+            premiumOnly: true // Kunci untuk Free
+        }
+    ];
+
+    if (isElite) {
+        addons.push({
+            name: "Venom Converter",
+            description: "Konversi referensi Scopus AI/WoS ke format standar Bibliocobra.",
+            url: "https://venom-reference-converter.vercel.app/",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" className="text-orange-600" viewBox="0 0 16 16">
+                     <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1zM4.5 9a.5.5 0 0 1 0-1h7a.5.5 0 0 1 0 1h-7zM4 10.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm.5 2.5a.5.5 0 0 1 0-1h4a.5.5 0 0 1 0 1h-4z"/>
+                </svg>
+            ),
+            color: "bg-orange-50 border-orange-200",
+            badge: "Elite Only",
+            premiumOnly: false // Sudah dilindungi oleh blok if(isElite)
+        });
+    }
+
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Pengaturan Data & Privasi</h2>
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Manajemen Aplikasi & Data</h2>
 
             {/* Bagian 1: Reset Proyek (Aplikasi) */}
             <div className="mb-8 p-4 border-2 border-dashed border-red-400 rounded-lg bg-red-50">
@@ -7023,7 +7242,7 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
             <div className="mb-8 p-4 border-2 border-dashed border-indigo-400 rounded-lg bg-indigo-50">
                 <h3 className="text-xl font-bold mb-2 text-indigo-800">2. Manajemen Lisensi</h3>
                 <p className="text-indigo-700 mb-4 text-sm">
-                    ngin memasukkan kode lisensi baru? Gunakan tombol di bawah ini untuk membuka kembali halaman aktivasi.
+                    Ingin memasukkan kode lisensi baru? Gunakan tombol di bawah ini untuk membuka kembali halaman aktivasi.
                 </p>
                 <button
                     onClick={() => setForceShowLicense(true)}
@@ -7034,7 +7253,7 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
             </div>
 
             {/* Bagian 3: Keamanan Lokal (API Key) */}
-            <div className="p-4 border-2 border-dashed border-gray-400 rounded-lg bg-gray-50">
+            <div className="mb-8 p-4 border-2 border-dashed border-gray-400 rounded-lg bg-gray-50">
                 <h3 className="text-xl font-bold mb-2 text-gray-800">3. Keamanan Perangkat (Hapus Kunci API)</h3>
                 <p className="text-gray-700 mb-4 text-sm">
                     Gunakan tombol di bawah ini jika Anda menggunakan komputer publik atau ingin mengganti Kunci API. Tindakan ini hanya akan menghapus <strong>Google AI API Key</strong> dan <strong>Scopus API Key</strong> yang tersimpan di browser ini. Data proyek Anda tetap aman di server.
@@ -7047,6 +7266,78 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
                     Hapus Kunci API dari Browser Ini
                 </button>
             </div>
+
+            {/* Bagian 4: Daftar Add-On (BARU DITAMBAHKAN DI SINI) */}
+            <div className="p-4 border-2 border-dashed border-teal-400 rounded-lg bg-teal-50">
+                <h3 className="text-xl font-bold mb-2 text-teal-800">4. Daftar Add-On Ekosistem</h3>
+                <p className="text-teal-700 mb-6 text-sm">
+                    Aplikasi pendukung eksternal yang terintegrasi untuk memperkaya fitur Bibliocobra.
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {addons.map((addon, index) => {
+                        // Logika Kunci untuk Free User
+                        const isLocked = addon.premiumOnly && !isPremium;
+                        
+                        return (
+                        <a 
+                            key={index}
+                            href={isLocked ? "#" : addon.url}
+                            target={isLocked ? "_self" : "_blank"}
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                                if (isLocked) {
+                                    e.preventDefault();
+                                    showInfoModal("Fitur ini khusus untuk pengguna Premium/Elite.");
+                                }
+                            }}
+                            className={`block p-4 rounded-xl border transition-all relative group h-full flex flex-col 
+                                ${isLocked 
+                                    ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-75' 
+                                    : `bg-white hover:shadow-lg hover:-translate-y-1 transform ${addon.color}`
+                                }`}
+                        >
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className={`p-2 rounded-lg shadow-sm ${isLocked ? 'bg-gray-200 text-gray-400' : 'bg-white'}`}>
+                                    {addon.icon}
+                                </div>
+                                <h4 className={`font-bold text-md ${isLocked ? 'text-gray-500' : 'text-gray-800'}`}>
+                                    {addon.name}
+                                </h4>
+                            </div>
+                            
+                            {/* Badge Elite */}
+                            {addon.badge && (
+                                <span className="absolute top-3 right-3 text-[10px] bg-gray-800 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                    {addon.badge}
+                                </span>
+                            )}
+                            
+                            {/* Badge Premium Lock */}
+                            {isLocked && (
+                                <span className="absolute top-3 right-3 text-[10px] bg-yellow-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+                                    PREMIUM
+                                </span>
+                            )}
+
+                            <p className="text-xs text-gray-600 mb-4 flex-grow leading-relaxed">
+                                {addon.description}
+                            </p>
+                            
+                            <div className={`flex items-center text-xs font-semibold mt-auto ${isLocked ? 'text-gray-400' : 'text-teal-700 group-hover:text-teal-900'}`}>
+                                 {isLocked ? '🔒 Terkunci (Upgrade)' : 'Buka Aplikasi'}
+                                 {!isLocked && (
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                                    </svg>
+                                 )}
+                            </div>
+                        </a>
+                    )})}
+                </div>
+            </div>
+            {/* ---------------------------------------------------- */}
 
             {/* Modal Konfirmasi Hapus Data Lokal (Custom UI pengganti window.confirm) */}
             {isLocalResetConfirmOpen && (
@@ -7762,6 +8053,196 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
     };
 
     // --- AKHIR ALUR KERJA IDE KTI BARU ---
+
+    // --- LOGIKA BAB I: MIRROR REFLECTION (Auto-Generate & Validate) ---
+    
+    // 1. Generator Otomatis: Mengubah Masalah menjadi Tujuan (1:1)
+    const handleGenerateMirrorReflection = async () => {
+        // Cek Premium
+        if (!projectData.isPremium) {
+            showInfoModal("Fitur 'Mirror Reflection Generator' khusus untuk pengguna Premium.");
+            return;
+        }
+
+        // Cek apakah input Masalah tersedia
+        if (!projectData.rumusanMasalahDraft || projectData.rumusanMasalahDraft.trim() === '') {
+            showInfoModal("Harap isi 'Rumusan Masalah' terlebih dahulu. AI membutuhkan pertanyaan untuk merumuskan tujuan.");
+            return;
+        }
+
+        setIsLoading(true);
+
+        const context = `
+Judul: "${projectData.judulKTI}"
+Rumusan Masalah (Pertanyaan):
+${projectData.rumusanMasalahDraft}
+`;
+
+        const prompt = `Anda adalah ahli metodologi penelitian. Tugas Anda adalah merumuskan "Tujuan Penelitian" yang memiliki hubungan "Mirror Reflection" (Cerminan Sempurna/Konsistensi Logis 1:1) dengan Rumusan Masalah di atas.
+
+ATURAN WAJIB (INTERLOCKING LOGIC):
+1. **Jumlah Poin Sama:** Jika ada 3 rumusan masalah, WAJIB ada 3 tujuan penelitian.
+2. **Taksonomi Kata Kerja:**
+   - Jika masalah bersifat Deskriptif ("Bagaimana gambaran..."), gunakan tujuan: "Untuk mengetahui/memetakan..."
+   - Jika masalah bersifat Eksplanatif/Korelasional ("Apakah ada pengaruh..."), gunakan tujuan: "Untuk menganalisis pengaruh..."
+   - Jika masalah bersifat Preskriptif/Solutif ("Bagaimana strategi..."), gunakan tujuan: "Untuk merumuskan/merancang..."
+3. **Format Output:** Hasilkan sebagai teks biasa dengan penomoran yang rapi (1, 2, 3). JANGAN berikan pengantar atau penutup. Langsung ke poin tujuan.
+
+Konteks:
+${context}`;
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKeys);
+            // Bersihkan format markdown jika ada
+            const cleanResult = result.replace(/[*_]/g, "").trim();
+            
+            setProjectData(prev => ({ 
+                ...prev, 
+                tujuanPenelitianDraft: cleanResult 
+            }));
+            
+            showInfoModal("Tujuan Penelitian berhasil diselaraskan (Mirroring) dengan Rumusan Masalah!");
+        } catch (error) {
+            showInfoModal(`Gagal menyelaraskan tujuan: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // 2. Validator Logika: Mengecek Konsistensi Tanpa Mengubah Teks (Updated: With Suggestions)
+    const handleValidateMirrorReflection = async () => {
+        // Cek Premium
+        if (!projectData.isPremium) {
+            showInfoModal("Fitur 'Validasi Logika' khusus untuk pengguna Premium.");
+            return;
+        }
+
+        if (!projectData.rumusanMasalahDraft || !projectData.tujuanPenelitianDraft) {
+            showInfoModal("Harap isi kedua kolom (Rumusan Masalah & Tujuan) untuk melakukan validasi.");
+            return;
+        }
+
+        setIsLoading(true);
+
+        const prompt = `Bertindaklah sebagai Reviewer Jurnal Q1 yang sangat teliti. Tugas Anda adalah memvalidasi "Methodological Coherence" (Kepaduan Metodologis) antara Rumusan Masalah dan Tujuan Penelitian di bawah ini.
+
+RUMUSAN MASALAH:
+${projectData.rumusanMasalahDraft}
+
+TUJUAN PENELITIAN:
+${projectData.tujuanPenelitianDraft}
+
+Lakukan pengecekan ketat:
+1. **Jumlah Poin:** Apakah jumlah poin pertanyaan sama persis dengan jumlah poin tujuan?
+2. **Konsistensi Substansi:** Apakah Tujuan benar-benar menjawab Pertanyaan?
+3. **Ketepatan Kata Kerja:** Apakah kata kerja operasional yang digunakan sudah pas dengan level masalahnya?
+
+Output (JSON Format):
+{
+  "status": "VALID" | "WARNING",
+  "message": "Penjelasan singkat mengenai status validasi.",
+  "saran": "Berikan saran perbaikan yang KONKRET dan JELAS (apa yang harus diubah/ditambahkan) agar menjadi VALID. (Wajib diisi jika status WARNING, kosongkan jika VALID)"
+}
+`;
+        
+        const schema = {
+            type: "OBJECT",
+            properties: {
+                status: { type: "STRING", enum: ["VALID", "WARNING"] },
+                message: { type: "STRING" },
+                saran: { type: "STRING" }
+            },
+            required: ["status", "message"]
+        };
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            
+            let icon = result.status === 'VALID' ? '🟢' : '⚠️';
+            let title = result.status === 'VALID' ? 'LOGIKA VALID' : 'PERINGATAN LOGIKA';
+            
+            let alertMsg = `${icon} ${title}\n\nAnalisis: ${result.message}`;
+            
+            if (result.status === 'WARNING' && result.saran) {
+                alertMsg += `\n\n💡 SARAN PERBAIKAN:\n${result.saran}`;
+            }
+            
+            showInfoModal(alertMsg);
+
+        } catch (error) {
+            showInfoModal(`Gagal memvalidasi logika: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    // --- AKHIR LOGIKA BAB I ---
+
+    // --- LOGIKA BAB II: THEORY PYRAMID (Auto-Classification) ---
+    const handleClassifyTheories = async (selectedIds) => {
+        // Cek Premium
+        if (!projectData.isPremium) {
+            showInfoModal("Fitur 'Klasifikasi Teori Otomatis' khusus untuk pengguna Premium.");
+            return;
+        }
+
+        if (!selectedIds || selectedIds.length === 0) {
+            showInfoModal("Pilih minimal satu referensi untuk diklasifikasikan.");
+            return;
+        }
+
+        setIsLoading(true);
+
+        // Filter referensi terpilih
+        const sourceRefs = projectData.allReferences.filter(ref => selectedIds.includes(ref.id));
+        
+        // Format data untuk AI
+        const refList = sourceRefs.map((ref, index) => 
+            `[ID: ${ref.id}] Judul: "${ref.title}"\nAbstrak/Catatan: ${ref.abstract || ref.isiKutipan || "Tidak ada data"}`
+        ).join('\n---\n');
+
+        const prompt = `Anda adalah arsitek teori penelitian. Tugas Anda adalah memilah literatur berikut ke dalam 3 tingkatan hierarki teori (Theory Pyramid).
+
+DAFTAR LITERATUR:
+${refList}
+
+INSTRUKSI KLASIFIKASI:
+1. **Grand Theory (Payung):** Teori induk yang sangat abstrak/umum. (Misal: Manajemen Strategi, Public Administration, TPB).
+2. **Middle-Range Theory (Penghubung):** Teori yang menjelaskan hubungan spesifik antar variabel. (Misal: Dynamic Governance, Budaya Organisasi, TAM).
+3. **Applied Theory (Operasional):** Indikator teknis, regulasi, atau model pengukuran spesifik. (Misal: Indikator GII, UU No. 11/2019, Skala Likert).
+
+Berikan alasan singkat (reason) kenapa masuk kategori tersebut.
+
+Output Wajib JSON:
+{
+  "grand": [{ "id": "...", "title": "...", "reason": "..." }],
+  "middle": [{ "id": "...", "title": "...", "reason": "..." }],
+  "applied": [{ "id": "...", "title": "...", "reason": "..." }]
+}`;
+
+        const schema = {
+            type: "OBJECT",
+            properties: {
+                grand: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, title: {type: "STRING"}, reason: {type: "STRING"} } } },
+                middle: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, title: {type: "STRING"}, reason: {type: "STRING"} } } },
+                applied: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, title: {type: "STRING"}, reason: {type: "STRING"} } } }
+            },
+            required: ["grand", "middle", "applied"]
+        };
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            setProjectData(prev => ({ 
+                ...prev, 
+                theoryClassification: result 
+            }));
+            showInfoModal("Klasifikasi Teori (Grand/Middle/Applied) berhasil dipetakan!");
+        } catch (error) {
+            showInfoModal(`Gagal mengklasifikasikan teori: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    // --- AKHIR LOGIKA BAB II ---
     
     const handleShowSearchPrompts = async () => {
         if (!projectData.aiReferenceClues) {
@@ -8124,8 +8605,11 @@ Gunakan kerangka kategori standar berikut dan patuhi semua aturan. Untuk setiap 
 **Kategori 1: Definisi Inti & Konsep Kunci**
 - **Aturan:** Urai 'Topik atau Judul' menjadi komponennya: **Penyebab/Variabel Independen**, **Akibat/Variabel Dependen**, dan **Subjek/Konteks Spesifik**. Jika ada nama organisasi atau lokasi spesifik (misal: 'di BRIN'), WAJIB jadikan itu sebagai 'clue' tersendiri.
 
-**Kategori 2: Teori yang Relevan**
-- **Aturan:** Sarankan satu teori **dasar/fundamental** dan satu teori **kontemporer/spesifik** yang relevan.
+**Kategori 2: Landasan Teori (Hierarki 3 Level)**
+- **Aturan:** Anda WAJIB menyarankan 3 'clue' yang berbeda untuk mengisi struktur 'Theory Pyramid' Bab II:
+    1. **Grand Theory (Payung):** Kata kunci untuk teori induk yang abstrak (misal: Manajemen Strategis, Public Administration). Jelaskan di explanation bahwa ini untuk Grand Theory.
+    2. **Middle-Range Theory (Penghubung):** Kata kunci untuk teori spesifik yang menjelaskan hubungan variabel (misal: TAM, Dynamic Governance). Jelaskan di explanation bahwa ini untuk Middle Theory.
+    3. **Applied Theory (Operasional):** Kata kunci untuk konsep operasional, model pengukuran, atau regulasi teknis (misal: Indikator GII, UU Cipta Kerja). Jelaskan di explanation bahwa ini untuk Applied Theory.
 
 **Kategori 3: Metodologi Penelitian**
 - **Aturan (SANGAT PENTING):**
@@ -9608,7 +10092,22 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
     const renderSection = () => {
         switch (currentSection) {
             case 'ideKTI':
-                return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
+                return <IdeKTI {...{ 
+                    projectData, 
+                    handleInputChange, 
+                    handleGenerateIdeKTI, 
+                    handleStartNewIdea, 
+                    isLoading, 
+                    aiStructuredResponse, 
+                    editingIdea, 
+                    setEditingIdea, 
+                    handleStartEditing, 
+                    handleSaveIdea, 
+                    ideKtiMode,
+                    // --- TAMBAHAN BARU DI SINI ---
+                    handleGenerateMirrorReflection,
+                    handleValidateMirrorReflection
+                }} />;
             case 'referensi':
                 // PERBAIKAN: Tambahkan setProjectData ke dalam objek props yang dikirim
                 return <Referensi {...{ 
@@ -9675,13 +10174,13 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             case 'genLogKueri':
                 return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, handleCopyQuery, handleDeleteLog, includeIndonesianQuery, setIncludeIndonesianQuery, handleGenerateQueriesFromPicos, geminiApiKeys, handleInputChange }} />; // UPDATE: geminiApiKeys
             case 'genVariabel':
-    return <GeneratorVariabel {...{ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal, handleCopyToClipboard }} />;
-case 'genHipotesis':
-    return <GeneratorHipotesis {...{ projectData, setProjectData, handleGenerateHipotesis, isLoading, showInfoModal, handleCopyToClipboard }} />;
-case 'genKuesioner':
-    return <GeneratorKuesioner {...{ projectData, setProjectData, handleGenerateKuesioner, isLoading, showInfoModal, handleCopyToClipboard }} />;
-case 'genWawancara':
-    return <GeneratorWawancara {...{ projectData, setProjectData, handleGenerateWawancara, isLoading, showInfoModal, handleCopyToClipboard }} />;
+                return <GeneratorVariabel {...{ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal, handleCopyToClipboard }} />;
+            case 'genHipotesis':
+                return <GeneratorHipotesis {...{ projectData, setProjectData, handleGenerateHipotesis, isLoading, showInfoModal, handleCopyToClipboard }} />;
+            case 'genKuesioner':
+                return <GeneratorKuesioner {...{ projectData, setProjectData, handleGenerateKuesioner, isLoading, showInfoModal, handleCopyToClipboard }} />;
+            case 'genWawancara':
+                return <GeneratorWawancara {...{ projectData, setProjectData, handleGenerateWawancara, isLoading, showInfoModal, handleCopyToClipboard }} />;
             case 'deskripsiResponden':
                 return <DeskripsiResponden {...{ projectData, setProjectData, handleGenerateDeskripsiResponden, isLoading, handleCopyToClipboard }} />;
             case 'analisisKuantitatif':
@@ -9696,7 +10195,16 @@ case 'genWawancara':
             case 'pendahuluan':
                 return <Pendahuluan {...{ projectData, setProjectData, isLoading, handleCopyToClipboard, handleGenerateFullPendahuluan, handleModifyText }} />;
             case 'studiLiteratur':
-                return <StudiLiteratur {...{ projectData, setProjectData, handleGenerateStudiLiteratur, isLoading, handleCopyToClipboard, handleModifyText }} />;
+                return <StudiLiteratur {...{ 
+                    projectData, 
+                    setProjectData, 
+                    handleGenerateStudiLiteratur, 
+                    isLoading, 
+                    handleCopyToClipboard, 
+                    handleModifyText,
+                    // --- TAMBAHAN BARU ---
+                    handleClassifyTheories 
+                }} />;
             case 'metode':
                 return <MetodePenelitian {...{ projectData, setProjectData, handleGenerateMetode, isLoading, handleCopyToClipboard, handleModifyText }} />;
             case 'hasil':
@@ -9728,6 +10236,7 @@ case 'genWawancara':
                     showInfoModal={showInfoModal}
                     setForceShowLicense={setForceShowLicense} // Pass fungsi ini
                     setGeminiApiKeys={setGeminiApiKeys} // Pass setter array untuk fix hapus kunci
+                    projectData={projectData} // UPDATE: Kirim projectData untuk cek Elite
                 />; 
             default:
                 return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
@@ -10048,7 +10557,7 @@ try {
                     { id: 'dashboard', name: 'Dashboard' },
                     { id: 'imporProyek', name: 'Impor Proyek', action: triggerImport },
                     { id: 'eksporProyek', name: 'Ekspor Proyek', action: handleExportProject },
-                    { id: 'resetHapusProyek', name: 'Reset & Hapus Proyek' }
+                    { id: 'resetHapusProyek', name: 'Manajemen Aplikasi' }
                 ]
             },
             tutorial: {
@@ -10066,15 +10575,22 @@ try {
         };
 
         const pendekatan = projectData.pendekatan;
+        
+        // --- PERUBAHAN: Menghapus Logika Penyembunyian Menu SLR ---
+        // Sebelumnya menu ini hanya muncul jika metode berisi "SLR".
+        // Sekarang menu "Alur Kerja SLR" dan "Ekstraksi & Sintesis" DIBUKA PERMANEN 
+        // untuk semua pengguna agar mendorong praktik tinjauan pustaka yang baik.
+        
+        /* KODE LAMA YANG DIHAPUS:
         const metode = projectData.metode;
-
-        // Kondisi baru untuk menampilkan menu SLR hanya jika metode relevan
         if (metode && (metode.toLowerCase().includes('slr') || metode.toLowerCase().includes('systematic literature review') || metode.toLowerCase().includes('bibliometric'))) {
             // Menu sudah ada
         } else {
              navigation.slr_workflow.items = []; // Kosongkan jika tidak relevan
              navigation.sintesis.items = []; // Sembunyikan juga menu Sintesis
         }
+        */
+        // -----------------------------------------------------------
 
         if (pendekatan === 'Kuantitatif' || pendekatan === 'Metode Campuran') {
             navigation.instrumen.items.push(
