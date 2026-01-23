@@ -7279,60 +7279,75 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
                         // Logika Kunci untuk Free User
                         const isLocked = addon.premiumOnly && !isPremium;
                         
+                        const commonClasses = `block p-4 rounded-xl border transition-all relative group h-full flex flex-col text-left w-full ${
+                            isLocked 
+                                ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-75' 
+                                : `bg-white hover:shadow-lg hover:-translate-y-1 transform ${addon.color}`
+                        }`;
+
+                        const cardContent = (
+                            <>
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className={`p-2 rounded-lg shadow-sm ${isLocked ? 'bg-gray-200 text-gray-400' : 'bg-white'}`}>
+                                        {addon.icon}
+                                    </div>
+                                    <h4 className={`font-bold text-md ${isLocked ? 'text-gray-500' : 'text-gray-800'}`}>
+                                        {addon.name}
+                                    </h4>
+                                </div>
+                                
+                                {/* Badge Elite */}
+                                {addon.badge && (
+                                    <span className="absolute top-3 right-3 text-[10px] bg-gray-800 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                        {addon.badge}
+                                    </span>
+                                )}
+                                
+                                {/* Badge Premium Lock */}
+                                {isLocked && (
+                                    <span className="absolute top-3 right-3 text-[10px] bg-yellow-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+                                        PREMIUM
+                                    </span>
+                                )}
+
+                                <p className="text-xs text-gray-600 mb-4 flex-grow leading-relaxed">
+                                    {addon.description}
+                                </p>
+                                
+                                <div className={`flex items-center text-xs font-semibold mt-auto ${isLocked ? 'text-gray-400' : 'text-teal-700 group-hover:text-teal-900'}`}>
+                                     {isLocked ? '🔒 Terkunci (Upgrade)' : 'Buka Aplikasi'}
+                                     {!isLocked && (
+                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                                        </svg>
+                                     )}
+                                </div>
+                            </>
+                        );
+
+                        if (isLocked) {
+                            return (
+                                <button
+                                    key={index}
+                                    type="button"
+                                    onClick={() => showInfoModal("Fitur ini khusus untuk pengguna Premium/Elite.")}
+                                    className={commonClasses}
+                                >
+                                    {cardContent}
+                                </button>
+                            );
+                        }
+
                         return (
                         <a 
                             key={index}
-                            href={isLocked ? "#" : addon.url}
-                            target={isLocked ? "_self" : "_blank"}
+                            href={addon.url}
+                            target="_blank"
                             rel="noopener noreferrer"
-                            onClick={(e) => {
-                                if (isLocked) {
-                                    e.preventDefault();
-                                    showInfoModal("Fitur ini khusus untuk pengguna Premium/Elite.");
-                                }
-                            }}
-                            className={`block p-4 rounded-xl border transition-all relative group h-full flex flex-col 
-                                ${isLocked 
-                                    ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-75' 
-                                    : `bg-white hover:shadow-lg hover:-translate-y-1 transform ${addon.color}`
-                                }`}
+                            className={commonClasses}
                         >
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className={`p-2 rounded-lg shadow-sm ${isLocked ? 'bg-gray-200 text-gray-400' : 'bg-white'}`}>
-                                    {addon.icon}
-                                </div>
-                                <h4 className={`font-bold text-md ${isLocked ? 'text-gray-500' : 'text-gray-800'}`}>
-                                    {addon.name}
-                                </h4>
-                            </div>
-                            
-                            {/* Badge Elite */}
-                            {addon.badge && (
-                                <span className="absolute top-3 right-3 text-[10px] bg-gray-800 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                                    {addon.badge}
-                                </span>
-                            )}
-                            
-                            {/* Badge Premium Lock */}
-                            {isLocked && (
-                                <span className="absolute top-3 right-3 text-[10px] bg-yellow-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
-                                    PREMIUM
-                                </span>
-                            )}
-
-                            <p className="text-xs text-gray-600 mb-4 flex-grow leading-relaxed">
-                                {addon.description}
-                            </p>
-                            
-                            <div className={`flex items-center text-xs font-semibold mt-auto ${isLocked ? 'text-gray-400' : 'text-teal-700 group-hover:text-teal-900'}`}>
-                                 {isLocked ? '🔒 Terkunci (Upgrade)' : 'Buka Aplikasi'}
-                                 {!isLocked && (
-                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                    </svg>
-                                 )}
-                            </div>
+                            {cardContent}
                         </a>
                     )})}
                 </div>
