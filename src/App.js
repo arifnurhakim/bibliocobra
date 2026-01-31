@@ -746,6 +746,19 @@ const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
                     {errorMsg && <p className="text-red-500 text-sm mt-2 animate-pulse">{errorMsg}</p>}
                 </div>
 
+                {/* --- UPDATE: Tambahan Peringatan Keras --- */}
+                <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-3 text-left">
+                    <div className="flex items-start gap-2 text-red-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <p className="text-xs font-semibold leading-relaxed">
+                            <strong>PERINGATAN:</strong> Satu akun/lisensi hanya boleh digunakan oleh <u>satu pengguna</u>. Jika sistem mendeteksi akun digunakan oleh lebih dari satu orang, akun akan di-suspend selamanya (Permanent Ban).
+                        </p>
+                    </div>
+                </div>
+                {/* ----------------------------------------- */}
+
                 <button 
                     onClick={handleActivation}
                     className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 mb-4"
@@ -810,6 +823,36 @@ const ReferenceSelector = ({ projectData, selectedRefIds, setSelectedRefIds }) =
             }
         });
     };
+
+    // --- FITUR BARU: Helper untuk Badge Status PRISMA ---
+    const getPrismaBadge = (refId) => {
+        // Cek apakah PRISMA sudah diinisialisasi
+        if (!projectData.prismaState || !projectData.prismaState.isInitialized) return null;
+        
+        // Cari status studi ini di state PRISMA
+        const study = projectData.prismaState.studies.find(s => String(s.id) === String(refId));
+        
+        if (!study) {
+            // Jika tidak ditemukan di PRISMA tapi ada di library (baru ditambah), anggap General
+            return <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200 font-medium tracking-wide">GENERAL</span>;
+        }
+
+        if (study.screeningStatus === 'fulltext_included') {
+            return (
+                <span className="text-[9px] bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded border border-teal-200 font-bold uppercase tracking-wide flex items-center gap-1" title="Studi ini lolos seleksi PRISMA dan siap dianalisis sebagai Data Utama">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" fill="currentColor" viewBox="0 0 16 16"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg>
+                    SLR DATA
+                </span>
+            );
+        } else if (study.screeningStatus.includes('excluded')) {
+            return <span className="text-[9px] bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded border border-orange-100 font-medium tracking-wide" title="Dieksklusi dari Data Utama, namun tetap bisa digunakan sebagai referensi Latar Belakang/Teori">BACKGROUND REF</span>;
+        } else if (study.screeningStatus === 'unscreened' || study.screeningStatus === 'abstract_included') {
+            return <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-medium tracking-wide" title="Sedang dalam proses screening">SCREENING...</span>;
+        }
+        
+        return null;
+    };
+    // ---------------------------------------------------
 
     // Helper untuk Badge Kualitas Data
     const getDataBadge = (ref) => {
@@ -943,6 +986,15 @@ const ReferenceSelector = ({ projectData, selectedRefIds, setSelectedRefIds }) =
                                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleCheckboxChange(ref.id)}>
                                     <div className="flex flex-wrap items-center gap-2 mb-0.5">
                                         <span className="font-semibold text-xs text-gray-800 line-clamp-1 break-all">{ref.title}</span>
+                                        {/* --- UPDATE: Tampilkan Badge Sumber RIS di Selektor --- */}
+                                        {ref.source === 'external_ris' && (
+                                            <span className="text-[8px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded border border-purple-200 font-bold" title="Sumber: Upload File RIS">
+                                                RIS
+                                            </span>
+                                        )}
+                                        {/* --- UPDATE: Tampilkan Badge PRISMA --- */}
+                                        {getPrismaBadge(ref.id)}
+                                        {/* -------------------------------------- */}
                                         {getDataBadge(ref)}
                                     </div>
                                     <p className="text-[10px] text-gray-500 truncate">{ref.author} ({ref.year})</p>
@@ -1330,11 +1382,11 @@ const IdeKTI = ({
 // --- Komponen untuk Tab 2: Referensi (UI Terpadu) ---
 const Referensi = ({ 
     projectData, 
-    setProjectData, // <-- PERBAIKAN: Tambahkan ini agar fungsi hapus bulk bisa berjalan
+    setProjectData,
     manualRef,
     setManualRef,
-    manualMode, // <-- Props baru
-    setManualMode, // <-- Props baru
+    manualMode,
+    setManualMode,
     handleSaveManualReference,
     freeTextRef,
     setFreeTextRef,
@@ -1383,6 +1435,8 @@ const Referensi = ({
     // --- PROPS BARU UNTUK RIS ---
     triggerImportRis,
     handleExportRis,
+    risSearchResults,
+    setRisSearchResults, // <--- TAMBAHAN: Setter untuk membersihkan preview
     // --- PROPS BARU UNTUK SMART PASTE ---
     smartPasteText,
     setSmartPasteText,
@@ -1396,6 +1450,7 @@ const Referensi = ({
     const isPremium = projectData.isPremium;
     // Elite akses dikelola via projectData.showScopus
 
+    // ... (State library selection & sorting logic remains the same) ...
     // --- STATE BARU: Untuk Checkbox Perpustakaan ---
     const [selectedLibraryIds, setSelectedLibraryIds] = useState([]);
     const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false); // State Modal Konfirmasi Hapus
@@ -1500,21 +1555,32 @@ const Referensi = ({
             // Kita tidak bisa melempar error di sini karena akan menghentikan antrean.
             // Cukup catat dan lanjutkan.
             console.warn(`Melewati review untuk "${paper.title}" karena tidak ada abstrak.`);
-            setAiReviews(prev => ({ ...prev, [paper.paperId]: { error: "Abstrak tidak tersedia." } }));
+            setAiReviews(prev => ({ ...prev, [(paper.paperId || paper.id)]: { error: "Abstrak tidak tersedia." } }));
             return;
         }
 
         try {
-            const result = await handleAiReview(paper, context);
+            // Mapping ID: Prioritaskan paperId (semantic/scopus), fallback ke id (manual/RIS)
+            const idToUse = paper.paperId || paper.id;
+            
+            // Standardize paper object for review if needed
+            const paperForReview = {
+                ...paper,
+                // Ensure abstract is present (already checked above)
+                abstract: paper.abstract || paper.isiKutipan
+            };
+
+            const result = await handleAiReview(paperForReview, context);
              // Tambahkan cek untuk memastikan 'result' tidak 'undefined' (jika error ditangani di handleAiReview)
             if (result) {
-                setAiReviews(prev => ({ ...prev, [paper.paperId]: result }));
+                setAiReviews(prev => ({ ...prev, [idToUse]: result }));
             } else {
-                setAiReviews(prev => ({ ...prev, [paper.paperId]: { error: "Gagal mendapatkan review dari AI. Cek API Key Anda." } }));
+                setAiReviews(prev => ({ ...prev, [idToUse]: { error: "Gagal mendapatkan review dari AI. Cek API Key Anda." } }));
             }
         } catch (error) {
             console.error(`Gagal mereview paper "${paper.title}":`, error);
-            setAiReviews(prev => ({ ...prev, [paper.paperId]: { error: error.message } }));
+            const idToUse = paper.paperId || paper.id;
+            setAiReviews(prev => ({ ...prev, [idToUse]: { error: error.message } }));
         }
     }, [handleAiReview]);
 
@@ -1522,7 +1588,8 @@ const Referensi = ({
     const { addTask: addReviewTask, queueSize: reviewQueueSize, currentItem: currentlyReviewingTask } = useRequestQueue(processAiReviewTask, 1100);
 
     // Dapatkan ID paper yang sedang direview dari state antrean
-    const reviewingId = currentlyReviewingTask ? currentlyReviewingTask.paper.paperId : null;
+    // Fix: Handle both paperId (API) and id (RIS/Manual)
+    const reviewingId = currentlyReviewingTask ? (currentlyReviewingTask.paper.paperId || currentlyReviewingTask.paper.id) : null;
 
 
     const toggleMethod = (method) => {
@@ -1564,8 +1631,8 @@ const Referensi = ({
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            {/* --- MODAL KONFIRMASI HAPUS BULK (Tambahan Baru) --- */}
-            {isBulkDeleteConfirmOpen && (
+            {/* ... (Modal Delete Confirm same as before) ... */}
+             {isBulkDeleteConfirmOpen && (
                 <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-[9999] p-4">
                     <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full flex flex-col animate-fade-in">
                         <div className="flex items-center gap-3 mb-4 text-red-600">
@@ -1595,7 +1662,6 @@ const Referensi = ({
                     </div>
                 </div>
             )}
-            {/* --------------------------------------------------- */}
 
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Literatur & Referensi</h2>
             <p className="text-gray-600 mb-8 -mt-4">Pusat untuk mencari, menambah, dan mengelola semua referensi untuk proyek Anda.</p>
@@ -1605,6 +1671,7 @@ const Referensi = ({
             
             <div className="space-y-4 mb-8">
                 {/* Metode 1: Pencarian Terpandu AI */}
+                {/* ... (Metode 1: Reference Clues remains same) ... */}
                 <div className="border border-gray-200 rounded-lg">
                     <button 
                         onClick={() => toggleMethod('method1')} 
@@ -1663,6 +1730,7 @@ const Referensi = ({
 
                 {/* Metode 2: Cari via Semantic Scholar */}
                 <div className="border border-gray-200 rounded-lg">
+                    {/* ... (Semantic Scholar remains same) ... */}
                     <button 
                         onClick={() => toggleMethod('method2')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method2' ? 'bg-purple-100' : 'bg-purple-50 hover:bg-purple-100'}`}
@@ -1691,9 +1759,7 @@ const Referensi = ({
                                 </button>
                             </div>
 
-                            {/* --- LANGKAH 3.2 DIMULAI DI SINI (UNTUK SEMANTIC SCHOLAR) --- */}
                             <QueueStatusIndicator queueSize={reviewQueueSize} />
-                            {/* --- LANGKAH 3.2 BERAKHIR DI SINI --- */}
 
                             {isS2Searching && searchResults === null && (
                                 <div className="mt-6 flex items-center justify-center">
@@ -1812,22 +1878,22 @@ const Referensi = ({
                     )}
                 </div>
 
-                {/* --- PASTIKAN AREA INI BERSIH DARI SISA ')}' ATAU '}' --- */}
-
-                {/* Metode 3: Tambah Manual (Sebelumnya Metode 4, ganti labelnya jika mau) */}
+                {/* Metode 3: Tambah Manual & Impor Dataset */}
                 <div className="border border-gray-200 rounded-lg">
                     <button 
                         onClick={() => toggleMethod('method4')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method4' ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual & Smart Paste (Gratis)</span>
+                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual, Impor RIS & Smart Paste (Gratis)</span>
                         <ChevronDownIcon isOpen={openMethod === 'method4'} />
                     </button>
                     {openMethod === 'method4' && (
                         <div className="p-4 border-t border-gray-200 animate-fade-in">
                             <div className="flex border-b border-green-300 mb-4 overflow-x-auto no-scrollbar">
                                 <button onClick={() => setManualMode('template')} className={`py-2 px-4 text-sm font-medium whitespace-nowrap ${manualMode === 'template' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>1. Isi Template</button>
-                                <button onClick={() => setManualMode('text')} className={`py-2 px-4 text-sm font-medium whitespace-nowrap ${manualMode === 'text' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>2. Impor Daftar Pustaka</button>
+                                {/* --- UPDATE: TAB BARU --- */}
+                                <button onClick={() => setManualMode('ris')} className={`py-2 px-4 text-sm font-medium whitespace-nowrap ${manualMode === 'ris' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>2. Impor Dataset (RIS)</button>
+                                {/* ------------------------ */}
                                 <button onClick={() => setManualMode('smartPaste')} className={`py-2 px-4 text-sm font-medium whitespace-nowrap flex items-center gap-1 ${manualMode === 'smartPaste' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
                                         <path d="M10 .5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5.5.5 0 0 1-.5.5.5.5 0 0 0-.5.5V2a.5.5 0 0 0 .5.5h5A.5.5 0 0 0 11 2v-.5a.5.5 0 0 0-.5-.5.5.5 0 0 1-.5-.5Z"/>
@@ -1852,19 +1918,105 @@ const Referensi = ({
                                 </div>
                             )}
 
-                            {manualMode === 'text' && (
+                            {/* --- TAB BARU: IMPOR DATASET RIS --- */}
+                            {manualMode === 'ris' && (
                                 <div className="animate-fade-in">
-                                    <p className="text-sm text-green-700 mb-4">Tempelkan satu referensi format <strong>Daftar Pustaka</strong>. AI akan mengurai metadatanya.</p>
-                                    <textarea
-                                        value={freeTextRef}
-                                        onChange={(e) => setFreeTextRef(e.target.value)}
-                                        className="shadow-sm border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed font-mono text-sm"
-                                        rows="5"
-                                        placeholder="Contoh: M. Aria and C. Cuccurullo, “bibliometrix: An R-tool for comprehensive science mapping analysis,” J Informetr, vol. 11, no. 4, pp. 959–975, 2017..."
-                                    ></textarea>
-                                    <button onClick={handleImportFromText} className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg" disabled={isLoading || !freeTextRef}>
-                                    {isLoading ? 'Mengimpor...' : 'Impor & Tambah ke Proyek'}
-                                    </button>
+                                    <p className="text-sm text-green-700 mb-4">
+                                        Unggah file hasil ekspor dari database (Scopus, WoS, Mendeley) dalam format <strong>.ris</strong>. Anda dapat meninjau (preview) dan menyeleksi artikel sebelum memasukkannya ke perpustakaan.
+                                    </p>
+                                    
+                                    <div className="flex gap-2 mb-4">
+                                        <button 
+                                            onClick={triggerImportRis}
+                                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 text-sm"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+                                            Upload File RIS
+                                        </button>
+                                        
+                                        {risSearchResults && (
+                                            <button 
+                                                onClick={() => setRisSearchResults(null)}
+                                                className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg text-sm"
+                                            >
+                                                Bersihkan Preview
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* PREVIEW AREA */}
+                                    {risSearchResults && (
+                                        <div className="bg-gray-50 border border-gray-300 rounded-lg p-3">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <h5 className="font-bold text-gray-800 text-sm">Preview Hasil Impor ({risSearchResults.length} Item):</h5>
+                                                <span className="text-[10px] text-gray-500 bg-white px-2 py-1 rounded border">Mode Seleksi</span>
+                                            </div>
+                                            
+                                            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                                                {risSearchResults.map((paper, idx) => (
+                                                    <div key={idx} className="bg-white p-3 rounded-lg border border-gray-200 flex flex-col items-start gap-2 shadow-sm">
+                                                        <div className="w-full flex justify-between items-start">
+                                                            <div>
+                                                                <p className="font-semibold text-gray-800 text-sm">{paper.title || 'Tanpa Judul'}</p>
+                                                                <p className="text-xs text-gray-600">
+                                                                    {paper.author || 'Anonim'} ({paper.year || 'N/A'})
+                                                                </p>
+                                                                <p className="text-xs italic text-gray-500">
+                                                                    {paper.journal || paper.publisher || ''}
+                                                                </p>
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    // Gunakan ID dari RIS atau generate baru jika tidak ada (untuk konsistensi)
+                                                                    // AI Review mungkin belum ada jika user belum klik, kirim null
+                                                                    const review = aiReviews[paper.id]; 
+                                                                    handleAddReferenceFromSearch(paper, review);
+                                                                }}
+                                                                className="ml-4 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-3 rounded-lg flex-shrink-0 shadow-sm"
+                                                                title="Simpan ke Perpustakaan"
+                                                            >
+                                                                + Tambah
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Preview Abstrak & AI Review */}
+                                                        <div className="mt-2 w-full pt-2 border-t border-gray-100 flex gap-3 items-center">
+                                                            <button onClick={() => toggleAbstract(paper.id)} className="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1">
+                                                                {expandedAbstractId === paper.id ? 'Tutup Abstrak' : 'Baca Abstrak'}
+                                                            </button>
+                                                            
+                                                            <button 
+                                                                onClick={() => addReviewTask({ paper: paper, context: projectData.topikTema || '' })} 
+                                                                className={`text-xs font-semibold flex items-center gap-1 ${!isPremium ? 'text-gray-400 cursor-not-allowed' : 'text-purple-600 hover:underline'}`}
+                                                                disabled={!isPremium || reviewingId === paper.id}
+                                                                title={!isPremium ? "Fitur Premium" : "Analisis relevansi dengan AI"}
+                                                            >
+                                                                {reviewingId === paper.id ? 'Mereview...' : '✨ Review AI'}
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Konten Abstrak */}
+                                                        {expandedAbstractId === paper.id && (
+                                                            <div className="mt-2 p-2 bg-gray-50 rounded border text-xs text-gray-700 max-h-40 overflow-y-auto leading-relaxed">
+                                                                {paper.abstract || "Abstrak tidak tersedia."}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Hasil Review AI */}
+                                                        {aiReviews[paper.id] && (
+                                                            <div className={`mt-2 p-2 border-l-4 rounded-r text-xs ${getRelevanceStyles(aiReviews[paper.id].kategori_relevansi).container}`}>
+                                                                <div className="flex justify-between font-bold mb-1">
+                                                                    <span className={getRelevanceStyles(aiReviews[paper.id].kategori_relevansi).header}>Analisis AI:</span>
+                                                                    <span className={`px-1.5 rounded-full ${getRelevanceStyles(aiReviews[paper.id].kategori_relevansi).badge}`}>{aiReviews[paper.id].kategori_relevansi}</span>
+                                                                </div>
+                                                                <p className="text-gray-700">{aiReviews[paper.id].relevansi}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -2266,13 +2418,7 @@ const Referensi = ({
                        <button onClick={handleExportReferences} className="bg-gray-500 hover:bg-gray-600 text-white text-xs font-bold py-1 px-3 rounded-lg">Ekspor JSON</button>
                        {/* --- TOMBOL BARU: IMPOR/EKSPOR RIS (MENDELEY) --- */}
                        <div className="h-6 w-px bg-gray-300 mx-1"></div>
-                       <button onClick={triggerImportRis} className="bg-green-700 hover:bg-green-800 text-white text-xs font-bold py-1 px-3 rounded-lg flex items-center gap-1" title="Impor dari Mendeley/Zotero (.ris)">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 .5-.5z"/>
-                                <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
-                            </svg>
-                            Impor RIS
-                       </button>
+                       {/* Tombol Impor RIS dihapus agar pengguna menggunakan Metode 3 */}
                        <button onClick={handleExportRis} className="bg-green-700 hover:bg-green-800 text-white text-xs font-bold py-1 px-3 rounded-lg flex items-center gap-1" title="Ekspor ke Mendeley/Zotero (.ris)">
                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
                                 <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 .5-.5z"/>
@@ -2355,7 +2501,16 @@ const Referensi = ({
                                             </td>
                                             {/* --------------------- */}
                                             <td className="p-3 text-sm text-gray-700 border-b border-gray-200" style={{minWidth: '300px'}}>
-                                                <p className="font-bold">{ref.title}</p>
+                                                {/* --- UPDATE: Tampilkan Badge Sumber RIS di Tabel Utama --- */}
+                                                <div className="flex items-start gap-2">
+                                                    <p className="font-bold">{ref.title}</p>
+                                                    {ref.source === 'external_ris' && (
+                                                        <span className="flex-shrink-0 bg-purple-100 text-purple-800 text-[10px] px-2 py-0.5 rounded-full border border-purple-200 font-bold h-fit mt-0.5" title="Impor dari File RIS">
+                                                            RIS FILE
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {/* --------------------------------------------------------- */}
                                                 <p className="text-xs">{ref.author} ({ref.year})</p>
                                                 {/* Menampilkan nama jurnal agar user tahu apa yang dicek */}
                                                 {ref.journal && (
@@ -5124,6 +5279,9 @@ const AnalisisGapNovelty = ({
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isMapping, setIsMapping] = useState(false); 
     const [targetDraft, setTargetDraft] = useState('pendahuluanDraft');
+    // --- STATE BARU: MANUAL KEYWORDS ---
+    const [manualKeywords, setManualKeywords] = useState('');
+    // -----------------------------------
     const isPremium = projectData.isPremium;
     
     // Helper: Pilih Semua / Hapus Semua
@@ -5176,13 +5334,20 @@ const AnalisisGapNovelty = ({
             return `[${i+1}] "${ref.title}" (${ref.year}). Ringkasan: ${content}`;
         }).join('\n');
 
-        // --- UPDATE: Logika Jumlah Tema (Sekarang Statis karena Min 5) ---
-        // Karena data dijamin >= 5, kita bisa langsung minta clustering standar.
-        const themeInstruction = "Kelompokkan literatur menjadi 5-10 'Tema Utama' (Cluster).";
+        // --- UPDATE: Logika Guided Topic Modeling (Keywords) ---
+        let themeInstruction = "Kelompokkan literatur menjadi 5-10 'Tema Utama' (Cluster) secara induktif.";
+        let keywordContext = "";
+
+        if (manualKeywords && manualKeywords.trim() !== "") {
+            themeInstruction = "Lakukan 'Guided Topic Modeling'. Kelompokkan literatur menjadi tema-tema yang SANGAT ERAT KAITANNYA dengan 'Daftar Kata Kunci Prioritas' yang diberikan pengguna. Gunakan kata kunci tersebut sebagai label tema jika relevan.";
+            keywordContext = `\nDAFTAR KATA KUNCI PRIORITAS (User Seed Keywords):\n${manualKeywords}\n\n`;
+        }
         // ------------------------------------------
 
         // 2. Prompt Strategis (Strategic Diagram / Thematic Map)
         const prompt = `Anda adalah ahli Bibliometrik (Science Mapping). Tugas Anda adalah membuat "Thematic Map" (Peta Tematik) dari daftar literatur berikut.
+
+${keywordContext}
 
 DAFTAR LITERATUR:
 ${refsInput}
@@ -5365,6 +5530,21 @@ ${refsDataString}
 
             {/* BAGIAN 1.5: TOMBOL & VISUALISASI PETA TEMATIK (BARU) */}
             <div className="mb-8">
+                {/* --- AREA INPUT KEYWORDS (BARU) --- */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
+                    <h4 className="font-bold text-gray-700 text-sm mb-2">Fokus Kata Kunci (Opsional)</h4>
+                    <p className="text-xs text-gray-500 mb-2">
+                        Gunakan add-on <a href="https://cobrasaurus.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline font-bold">Cobrasaurus</a> untuk generate dan cleaning kata kunci.
+                    </p>
+                    <textarea 
+                        value={manualKeywords}
+                        onChange={(e) => setManualKeywords(e.target.value)}
+                        className="w-full p-2 text-xs border rounded-lg h-24 focus:ring-2 focus:ring-indigo-500 font-mono"
+                        placeholder={`Contoh:\nartificial intelligence\nmachine learning\ndeep learning`}
+                    ></textarea>
+                </div>
+                {/* ---------------------------------- */}
+
                 {/* Tombol Generasi Peta */}
                 <div className="flex justify-end mb-4">
                     <button 
@@ -5570,7 +5750,7 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
 };
 
 // --- Komponen baru untuk PRISMA SLR ---
-const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview }) => {
+const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview, geminiApiKeys }) => { // UPDATE: Terima geminiApiKeys
     // FIX: Panggil semua hooks di level atas tanpa kondisional.
     const { prismaState } = projectData || {}; // Destructuring aman jika projectData belum ada
     const [currentStage, setCurrentStage] = useState('setup');
@@ -5583,6 +5763,27 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
     const svgRef = useRef(null); // Tambahkan ref untuk SVG
     const [showSvgHelp, setShowSvgHelp] = useState(false); // FIX: Pindahkan state hook ke level atas komponen
     const [reviewingList, setReviewingList] = useState(null); // State baru untuk tab review
+
+    // --- STATE BARU UNTUK FULLTEXT AI SCREENING ---
+    const [showFulltextModal, setShowFulltextModal] = useState(false);
+    const [fulltextInput, setFulltextInput] = useState('');
+    const [fulltextAnalysis, setFulltextAnalysis] = useState(null);
+    const [isAnalyzingFulltext, setIsAnalyzingFulltext] = useState(false);
+    // ----------------------------------------------
+
+    // --- STATE BARU UNTUK RESET PRISMA ---
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
+    // -------------------------------------
+
+    // --- STATE BARU UNTUK SELEKSI AWAL PRISMA (LANGKAH 2) ---
+    const [isPrismaSelectionModalOpen, setIsPrismaSelectionModalOpen] = useState(false);
+    const [selectedPrismaIds, setSelectedPrismaIds] = useState([]);
+    // --------------------------------------------------------
+
+    // --- PERBAIKAN: MENGHAPUS EFEK INISIALISASI OTOMATIS (AGAR TIDAK MEMAKSA CENTANG) ---
+    // Kode sebelumnya dihapus agar user bebas memilih (kosong di awal tidak masalah)
+    // useEffect(() => { ... }) -> DIHAPUS
+    // -----------------------------------------------------------------------------------
 
     // Efek untuk inisialisasi state PRISMA jika belum ada.
     useEffect(() => {
@@ -5618,6 +5819,23 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
         return <div className="p-6 text-center">Menginisialisasi Modul PRISMA...</div>;
     }
 
+    // --- FUNGSI BARU: RESET PRISMA ---
+    const handleResetPrisma = () => {
+        // Reset state PRISMA ke default (uninitialized)
+        setProjectData(p => ({
+            ...p,
+            prismaState: {
+                ...initialProjectData.prismaState, // Kembali ke struktur awal (kosong)
+                // Opsional: Jika ingin mempertahankan angka input user sebelumnya, bisa dilakukan manual di sini,
+                // tapi "Reset Total" lebih aman untuk menghindari inkonsistensi.
+            }
+        }));
+        setCurrentStage('setup');
+        setShowResetConfirm(false);
+        showInfoModal("PRISMA SLR telah di-reset. Anda dapat memulai konfigurasi dari awal.");
+    };
+    // ---------------------------------
+
     const handleRevertDecision = (studyId, targetStage) => {
         setProjectData(p => {
             const updatedStudies = p.prismaState.studies.map(study => {
@@ -5630,6 +5848,67 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
         });
         showInfoModal("Keputusan telah diubah. Artikel akan muncul kembali di antrean screening yang sesuai.");
     };
+
+    // --- FUNGSI BARU: ANALISIS FULLTEXT ---
+    const handleAnalyzeFulltext = async () => {
+        if (!fulltextInput.trim()) {
+            showInfoModal("Silakan tempel isi teks paper terlebih dahulu.");
+            return;
+        }
+        if (!projectData.isPremium) {
+            showInfoModal("Fitur Analisis Fulltext AI khusus untuk pengguna Premium.");
+            return;
+        }
+
+        setIsAnalyzingFulltext(true);
+        setFulltextAnalysis(null);
+
+        const prompt = `Anda adalah asisten peneliti ahli untuk Systematic Literature Review (SLR).
+        Tugas: Evaluasi kelayakan artikel berikut untuk diinklusi dalam penelitian ini berdasarkan teks lengkap (fulltext) yang diberikan.
+
+        **Konteks Penelitian:**
+        - Judul/Topik: "${projectData.judulKTI || projectData.topikTema}"
+        - Tujuan: "${projectData.tujuanPenelitianDraft || 'Tidak ditentukan'}"
+
+        **Teks Artikel (Fulltext/Partial):**
+        "${fulltextInput.substring(0, 15000)}" 
+        *(Catatan: Teks mungkin terpotong jika terlalu panjang, fokus pada bagian yang ada)*
+
+        **Instruksi Analisis:**
+        1. **Ringkasan Singkat:** Apa inti dari paper ini?
+        2. **Relevansi:** Seberapa relevan paper ini dengan topik penelitian saya? (Sangat Relevan / Relevan / Kurang Relevan / Tidak Relevan).
+        3. **Rekomendasi Keputusan:** Apakah sebaiknya di-INCLUDE atau EXCLUDE?
+        4. **Alasan:** Jelaskan alasan keputusan tersebut secara objektif.
+
+        Berikan jawaban dalam format JSON:
+        {
+            "summary": "...",
+            "relevance_level": "...",
+            "recommendation": "INCLUDE" | "EXCLUDE",
+            "reason": "..."
+        }`;
+
+        const schema = {
+            type: "OBJECT",
+            properties: {
+                summary: { type: "STRING" },
+                relevance_level: { type: "STRING" },
+                recommendation: { type: "STRING", enum: ["INCLUDE", "EXCLUDE"] },
+                reason: { type: "STRING" }
+            },
+            required: ["summary", "relevance_level", "recommendation", "reason"]
+        };
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            setFulltextAnalysis(result);
+        } catch (error) {
+            showInfoModal(`Gagal menganalisis fulltext: ${error.message}`);
+        } finally {
+            setIsAnalyzingFulltext(false);
+        }
+    };
+    // -------------------------------------
 
     const toggleAbstract = (paperId) => {
         setExpandedAbstractId(prevId => (prevId === paperId ? null : paperId));
@@ -5762,26 +6041,83 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
         }
     };
 
-    const handleInitialize = () => {
+    // --- REVISI ALUR INISIALISASI (LANGKAH 1): Buka Modal ---
+    const handleOpenPrismaSelection = () => {
+        if (projectData.allReferences.length === 0) {
+            showInfoModal("Perpustakaan kosong. Tambahkan referensi terlebih dahulu.");
+            return;
+        }
+        // Modal dibuka. Karena useEffect otomatis dihapus, seleksi akan sesuai state terakhir (atau kosong di awal)
+        setIsPrismaSelectionModalOpen(true);
+    };
+
+    // --- HELPER UNTUK MODAL SELEKSI ---
+    const handleTogglePrismaSelect = (id) => {
+        setSelectedPrismaIds(prev => {
+            if (prev.includes(id)) {
+                return prev.filter(item => item !== id);
+            } else {
+                return [...prev, id];
+            }
+        });
+    };
+
+    const handleSelectAllPrisma = (select) => {
+        if (select) {
+            setSelectedPrismaIds(projectData.allReferences.map(ref => ref.id));
+        } else {
+            setSelectedPrismaIds([]);
+        }
+    };
+
+    // --- FITUR BARU: PILIH KHUSUS RIS ---
+    const handleSelectRisPrisma = () => {
+        const risIds = projectData.allReferences
+            .filter(ref => ref.source === 'external_ris')
+            .map(ref => ref.id);
+        
+        if (risIds.length === 0) {
+            showInfoModal("Tidak ditemukan referensi dari file RIS.");
+            return;
+        }
+        setSelectedPrismaIds(risIds);
+    };
+    // ------------------------------------
+
+    // --- LANGKAH BARU: SIMPAN SELEKSI DARI MODAL (Tanpa Mulai Screening) ---
+    const handleSavePrismaSelection = () => {
+        setIsPrismaSelectionModalOpen(false);
+        // Tidak melakukan apa-apa selain menutup modal, karena selectedPrismaIds sudah terupdate realtime
+        // Angka di Setup akan otomatis berubah karena re-render
+    };
+
+    // --- LANGKAH 3: EKSEKUSI FINALISASI (TOMBOL DI HALAMAN SETUP) ---
+    const handleFinalizePrismaSetup = () => {
+        const studiesToScreen = projectData.allReferences.filter(ref => selectedPrismaIds.includes(ref.id));
+        
+        if (studiesToScreen.length === 0) {
+            showInfoModal("Pilih minimal satu referensi untuk memulai screening.");
+            return;
+        }
+
         // PERBAIKAN: Gunakan nilai manual jika sudah diisi user, jika 0 baru hitung dari log
         let initialRecordCount = prismaState.initialRecordCount;
         
         if (initialRecordCount === 0) {
-             initialRecordCount = projectData.searchLog.reduce((sum, log) => sum + log.resultsCount, 0);
-        }
-        
-        if (initialRecordCount === 0 && projectData.allReferences.length === 0) {
-            showInfoModal("Tidak ada data untuk memulai. Harap isi Log Penelusuran atau Perpustakaan Referensi terlebih dahulu.");
-            return;
+             // Prioritaskan hitungan dari Log Kueri jika ada
+             const logTotal = projectData.searchLog.reduce((sum, log) => sum + log.resultsCount, 0);
+             // Jika log 0, gunakan jumlah riil dataset yang akan di-screen
+             initialRecordCount = logTotal > 0 ? logTotal : studiesToScreen.length;
         }
 
-        const studies = projectData.allReferences.map(ref => ({
+        // Mapping hanya data yang terpilih (Filtered)
+        const studies = studiesToScreen.map(ref => ({
             ...ref,
             screeningStatus: 'unscreened', // unscreened, abstract_included, abstract_excluded, fulltext_included, fulltext_excluded
             exclusionReason: '',
         }));
 
-        // PERBAIKAN: Fallback ke jumlah studies jika initial masih 0
+        // Fallback jika initial masih 0
         if (initialRecordCount === 0) initialRecordCount = studies.length;
 
         setProjectData(p => ({
@@ -5790,10 +6126,11 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
                 ...p.prismaState,
                 isInitialized: true,
                 studies: studies,
-                initialRecordCount: initialRecordCount, // Gunakan nilai yang sudah divalidasi
+                initialRecordCount: initialRecordCount, 
             }
         }));
-        showInfoModal("Proses Screening PRISMA dimulai!");
+        
+        showInfoModal(`Proses Screening PRISMA dimulai! ${studies.length} referensi masuk ke tahap screening.`);
     };
 
     const handleScreeningDecision = (studyId, newStatus, reason = '') => {
@@ -5867,27 +6204,56 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
     // --- MODIFIKASI TAMPILAN SETUP PRISMA ---
     const renderSetup = () => {
         const logTotal = projectData.searchLog.reduce((sum, log) => sum + log.resultsCount, 0);
-        const importedTotal = projectData.allReferences.length;
+        
+        // --- LOGIKA BARU: HITUNG BERDASARKAN SELEKSI ---
+        // Jika selectedPrismaIds kosong (misal library kosong), importedTotal = 0
+        // Jika ada isi, hitung jumlahnya.
+        const importedTotal = selectedPrismaIds.length;
+        // ----------------------------------------------
         
         // Hitung keseimbangan
         const manualInitial = prismaState.initialRecordCount > 0 ? prismaState.initialRecordCount : logTotal;
         const removed = (prismaState.duplicateCount || 0) + (prismaState.automationIneligible || 0) + (prismaState.otherReasonsRemoved || 0);
         const calculatedScreened = manualInitial - removed;
-        const gap = calculatedScreened - importedTotal; // Selisih antara hitungan matematis dan data riil di library
+        const gap = calculatedScreened - importedTotal; // Selisih antara hitungan matematis dan data riil TERPILIH
 
         return (
-        <div className="text-center">
-            <h3 className="text-xl font-semibold mb-4 text-gray-800">Mulai Proses Screening PRISMA</h3>
-            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">Fitur ini akan memandu Anda melalui proses penyaringan studi untuk Systematic Literature Review (SLR) Anda.</p>
+        <div className="text-center animate-fade-in">
+            <h3 className="text-xl font-semibold mb-2 text-gray-800">Konfigurasi Awal PRISMA</h3>
+            <p className="text-gray-600 mb-6 max-w-2xl mx-auto text-sm">Ikuti 3 langkah di bawah ini untuk memulai proses penyaringan studi secara metodologis.</p>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto text-left">
+            {/* --- LANGKAH 1: SELEKSI DATASET (DIPINDAHKAN KE ATAS) --- */}
+            <div className="mb-6 p-4 bg-white border-2 border-blue-100 rounded-xl shadow-sm text-left relative overflow-hidden">
+                <div className="absolute top-0 left-0 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-br-lg">Langkah 1</div>
+                <div className="mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h4 className="font-bold text-gray-800 text-lg">Pilih Dataset Referensi</h4>
+                        <p className="text-sm text-gray-600">Tentukan referensi mana dari perpustakaan yang akan dijadikan input screening. Pisahkan antara data SLR dan referensi umum.</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                        <span className="text-2xl font-bold text-blue-600">{importedTotal} <span className="text-sm text-gray-500 font-normal">Artikel Terpilih</span></span>
+                        <button 
+                            onClick={handleOpenPrismaSelection} 
+                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
+                            Ubah Seleksi
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {/* -------------------------------------------------------- */}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto text-left relative">
+                <div className="absolute -top-3 -left-3 bg-gray-600 text-white text-xs font-bold px-3 py-1 rounded-lg z-10 shadow-sm">Langkah 2: Kalibrasi Angka</div>
+                
                 {/* KOLOM KIRI: INPUT RAW DATA */}
-                <div className="p-5 bg-blue-50 border border-blue-200 rounded-lg">
-                    <h4 className="font-bold text-blue-800 mb-3 border-b border-blue-200 pb-2">1. Data Identifikasi (Raw)</h4>
-                    <p className="text-xs text-blue-600 mb-4">Masukkan total hasil pencarian mentah dari semua database SEBELUM filter apa pun.</p>
+                <div className="p-5 bg-gray-50 border border-gray-200 rounded-lg">
+                    <h4 className="font-bold text-gray-800 mb-3 border-b border-gray-200 pb-2">A. Data Identifikasi (Raw)</h4>
+                    <p className="text-xs text-gray-600 mb-4">Total hasil pencarian mentah dari database SEBELUM deduplikasi/filter.</p>
                     
                     <div className="mb-4">
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Total Record Identifikasi:</label>
+                        <label className="block text-gray-700 text-sm font-bold mb-2">Total Record Awal:</label>
                         <div className="flex gap-2">
                             <input 
                                 type="number"
@@ -5900,7 +6266,7 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
                             {logTotal > 0 && (
                                 <button 
                                     onClick={() => setProjectData(p => ({...p, prismaState: {...p.prismaState, initialRecordCount: logTotal }}))}
-                                    className="bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded hover:bg-blue-300 whitespace-nowrap"
+                                    className="bg-gray-200 text-gray-800 text-xs px-2 py-1 rounded hover:bg-gray-300 whitespace-nowrap"
                                     title="Gunakan total dari Log Kueri"
                                 >
                                     Pakai Log ({logTotal})
@@ -5912,38 +6278,38 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
 
                 {/* KOLOM KANAN: INPUT PENGURANGAN */}
                 <div className="p-5 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <h4 className="font-bold text-yellow-800 mb-3 border-b border-yellow-200 pb-2">2. Filter Awal (Automation Tools)</h4>
-                    <p className="text-xs text-yellow-700 mb-4">Masukkan jumlah record yang dibuang sebelum screening manusia (oleh sistem database/aplikasi).</p>
+                    <h4 className="font-bold text-yellow-800 mb-3 border-b border-yellow-200 pb-2">B. Filter Awal (Otomatis/Luar App)</h4>
+                    <p className="text-xs text-yellow-700 mb-4">Jumlah record yang dibuang SEBELUM masuk ke aplikasi ini.</p>
                     
                     <div className="space-y-3">
-                        <div>
-                            <label className="block text-gray-700 text-xs font-bold mb-1">Duplikat dihapus:</label>
+                        <div className="flex justify-between items-center">
+                            <label className="block text-gray-700 text-xs font-bold">Duplikat dihapus:</label>
                             <input 
                                 type="number"
                                 min="0"
                                 value={prismaState.duplicateCount}
                                 onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, duplicateCount: parseInt(e.target.value, 10) || 0 }}))}
-                                className="shadow appearance-none border rounded w-full py-1 px-2 text-sm text-gray-700"
+                                className="shadow appearance-none border rounded w-20 py-1 px-2 text-sm text-gray-700 text-right"
                             />
                         </div>
-                        <div>
-                            <label className="block text-gray-700 text-xs font-bold mb-1">Tidak eligibel oleh automation tools:</label>
+                        <div className="flex justify-between items-center">
+                            <label className="block text-gray-700 text-xs font-bold">Ineligible by automation:</label>
                             <input 
                                 type="number"
                                 min="0"
                                 value={prismaState.automationIneligible}
                                 onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, automationIneligible: parseInt(e.target.value, 10) || 0 }}))}
-                                className="shadow appearance-none border rounded w-full py-1 px-2 text-sm text-gray-700"
+                                className="shadow appearance-none border rounded w-20 py-1 px-2 text-sm text-gray-700 text-right"
                             />
                         </div>
-                        <div>
-                            <label className="block text-gray-700 text-xs font-bold mb-1">Dibuang alasan lain:</label>
+                        <div className="flex justify-between items-center">
+                            <label className="block text-gray-700 text-xs font-bold">Alasan lain:</label>
                             <input 
                                 type="number"
                                 min="0"
                                 value={prismaState.otherReasonsRemoved}
                                 onChange={e => setProjectData(p => ({...p, prismaState: {...p.prismaState, otherReasonsRemoved: parseInt(e.target.value, 10) || 0 }}))}
-                                className="shadow appearance-none border rounded w-full py-1 px-2 text-sm text-gray-700"
+                                className="shadow appearance-none border rounded w-20 py-1 px-2 text-sm text-gray-700 text-right"
                             />
                         </div>
                     </div>
@@ -5951,46 +6317,54 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
             </div>
 
             {/* KALKULATOR KESEIMBANGAN */}
-            <div className={`mt-6 p-4 rounded-lg border-2 max-w-2xl mx-auto ${gap === 0 ? 'bg-green-50 border-green-400' : 'bg-red-50 border-red-400'}`}>
+            <div className={`mt-6 p-4 rounded-lg border-2 max-w-2xl mx-auto transition-colors duration-300 ${gap === 0 ? 'bg-green-50 border-green-400' : 'bg-red-50 border-red-400'}`}>
                 <h4 className={`font-bold ${gap === 0 ? 'text-green-800' : 'text-red-800'} mb-2`}>
                     Status Data: {gap === 0 ? "SEIMBANG ✅" : "TIDAK SEIMBANG ⚠️"}
                 </h4>
-                <div className="flex justify-between text-sm mb-2">
-                    <span>Identifikasi Awal:</span>
+                <div className="flex justify-between text-sm mb-1 px-4">
+                    <span>(A) Total Record Awal:</span>
                     <strong>{manualInitial}</strong>
                 </div>
-                <div className="flex justify-between text-sm mb-2 text-red-600">
-                    <span>Dikurangi (Filter Awal):</span>
+                <div className="flex justify-between text-sm mb-1 px-4 text-red-600">
+                    <span>(B) Total Filter Awal:</span>
                     <strong>- {removed}</strong>
                 </div>
-                <div className="flex justify-between text-sm pt-2 border-t border-gray-300">
-                    <span>Seharusnya Masuk Screening:</span>
+                <div className="flex justify-between text-sm pt-2 border-t border-gray-300 px-4">
+                    <span>(A - B) Seharusnya Masuk App:</span>
                     <strong>{calculatedScreened}</strong>
                 </div>
-                <div className="flex justify-between text-sm">
-                    <span>Total Referensi di App (Riil):</span>
+                <div className="flex justify-between text-sm px-4 mt-1 bg-white/50 py-1 rounded">
+                    <span>(Langkah 1) Artikel Terpilih:</span>
                     <strong>{importedTotal}</strong>
                 </div>
                 
                 {gap !== 0 && (
                     <div className="mt-3 text-xs text-red-700 bg-red-100 p-2 rounded">
                         <strong>Selisih: {Math.abs(gap)} record.</strong> <br/>
-                        {gap > 0 
-                            ? "Data 'Filter Awal' terlalu sedikit. Ada record yang hilang?" 
-                            : "Data 'Filter Awal' terlalu banyak. Sisa record negatif?"}
-                        <br/>Silakan sesuaikan angka di kolom kuning agar selisih menjadi 0.
+                        Harap sesuaikan angka di Langkah 2 (Kolom Kuning) agar hasil hitungan sama dengan jumlah Artikel Terpilih di Langkah 1.
                     </div>
                 )}
             </div>
 
-            <button onClick={handleInitialize} className="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg">
-                Mulai Screening dengan Data Ini
-            </button>
+            <div className="mt-8 border-t pt-6">
+                <span className="bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full mb-2 inline-block">Langkah 3</span>
+                <br/>
+                <button 
+                    onClick={handleFinalizePrismaSetup} 
+                    className={`mt-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg text-lg shadow-lg transform hover:-translate-y-1 transition-all ${gap !== 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={gap !== 0}
+                    title={gap !== 0 ? "Harap seimbangkan data terlebih dahulu" : ""}
+                >
+                    Mulai Screening PRISMA
+                </button>
+                {gap !== 0 && <p className="text-xs text-red-500 mt-2">Tombol terkunci sampai data seimbang.</p>}
+            </div>
         </div>
     );
     }; // END renderSetup
     
     const renderScreening = (type) => {
+        // ... (Existing code for renderScreening)
         const isAbstract = type === 'abstract';
         const targetStatus = isAbstract ? 'unscreened' : 'abstract_included';
         const studyToScreen = prismaState.studies.find(s => s.screeningStatus === targetStatus);
@@ -6031,7 +6405,7 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
                     {studyToScreen.doi && <a href={`https://doi.org/${studyToScreen.doi}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">DOI: {studyToScreen.doi}</a>}
                     
                     <div className="mt-4">
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4 flex-wrap">
                             <button onClick={() => toggleAbstract(studyToScreen.id)} className="text-xs text-blue-600 hover:underline font-semibold">
                                 {expandedAbstractId === studyToScreen.id ? 'Sembunyikan Abstrak / Catatan' : 'Tampilkan Abstrak / Catatan'}
                             </button>
@@ -6040,8 +6414,27 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
                                 className="text-xs text-purple-600 hover:underline font-semibold disabled:text-gray-400 disabled:no-underline"
                                 disabled={reviewingId === studyToScreen.id}
                             >
-                                {reviewingId === studyToScreen.id ? 'Mereview...' : '✨ Review AI'}
+                                {reviewingId === studyToScreen.id ? 'Mereview...' : '✨ Review Abstract AI'}
                             </button>
+                            
+                            {/* --- TOMBOL BARU: PASTE FULLTEXT --- */}
+                            {!isAbstract && (
+                                <button 
+                                    onClick={() => {
+                                        setFulltextInput('');
+                                        setFulltextAnalysis(null);
+                                        setShowFulltextModal(true);
+                                    }}
+                                    className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 font-semibold flex items-center gap-1"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                                        <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3z"/>
+                                    </svg>
+                                    Paste Isi Paper (AI Check)
+                                </button>
+                            )}
+                            {/* ----------------------------------- */}
                         </div>
                         {expandedAbstractId === studyToScreen.id && (
                             <div className="mt-2 p-3 bg-gray-50 rounded-md border">
@@ -6094,6 +6487,7 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
     };
 
     const renderReview = () => {
+        // ... (Existing code for renderReview)
         const reviewLists = [
             { status: 'abstract_excluded', label: 'Ditolak (Abstrak)', revertTo: 'unscreened' },
             { status: 'abstract_included', label: 'Diterima (Abstrak)', revertTo: 'unscreened' },
@@ -6153,6 +6547,7 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
     };
 
     const renderResults = () => {
+        // ... (Existing code for renderResults - no changes)
         // Jika belum diinisialisasi, jangan render apa pun
         if (!prismaState.isInitialized) return null;
 
@@ -6398,19 +6793,195 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview 
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Generator PRISMA SLR</h2>
             
-                <div className="flex border-b mb-6">
-                 {prismaState.isInitialized && ['abstract_screening', 'fulltext_screening', 'review', 'results'].map(stage => (
-                    <button 
-                        key={stage}
-                        onClick={() => setCurrentStage(stage)}
-                        className={`py-2 px-4 text-sm font-medium ${currentStage === stage ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-blue-600'}`}
-                    >
-                        {stage.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </button>
-                 ))}
+            {/* --- UPDATE NAVIGATION BAR: Pastikan Menu 'Review' Muncul --- */}
+            <div className="flex border-b mb-6 justify-between items-center bg-white sticky top-0 z-10 pb-2">
+                 <div className="flex overflow-x-auto no-scrollbar gap-2 flex-grow">
+                     {/* Array menu didefinisikan secara manual untuk mencegah error rendering */}
+                     {prismaState.isInitialized && [
+                         { id: 'abstract_screening', label: 'Abstract Screening' },
+                         { id: 'fulltext_screening', label: 'Fulltext Screening' },
+                         { id: 'review', label: 'Review' }, // Menu Review dipastikan ada di sini
+                         { id: 'results', label: 'Results' }
+                     ].map(menuItem => (
+                        <button 
+                            key={menuItem.id}
+                            onClick={() => setCurrentStage(menuItem.id)}
+                            className={`py-2 px-4 text-sm font-medium whitespace-nowrap transition-colors rounded-lg flex-shrink-0 ${
+                                currentStage === menuItem.id 
+                                ? 'bg-blue-100 text-blue-700 border-2 border-blue-200 shadow-sm' // Style aktif lebih menonjol
+                                : 'text-gray-500 hover:text-blue-600 hover:bg-gray-50 border-2 border-transparent'
+                            }`}
+                        >
+                            {menuItem.label}
+                        </button>
+                     ))}
+                 </div>
+
+                 {/* TOMBOL RESET */}
+                 {prismaState.isInitialized && (
+                     <button 
+                        onClick={() => setShowResetConfirm(true)}
+                        className="ml-2 text-red-500 hover:text-red-700 text-xs font-bold py-2 px-3 flex items-center gap-1 hover:bg-red-50 rounded-lg transition-colors whitespace-nowrap border border-red-100"
+                        title="Reset progress PRISMA dan mulai dari awal"
+                     >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                            <path fillRule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                        </svg>
+                        Ulang / Reset
+                     </button>
+                 )}
             </div>
+            {/* ------------------------------------------------------------------- */}
 
             {renderCurrentStage()}
+
+            {/* --- MODAL KONFIRMASI RESET PRISMA (BARU) --- */}
+            {showResetConfirm && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-[70] p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+                        <div className="flex items-center gap-3 mb-4 text-red-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                            </svg>
+                            <h3 className="text-xl font-bold text-gray-800">Reset PRISMA?</h3>
+                        </div>
+                        <p className="text-gray-700 mb-6 text-sm">
+                            Tindakan ini akan <strong>menghapus semua keputusan screening</strong> (Include/Exclude) dan mengembalikan diagram ke tahap Setup awal. 
+                            <br/><br/>
+                            Apakah Anda yakin ingin mengulang dari awal?
+                        </p>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setShowResetConfirm(false)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Batal</button>
+                            <button onClick={handleResetPrisma} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">Ya, Reset</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ------------------------------------------- */}
+
+            {/* --- MODAL SELEKSI REFERENSI PRISMA (BARU) --- */}
+            {isPrismaSelectionModalOpen && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex justify-center items-center z-[80] p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] animate-fade-in">
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
+                            <h3 className="text-lg font-bold text-gray-800">Langkah 1: Pilih Dataset SLR</h3>
+                            <button onClick={() => setIsPrismaSelectionModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                <CloseIcon />
+                            </button>
+                        </div>
+                        
+                        <div className="p-4 bg-blue-50 border-b border-blue-100 text-sm text-blue-800">
+                            Pilih artikel yang akan masuk ke diagram PRISMA. Pisahkan "Dataset Riset" (hasil Scopus/WoS) dari referensi buku atau sumber lain yang tidak perlu di-screen.
+                        </div>
+
+                        <div className="p-2 border-b flex justify-between items-center bg-white sticky top-0 z-10">
+                            <span className="text-sm font-semibold text-gray-600 ml-2">
+                                {selectedPrismaIds.length} dari {projectData.allReferences.length} terpilih
+                            </span>
+                            <div className="flex gap-2 flex-wrap justify-end">
+                                <button onClick={() => handleSelectAllPrisma(true)} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 font-bold transition-colors">Pilih Semua</button>
+                                <button onClick={handleSelectRisPrisma} className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 font-bold transition-colors">Pilih Semua RIS</button>
+                                <button onClick={() => handleSelectAllPrisma(false)} className="text-xs bg-gray-100 text-gray-700 px-3 py-1 rounded hover:bg-gray-200 font-bold transition-colors">Hapus Semua</button>
+                            </div>
+                        </div>
+
+                        <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-gray-50">
+                            <div className="space-y-2">
+                                {projectData.allReferences.map(ref => (
+                                    <label key={ref.id} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${selectedPrismaIds.includes(ref.id) ? 'bg-white border-blue-400 shadow-sm ring-1 ring-blue-100' : 'bg-white border-gray-200 hover:border-gray-300 opacity-70 hover:opacity-100'}`}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedPrismaIds.includes(ref.id)}
+                                            onChange={() => handleTogglePrismaSelect(ref.id)}
+                                            className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                <span className="font-bold text-sm text-gray-800 break-words line-clamp-2">{ref.title}</span>
+                                                {ref.source === 'external_ris' && (
+                                                    <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 font-bold uppercase tracking-wider">
+                                                        RIS File
+                                                    </span>
+                                                )}
+                                                {ref.source === 'search_engine' && (
+                                                    <span className="text-[9px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200 font-bold uppercase tracking-wider">
+                                                        Manual/Search
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-gray-500">{ref.author} ({ref.year})</p>
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t bg-gray-50 rounded-b-xl flex justify-end gap-3">
+                            <button onClick={() => setIsPrismaSelectionModalOpen(false)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg">Batal</button>
+                            <button 
+                                onClick={handleSavePrismaSelection} 
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-lg"
+                            >
+                                Simpan Seleksi ({selectedPrismaIds.length})
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ---------------------------------------------------- */}
+
+            {/* --- MODAL FULLTEXT SCREENING (BARU) --- */}
+            {showFulltextModal && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-[60] p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-gray-800">AI Full-text Screening Helper</h3>
+                            <button onClick={() => setShowFulltextModal(false)} className="text-gray-400 hover:text-gray-600">
+                                <CloseIcon />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-grow overflow-y-auto pr-2">
+                            <p className="text-sm text-gray-600 mb-2">Tempelkan (paste) seluruh atau sebagian teks dari paper yang sedang Anda screen di sini untuk dianalisis oleh AI.</p>
+                            <textarea
+                                value={fulltextInput}
+                                onChange={(e) => setFulltextInput(e.target.value)}
+                                className="w-full p-3 border rounded-lg h-40 text-xs font-mono mb-4 focus:ring-2 focus:ring-indigo-500"
+                                placeholder="Paste teks paper di sini..."
+                            ></textarea>
+
+                            <button 
+                                onClick={handleAnalyzeFulltext}
+                                disabled={isAnalyzingFulltext || !fulltextInput}
+                                className={`w-full py-2 rounded-lg font-bold text-white mb-4 ${isAnalyzingFulltext ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                            >
+                                {isAnalyzingFulltext ? 'Sedang Menganalisis...' : 'Analisis Teks Ini'}
+                            </button>
+
+                            {fulltextAnalysis && (
+                                <div className={`p-4 rounded-lg border-l-4 ${fulltextAnalysis.recommendation === 'INCLUDE' ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className="font-bold text-sm uppercase tracking-wide">Rekomendasi AI:</span>
+                                        <span className={`px-2 py-1 rounded text-xs font-bold text-white ${fulltextAnalysis.recommendation === 'INCLUDE' ? 'bg-green-600' : 'bg-red-600'}`}>
+                                            {fulltextAnalysis.recommendation}
+                                        </span>
+                                    </div>
+                                    <div className="space-y-2 text-sm text-gray-800">
+                                        <p><strong>Relevansi:</strong> {fulltextAnalysis.relevance_level}</p>
+                                        <p><strong>Alasan:</strong> {fulltextAnalysis.reason}</p>
+                                        <p className="text-xs text-gray-600 mt-2 pt-2 border-t border-gray-200"><strong>Ringkasan:</strong> {fulltextAnalysis.summary}</p>
+                                    </div>
+                                    <div className="mt-4 text-center">
+                                        <p className="text-xs text-gray-500 italic">Gunakan tombol Include/Exclude di layar utama untuk mengambil keputusan akhir.</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* --------------------------------------- */}
 
             {exclusionModal.isOpen && (
                 <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
@@ -6455,6 +7026,23 @@ const SintesisData = ({ projectData, setProjectData, showInfoModal, geminiApiKey
     const [isExtracting, setIsExtracting] = useState(false); // For AI loading state
     const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
     const isPremium = projectData.isPremium;
+
+    // --- LOGIKA FILTER BARU ---
+    const availableReferences = React.useMemo(() => {
+        // Cek apakah PRISMA sudah diinisialisasi (Artinya user sedang mode SLR)
+        if (projectData.prismaState && projectData.prismaState.isInitialized) {
+            // Ambil ID studi yang statusnya 'fulltext_included'
+            const includedIds = projectData.prismaState.studies
+                .filter(s => s.screeningStatus === 'fulltext_included')
+                .map(s => String(s.id));
+            
+            // Filter allReferences agar hanya menampilkan yang lolos screening
+            return projectData.allReferences.filter(ref => includedIds.includes(String(ref.id)));
+        }
+        // Jika tidak mode SLR, tampilkan semua referensi perpustakaan
+        return projectData.allReferences;
+    }, [projectData.allReferences, projectData.prismaState]);
+    // ---------------------------
 
     const handleExportToCSV = () => {
         if (!projectData.extractedData || projectData.extractedData.length === 0) {
@@ -6582,13 +7170,20 @@ Abstrak/Catatan: ${refDetails.abstract || refDetails.isiKutipan || "Tidak ada."}
             required: projectData.synthesisTableColumns.map(col => col.key)
         };
 
-        const prompt = `Anda adalah asisten peneliti yang sangat teliti. Berdasarkan konteks artikel ilmiah berikut, ekstrak informasi yang relevan dan isi nilai untuk setiap kunci JSON berikut. Jika informasi tidak ditemukan, biarkan string kosong.
+        // --- UPDATE PROMPT: MEMAKSA OUTPUT BAHASA INDONESIA ---
+        const prompt = `Anda adalah asisten peneliti yang sangat teliti. Berdasarkan konteks artikel ilmiah berikut, ekstrak informasi yang relevan untuk mengisi tabel sintesis.
+
+**INSTRUKSI UTAMA (WAJIB DIPATUHI):**
+1. Ekstrak data sesuai dengan definisi kolom yang diminta dalam schema.
+2. **WAJIB MENERJEMAHKAN** semua hasil ekstraksi ke dalam **BAHASA INDONESIA** formal/akademis, meskipun teks aslinya (Judul/Abstrak) berbahasa Inggris. Jangan biarkan teks dalam bahasa Inggris kecuali istilah teknis yang tidak ada padanannya.
+3. Jika informasi spesifik tidak ditemukan secara eksplisit, biarkan string kosong ("").
 
 Konteks Artikel:
 ---
 ${context}
 ---
         `;
+        // --- AKHIR UPDATE PROMPT ---
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema }); // UPDATE: geminiApiKeys
@@ -6602,7 +7197,7 @@ ${context}
                 }
             }));
 
-            showInfoModal("Ekstraksi AI berhasil!");
+            showInfoModal("Ekstraksi AI berhasil (Bahasa Indonesia)!");
 
         } catch (error) {
             showInfoModal(`Gagal mengekstrak data dengan AI: ${error.message}`);
@@ -6846,7 +7441,18 @@ ${context}
                 <p className="text-sm text-gray-600 mb-4">
                     Pilih sebuah referensi dari perpustakaan Anda untuk memulai proses ekstraksi data berbantuan AI.
                 </p>
-                {projectData.allReferences.length > 0 ? (
+
+                {/* --- INDIKATOR FILTER PRISMA --- */}
+                {projectData.prismaState?.isInitialized && (
+                    <div className="mb-4 p-2 bg-teal-50 border border-teal-200 rounded text-xs text-teal-800 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+                        </svg>
+                        <span><strong>Mode SLR Aktif:</strong> Daftar ini hanya menampilkan artikel yang lolos screening (Inklusi Full-Text).</span>
+                    </div>
+                )}
+
+                {availableReferences.length > 0 ? (
                     <div className="flex flex-col sm:flex-row items-center gap-2">
                         <select
                             value={selectedRefId}
@@ -6854,7 +7460,7 @@ ${context}
                             className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                         >
                             <option value="" disabled>Pilih referensi...</option>
-                            {projectData.allReferences.map(ref => {
+                            {availableReferences.map(ref => {
                                 const isExtracted = projectData.extractedData.some(d => String(d.refId) === String(ref.id));
                                 const truncatedTitle = ref.title.length > 100 ? `${ref.title.substring(0, 100)}...` : ref.title;
                                 return (
@@ -6873,7 +7479,16 @@ ${context}
                         </button>
                     </div>
                 ) : (
-                    <p className="text-sm text-gray-500 italic">Perpustakaan referensi Anda kosong. Silakan tambahkan referensi terlebih dahulu.</p>
+                    <div className="text-center py-6 text-gray-500 italic text-sm border-2 border-dashed border-gray-200 rounded">
+                        {projectData.prismaState?.isInitialized ? (
+                            <>
+                                <p className="font-semibold text-red-500">Belum ada artikel yang diinklusi.</p>
+                                <p>Silakan selesaikan tahap "Screening Full-Text" di menu Generator PRISMA SLR dan klik tombol "Include" pada artikel yang relevan.</p>
+                            </>
+                        ) : (
+                            <p>Perpustakaan referensi Anda kosong. Silakan tambahkan referensi terlebih dahulu.</p>
+                        )}
+                    </div>
                 )}
             </div>
 
@@ -7455,6 +8070,11 @@ const setGeminiApiKey = (val) => {
     const importInputRef = useRef(null);
     const importReferencesInputRef = useRef(null);
     const importRisInputRef = useRef(null); // <-- REF BARU UNTUK RIS
+    
+    // --- LANGKAH 1: STATE BARU UNTUK PREVIEW RIS ---
+    const [risSearchResults, setRisSearchResults] = useState(null); 
+    // -----------------------------------------------
+
     const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
     const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
     const [importedData, setImportedData] = useState(null);
@@ -7854,10 +8474,12 @@ const setGeminiApiKey = (val) => {
     // Handler: Trigger File Dialog
     const triggerImportRis = () => importRisInputRef.current.click();
 
-    // Handler: Proses File Import
-    const handleFileImportRis = (event) => {
+    // --- LANGKAH 1: REVISI HANDLER IMPORT (Mode Seleksi) ---
+    // Sebelumnya: handleFileImportRis -> Langsung simpan ke DB
+    // Sekarang: handleUploadExternalRis -> Simpan ke State Preview
+    const handleUploadExternalRis = (event) => {
         const file = event.target.files[0];
-        if (file) { // Terima semua ekstensi, lalu cek nama file di logika (karena .ris kadang octet-stream)
+        if (file) { 
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
@@ -7869,23 +8491,16 @@ const setGeminiApiKey = (val) => {
                         return;
                     }
 
-                    // Cek duplikat dan gabungkan
-                    const existingTitles = new Set(projectData.allReferences.map(ref => ref.title.toLowerCase().trim()));
-                    let addedCount = 0;
-                    
-                    const newUniqueRefs = parsedRefs.filter(newRef => {
-                        const titleLower = (newRef.title || '').toLowerCase().trim();
-                        if (existingTitles.has(titleLower)) return false;
-                        addedCount++;
-                        return true;
-                    });
-
-                    setProjectData(prev => ({
-                        ...prev,
-                        allReferences: [...prev.allReferences, ...newUniqueRefs]
+                    // Tandai sumber data agar bisa dilacak nantinya (sesuai diskusi Auto-Tagging)
+                    const taggedRefs = parsedRefs.map(ref => ({
+                        ...ref,
+                        source: 'external_ris' 
                     }));
 
-                    showInfoModal(`Berhasil mengimpor ${addedCount} referensi dari file RIS. (${parsedRefs.length - addedCount} duplikat diabaikan).`);
+                    // Simpan ke state PREVIEW, bukan ke projectData
+                    setRisSearchResults(taggedRefs);
+
+                    showInfoModal(`Berhasil memuat ${taggedRefs.length} referensi dari file RIS. Silakan tinjau di bagian Preview.`);
 
                 } catch (error) {
                     console.error(error);
@@ -7896,6 +8511,7 @@ const setGeminiApiKey = (val) => {
         }
         event.target.value = null;
     };
+    // -------------------------------------------------------
 
     // Handler: Ekspor RIS
     const handleExportRis = () => {
@@ -9272,6 +9888,9 @@ Pastikan ada alur yang logis dan setiap bagian saling terkait.`;
             // --- PERBAIKAN: Menambahkan field abstract agar tersimpan ---
             abstract: paper.abstract || '', 
             // -----------------------------------------------------------
+            // --- UPDATE: Simpan Sumber Data (RIS/Search) ---
+            source: paper.source || 'search_engine', 
+            // -----------------------------------------------
             isiKutipan: initialNote
         };
 
@@ -10177,13 +10796,15 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     // --- PROPS BARU DIOPER KE SINI ---
                     triggerImportRis,
                     handleExportRis,
+                    risSearchResults, // <--- DATA PREVIEW DIKIRIM KE SINI
+                    setRisSearchResults, // <--- SETTER DIKIRIM KE SINI
                     // --- PROPS BARU UNTUK SMART PASTE ---
                     smartPasteText,
                     setSmartPasteText,
                     handleSmartPaste
                 }} />;
             case 'prisma':
-                return <PrismaSLR {...{ projectData, setProjectData, showInfoModal, handleAiReview }} />;
+                return <PrismaSLR {...{ projectData, setProjectData, showInfoModal, handleAiReview, geminiApiKeys }} />; // UPDATE: Pass geminiApiKeys
             case 'sintesis':
                 return <SintesisData {...{ projectData, setProjectData, showInfoModal, geminiApiKeys, handleCopyToClipboard, setCurrentSection }} />; // UPDATE: geminiApiKeys
             case 'genLogKueri':
@@ -10677,8 +11298,8 @@ try {
                 
                 <input type="file" ref={importInputRef} onChange={handleFileImport} style={{ display: 'none' }} accept=".json" />
                 <input type="file" ref={importReferencesInputRef} onChange={handleFileImportReferences} style={{ display: 'none' }} accept=".json" />
-                {/* --- INPUT FILE BARU UNTUK RIS --- */}
-                <input type="file" ref={importRisInputRef} onChange={handleFileImportRis} style={{ display: 'none' }} accept=".ris, .txt" />
+                {/* --- UPDATE: INPUT FILE BARU MENGGUNAKAN HANDLER BARU --- */}
+                <input type="file" ref={importRisInputRef} onChange={handleUploadExternalRis} style={{ display: 'none' }} accept=".ris, .txt" />
 
                 {showWelcomeModal && (
                     <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex justify-center items-center z-50 p-4">
