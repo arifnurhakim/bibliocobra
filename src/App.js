@@ -1440,7 +1440,9 @@ const Referensi = ({
     // --- PROPS BARU UNTUK SMART PASTE ---
     smartPasteText,
     setSmartPasteText,
-    handleSmartPaste
+    handleSmartPaste,
+    // --- PROP BARU UNTUK BULK ADD RIS ---
+    handleAddAllRisToLibrary 
 }) => {
     // HAPUS STATE LOKAL: const [manualMode, setManualMode] = useState('template');
     const [expandedAbstractId, setExpandedAbstractId] = useState(null);
@@ -1884,23 +1886,23 @@ const Referensi = ({
                         onClick={() => toggleMethod('method4')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method4' ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual, Impor RIS & Smart Paste (Gratis)</span>
+                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual, Impor RIS (SLR) & Smart Paste (Gratis)</span>
                         <ChevronDownIcon isOpen={openMethod === 'method4'} />
                     </button>
                     {openMethod === 'method4' && (
                         <div className="p-4 border-t border-gray-200 animate-fade-in">
                             <div className="flex border-b border-green-300 mb-4 overflow-x-auto no-scrollbar">
                                 <button onClick={() => setManualMode('template')} className={`py-2 px-4 text-sm font-medium whitespace-nowrap ${manualMode === 'template' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>1. Isi Template</button>
-                                {/* --- UPDATE: TAB BARU --- */}
-                                <button onClick={() => setManualMode('ris')} className={`py-2 px-4 text-sm font-medium whitespace-nowrap ${manualMode === 'ris' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>2. Impor Dataset (RIS)</button>
-                                {/* ------------------------ */}
+                                {/* --- UPDATE: TAB SWAPPED --- */}
                                 <button onClick={() => setManualMode('smartPaste')} className={`py-2 px-4 text-sm font-medium whitespace-nowrap flex items-center gap-1 ${manualMode === 'smartPaste' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
                                         <path d="M10 .5a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5.5.5 0 0 1-.5.5.5.5 0 0 0-.5.5V2a.5.5 0 0 0 .5.5h5A.5.5 0 0 0 11 2v-.5a.5.5 0 0 0-.5-.5.5.5 0 0 1-.5-.5Z"/>
                                         <path d="M4.085 1H3.5A1.5 1.5 0 0 0 2 2.5V12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2.5A1.5 1.5 0 0 0 12.5 1h-.585c.055.156.085.325.085.5V2a1.5 1.5 0 0 1-1.5 1.5h-5A1.5 1.5 0 0 1 4 2v-.5c0-.175.03-.344.085-.5ZM10 7a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-6.646 5.646a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L6.293 16H1.5a.5.5 0 0 1 0-1h4.793l-2.647-2.646a.5.5 0 0 1 0-.708Z"/>
                                     </svg>
-                                    3. Smart Paste (PDF)
+                                    2. Smart Paste
                                 </button>
+                                <button onClick={() => setManualMode('ris')} className={`py-2 px-4 text-sm font-medium whitespace-nowrap ${manualMode === 'ris' ? 'border-b-2 border-green-600 text-green-700' : 'text-gray-500 hover:text-green-600'}`}>3. Impor Dataset RIS (SLR)</button>
+                                {/* --------------------------- */}
                             </div>
                             
                             {manualMode === 'template' && (
@@ -1918,11 +1920,40 @@ const Referensi = ({
                                 </div>
                             )}
 
+                            {manualMode === 'smartPaste' && (
+                                <div className="animate-fade-in">
+                                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded-r">
+                                        <p className="text-sm text-yellow-800">
+                                            <strong>Cara Kerja:</strong> Buka file PDF Jurnal Anda, tekan <strong>Ctrl+A</strong> (Pilih Semua) di halaman pertama, lalu <strong>Ctrl+C</strong> (Copy). Tempelkan teks mentah tersebut di bawah ini. AI akan membersihkan dan mengekstrak datanya ke dalam Formulir Template.
+                                        </p>
+                                    </div>
+                                    <textarea
+                                        value={smartPasteText}
+                                        onChange={(e) => setSmartPasteText(e.target.value)}
+                                        className="shadow-sm border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed font-mono text-xs"
+                                        rows="10"
+                                        placeholder="Tempel teks mentah dari PDF di sini..."
+                                    ></textarea>
+                                    <button onClick={handleSmartPaste} className="mt-4 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2" disabled={isLoading || !smartPasteText}>
+                                        {isLoading ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                Mengekstrak...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>✨ Ekstrak ke Formulir</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
+
                             {/* --- TAB BARU: IMPOR DATASET RIS --- */}
                             {manualMode === 'ris' && (
                                 <div className="animate-fade-in">
                                     <p className="text-sm text-green-700 mb-4">
-                                        Unggah file hasil ekspor dari database (Scopus, WoS, Mendeley) dalam format <strong>.ris</strong>. Anda dapat meninjau (preview) dan menyeleksi artikel sebelum memasukkannya ke perpustakaan.
+                                        Unggah file hasil ekspor dari database (Scopus, WoS, Mendeley) dalam format <strong>.ris</strong>. Metode ini sangat disarankan untuk memulai <strong>Systematic Literature Review (SLR)</strong>. Anda dapat meninjau (preview) dataset besar dan menyeleksi artikel sebelum memasukkannya ke perpustakaan.
                                     </p>
                                     
                                     <div className="flex gap-2 mb-4">
@@ -1949,7 +1980,22 @@ const Referensi = ({
                                         <div className="bg-gray-50 border border-gray-300 rounded-lg p-3">
                                             <div className="flex justify-between items-center mb-3">
                                                 <h5 className="font-bold text-gray-800 text-sm">Preview Hasil Impor ({risSearchResults.length} Item):</h5>
-                                                <span className="text-[10px] text-gray-500 bg-white px-2 py-1 rounded border">Mode Seleksi</span>
+                                                <div className="flex items-center gap-2">
+                                                    {/* --- TOMBOL BARU: BULK ADD --- */}
+                                                    <button 
+                                                        onClick={handleAddAllRisToLibrary}
+                                                        className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm flex items-center gap-1 animate-pulse"
+                                                        title="Masukkan semua item di preview ini ke Perpustakaan Proyek"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                            <path d="M2.5 8a5.5 5.5 0 0 1 8.25-4.764.5.5 0 0 0 .5-.866A6.5 6.5 0 1 0 14.5 8a.5.5 0 0 0-1 0 5.5 5.5 0 1 1-11 0z"/>
+                                                            <path d="M15.354 3.354a.5.5 0 0 0-.708-.708L8 9.293 5.354 6.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l7-7z"/>
+                                                        </svg>
+                                                        Tambahkan Semua ({risSearchResults.length})
+                                                    </button>
+                                                    {/* ----------------------------- */}
+                                                    <span className="text-[10px] text-gray-500 bg-white px-2 py-1 rounded border">Mode Seleksi</span>
+                                                </div>
                                             </div>
                                             
                                             <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
@@ -2019,40 +2065,11 @@ const Referensi = ({
                                     )}
                                 </div>
                             )}
-
-                            {manualMode === 'smartPaste' && (
-                                <div className="animate-fade-in">
-                                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded-r">
-                                        <p className="text-sm text-yellow-800">
-                                            <strong>Cara Kerja:</strong> Buka file PDF Jurnal Anda, tekan <strong>Ctrl+A</strong> (Pilih Semua) di halaman pertama, lalu <strong>Ctrl+C</strong> (Copy). Tempelkan teks mentah tersebut di bawah ini. AI akan membersihkan dan mengekstrak datanya ke dalam Formulir Template.
-                                        </p>
-                                    </div>
-                                    <textarea
-                                        value={smartPasteText}
-                                        onChange={(e) => setSmartPasteText(e.target.value)}
-                                        className="shadow-sm border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed font-mono text-xs"
-                                        rows="10"
-                                        placeholder="Tempel teks mentah dari PDF di sini..."
-                                    ></textarea>
-                                    <button onClick={handleSmartPaste} className="mt-4 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2" disabled={isLoading || !smartPasteText}>
-                                        {isLoading ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                Mengekstrak...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span>✨ Ekstrak ke Formulir</span>
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            )}
                         </div>
                     )}
                 </div>
 
-                {/* Metode 5: Pencarian Berbasis Konsep */}
+                {/* Metode 4: Pencarian Berbasis Konsep (Yang Hilang) */}
                 <div className="border border-gray-200 rounded-lg">
                     <button 
                         onClick={() => toggleMethod('method5')} 
@@ -2063,7 +2080,6 @@ const Referensi = ({
                     </button>
                     {openMethod === 'method5' && (
                         <div className="p-4 border-t border-gray-200 animate-fade-in">
-                        {/* --- LANGKAH 3 DIMULAI DI SINI --- */}
                        <div className="mb-4">
                            <p className="text-sm font-semibold text-gray-700 mb-2">Pilih jenis pencarian:</p>
                            <div className="flex gap-4">
@@ -2097,7 +2113,6 @@ const Referensi = ({
                                : 'Masukkan topik atau kata kunci peraturan (misal: "perlindungan data pribadi"). AI akan menggunakan Google Search untuk mencari peraturan terkait dan menganalisis relevansinya.'
                            }
                        </p>
-                       {/* --- LANGKAH 3 BERAKHIR DI SINI --- */}    
                             <div className="flex flex-col sm:flex-row gap-2">
                                 <input 
                                     type="text"
@@ -2118,7 +2133,6 @@ const Referensi = ({
                             </div>
                             {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk menggunakan pencarian cerdas berbasis konsep & peraturan.</p>}
 
-                            {/* --- LANGKAH D DIMULAI DI SINI: Tampilkan Hasil Pencarian Peraturan --- */}
                 {isRegulationSearching && regulationSearchResults === null && (
                     <div className="mt-6 flex items-center justify-center">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
@@ -2126,7 +2140,7 @@ const Referensi = ({
                     </div>
                 )}
 
-                {conceptSearchMode === 'regulation' && regulationSearchResults && Array.isArray(regulationSearchResults) && ( // <-- Tambahkan Array.isArray()
+                {conceptSearchMode === 'regulation' && regulationSearchResults && Array.isArray(regulationSearchResults) && (
                     <div className="mt-6">
                         <h5 className="font-bold text-gray-800 mb-2">Hasil Pencarian Peraturan ({regulationSearchResults.length}):</h5>
                         {regulationSearchResults.length > 0 ? (
@@ -2135,7 +2149,6 @@ const Referensi = ({
                                     <div key={index} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                                         <div className="flex justify-between items-start">
                                             <h6 className="font-semibold text-gray-800 flex-grow pr-2">{result.judul}</h6>
-                                            {/* Tombol Tambah (Logika belum diimplementasikan) */}
                                             <button 
                                                 onClick={() => handleAddRegulationToReference(result)} 
                                                 className="ml-4 bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-1 px-2 rounded-lg flex-shrink-0"
@@ -2166,7 +2179,6 @@ const Referensi = ({
                         )}
                     </div>
                 )}
-                {/* --- LANGKAH D BERAKHIR DI SINI --- */}
 
                             {isConceptSearching && conceptSearchResult === null && (
                                 <div className="mt-6 flex items-center justify-center">
@@ -4019,6 +4031,7 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                                     onChange={e => setEditingLog({...editingLog, database: e.target.value})}
                                     className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
                                 >
+                                    <option value="Scopus">Scopus</option>
                                     <option value="Web of Science">Web of Science</option>
                                     <option value="Google Scholar">Google Scholar</option>
                                     <option value="Lainnya">Lainnya (Umum)</option>
@@ -5780,10 +5793,24 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
     const [selectedPrismaIds, setSelectedPrismaIds] = useState([]);
     // --------------------------------------------------------
 
-    // --- PERBAIKAN: MENGHAPUS EFEK INISIALISASI OTOMATIS (AGAR TIDAK MEMAKSA CENTANG) ---
-    // Kode sebelumnya dihapus agar user bebas memilih (kosong di awal tidak masalah)
-    // useEffect(() => { ... }) -> DIHAPUS
-    // -----------------------------------------------------------------------------------
+    // --- EFEK BARU: OTOMATIS PILIH RIS (AUTO-INCLUDE) ---
+    useEffect(() => {
+        // Hanya jalankan jika PRISMA belum diinisialisasi (masih tahap Setup)
+        // DAN belum ada seleksi manual (selectedPrismaIds kosong)
+        if (!prismaState?.isInitialized && selectedPrismaIds.length === 0) {
+            
+            // Cari semua referensi yang bersumber dari file RIS
+            const risIds = projectData.allReferences
+                .filter(ref => ref.source === 'external_ris')
+                .map(ref => ref.id);
+            
+            // Jika ada data RIS, otomatis masukkan ke seleksi
+            if (risIds.length > 0) {
+                setSelectedPrismaIds(risIds);
+            }
+        }
+    }, [projectData.allReferences, prismaState?.isInitialized]); // Dependency array: jalankan saat referensi berubah
+    // ---------------------------------------------------
 
     // Efek untuk inisialisasi state PRISMA jika belum ada.
     useEffect(() => {
@@ -6047,6 +6074,19 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
             showInfoModal("Perpustakaan kosong. Tambahkan referensi terlebih dahulu.");
             return;
         }
+        
+        // --- UPDATE LOGIKA: Cek ulang saat buka modal (Redundansi aman) ---
+        if (selectedPrismaIds.length === 0) {
+             const risIds = projectData.allReferences
+                .filter(ref => ref.source === 'external_ris')
+                .map(ref => ref.id);
+             
+             if (risIds.length > 0) {
+                 setSelectedPrismaIds(risIds);
+             }
+        }
+        // ------------------------------------------------------------------
+
         // Modal dibuka. Karena useEffect otomatis dihapus, seleksi akan sesuai state terakhir (atau kosong di awal)
         setIsPrismaSelectionModalOpen(true);
     };
@@ -8074,6 +8114,54 @@ const setGeminiApiKey = (val) => {
     // --- LANGKAH 1: STATE BARU UNTUK PREVIEW RIS ---
     const [risSearchResults, setRisSearchResults] = useState(null); 
     // -----------------------------------------------
+
+    // --- FUNGSI BARU: BULK ADD RIS KE LIBRARY ---
+    const handleAddAllRisToLibrary = () => {
+        if (!risSearchResults || risSearchResults.length === 0) {
+            showInfoModal("Tidak ada data RIS di preview untuk ditambahkan.");
+            return;
+        }
+
+        let addedCount = 0;
+        const newRefs = [];
+        const existingTitles = new Set(projectData.allReferences.map(ref => ref.title.toLowerCase()));
+        
+        risSearchResults.forEach(paper => {
+            // Cek duplikat sederhana berdasarkan judul
+            if (!existingTitles.has(paper.title.toLowerCase())) {
+                const newRef = {
+                    id: paper.id || Date.now() + Math.random(),
+                    title: paper.title || '',
+                    author: paper.author || '',
+                    year: paper.year || '',
+                    journal: paper.journal || '',
+                    volume: paper.volume || '',
+                    issue: paper.issue || '',
+                    pages: paper.pages || '',
+                    doi: paper.doi || '',
+                    url: paper.url || '',
+                    publisher: paper.publisher || '',
+                    abstract: paper.abstract || '',
+                    source: 'external_ris', // TAG PENTING UNTUK PRISMA
+                    isiKutipan: ''
+                };
+                newRefs.push(newRef);
+                addedCount++;
+            }
+        });
+
+        if (addedCount > 0) {
+            setProjectData(prev => ({
+                ...prev,
+                allReferences: [...prev.allReferences, ...newRefs]
+            }));
+            showInfoModal(`Berhasil menambahkan ${addedCount} referensi baru dari dataset RIS ke Perpustakaan. Data ini akan otomatis terpilih di Generator PRISMA.`);
+            setRisSearchResults(null); // Bersihkan preview setelah add all
+        } else {
+            showInfoModal("Semua referensi dari file RIS sudah ada di perpustakaan (Duplikat).");
+        }
+    };
+    // --------------------------------------------
 
     const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
     const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
@@ -10801,7 +10889,9 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     // --- PROPS BARU UNTUK SMART PASTE ---
                     smartPasteText,
                     setSmartPasteText,
-                    handleSmartPaste
+                    handleSmartPaste,
+                    // --- PROP BARU: BULK ADD ---
+                    handleAddAllRisToLibrary
                 }} />;
             case 'prisma':
                 return <PrismaSLR {...{ projectData, setProjectData, showInfoModal, handleAiReview, geminiApiKeys }} />; // UPDATE: Pass geminiApiKeys
