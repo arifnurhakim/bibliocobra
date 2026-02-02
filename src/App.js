@@ -5809,7 +5809,7 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
                 setSelectedPrismaIds(risIds);
             }
         }
-    }, [projectData.allReferences, prismaState?.isInitialized]); // Dependency array: jalankan saat referensi berubah
+    }, [projectData.allReferences, prismaState?.isInitialized, selectedPrismaIds.length]); // FIX: Tambahkan selectedPrismaIds.length
     // ---------------------------------------------------
 
     // Efek untuk inisialisasi state PRISMA jika belum ada.
