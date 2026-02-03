@@ -1871,7 +1871,7 @@ const Referensi = ({
                         onClick={() => toggleMethod('method4')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method4' ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual, Impor RIS (SLR) & Smart Paste</span>
+                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual, Impor RIS & Smart Paste (Gratis)</span>
                         <ChevronDownIcon isOpen={openMethod === 'method4'} />
                     </button>
                     {openMethod === 'method4' && (
@@ -5760,6 +5760,9 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
     const [reviewingId, setReviewingId] = useState(null);
     const svgRef = useRef(null); // Tambahkan ref untuk SVG
     const [showSvgHelp, setShowSvgHelp] = useState(false); // FIX: Pindahkan state hook ke level atas komponen
+    // --- STATE BARU UNTUK TUTORIAL ESTECH ---
+    const [showEstechHelp, setShowEstechHelp] = useState(false);
+    // ----------------------------------------
     const [reviewingList, setReviewingList] = useState(null); // State baru untuk tab review
 
     // --- STATE BARU UNTUK FULLTEXT AI SCREENING ---
@@ -6664,9 +6667,24 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
 
         return (
             <div>
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
                     <h3 className="text-xl font-semibold text-gray-800 text-center flex-grow">Diagram Alir PRISMA 2020</h3>
                     <div className="flex items-center gap-2">
+                        {/* --- TOMBOL BARU: PRISMA2020 APP --- */}
+                        <a 
+                            href="https://estech.shinyapps.io/prisma_flowdiagram/" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center gap-2"
+                            title="Buka Generator Diagram PRISMA Resmi (Shiny App)"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path fillRule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>
+                                <path fillRule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/>
+                            </svg>
+                            PRISMA2020 App
+                        </a>
+                        {/* ----------------------------------- */}
                         <button onClick={handleDownloadSVG} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm flex items-center gap-2">
                             <DownloadIcon />
                             Unduh SVG
@@ -6679,6 +6697,7 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
                 </div>
                 <div className="w-full overflow-x-auto p-4 bg-gray-50 rounded-lg border">
                     <svg ref={svgRef} viewBox="0 0 950 750" className="font-sans" aria-labelledby="prisma-title">
+                        {/* ... (SVG Content remains same) ... */}
                         <title id="prisma-title">Diagram Alir PRISMA 2020</title>
                         <defs>
                             <style>{`
@@ -6745,13 +6764,13 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
                     </svg>
                 </div>
 
-                 {/* BAGIAN BANTUAN SVG BARU */}
+                 {/* BAGIAN BANTUAN 1: SVG */}
                 <div className="mt-8 border border-gray-200 rounded-lg">
                     <button 
                         onClick={() => setShowSvgHelp(!showSvgHelp)} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${showSvgHelp ? 'bg-gray-200' : 'bg-gray-100 hover:bg-gray-200'}`}
                     >
-                        <span className="font-semibold text-gray-800">Bagaimana Cara Menggunakan File SVG?</span>
+                        <span className="font-semibold text-gray-800">1. Bagaimana Cara Menggunakan File SVG?</span>
                         <ChevronDownIcon isOpen={showSvgHelp} />
                     </button>
                     {showSvgHelp && (
@@ -6795,6 +6814,53 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
                              <div>
                                 <h4 className="font-bold text-base mb-2">4. Konversi ke Format Lain (PNG/JPG)</h4>
                                 <p>Jika Anda memerlukan format gambar lain, buka file SVG di Inkscape atau Adobe Illustrator, lalu pilih menu <b>File &gt; Export</b> atau <b>File &gt; Save for Web</b> untuk menyimpannya sebagai file PNG atau JPG dengan resolusi tinggi.</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* BAGIAN BANTUAN 2: PRISMA APP (BARU) */}
+                <div className="mt-4 border border-gray-200 rounded-lg">
+                    <button 
+                        onClick={() => setShowEstechHelp(!showEstechHelp)} 
+                        className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${showEstechHelp ? 'bg-gray-200' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    >
+                        <span className="font-semibold text-gray-800">2. Bagaimana Cara Menggunakan estech.shinyapps.io?</span>
+                        <ChevronDownIcon isOpen={showEstechHelp} />
+                    </button>
+                    {showEstechHelp && (
+                        <div className="p-6 border-t border-gray-200 animate-fade-in text-gray-700 text-sm space-y-4">
+                            <p className="italic bg-blue-50 p-3 rounded-lg border-l-4 border-blue-400">
+                                <strong>Info:</strong> Alat ini adalah generator diagram resmi yang direkomendasikan oleh <i>PRISMA Statement</i>. Jika Anda membutuhkan kustomisasi diagram yang lebih kompleks daripada yang disediakan Bibliocobra, Anda dapat menggunakan alat eksternal ini.
+                            </p>
+                            <div>
+                                <h4 className="font-bold text-base mb-2">Panduan Penggunaan</h4>
+                                <p className="mb-3">Untuk memulai, klik tombol <strong>"Create flow diagram"</strong> di bagian atas situs web tersebut, atau baca instruksi di bawah ini:</p>
+                                
+                                <ul className="list-disc list-inside space-y-3 ml-2">
+                                    <li>
+                                        <strong>Pentingnya Diagram Alir:</strong> Tinjauan sistematis <i>(systematic reviews)</i> harus dijelaskan dengan tingkat detail metodologis yang tinggi. Pernyataan PRISMA menuntut pelaporan yang rinci dalam tinjauan sistematis dan meta-analisis. Bagian integral dari deskripsi metodologis ini adalah diagram alir.
+                                    </li>
+                                    <li>
+                                        <strong>Fungsi Alat:</strong> Alat ini memungkinkan Anda membuat diagram alir untuk tinjauan Anda sendiri yang sesuai dengan Pernyataan PRISMA 2020.
+                                    </li>
+                                    <li>
+                                        <strong>Cara Memasukkan Data:</strong> Anda dapat memasukkan angka secara manual pada bagian entri data di tab <strong>'Create flow diagram'</strong>.
+                                    </li>
+                                    <li>
+                                        <strong>Otomatisasi via URL:</strong> Angka-angka ini juga bisa diinisialisasi melalui nilai yang diberikan dalam <i>URL query string</i>. 
+                                        <br/>
+                                        <span className="bg-gray-100 px-2 py-1 rounded font-mono text-xs mt-1 inline-block">Contoh: ?website_results=100&organisation_results=200</span>
+                                        <br/>
+                                        Ini akan secara otomatis mengisi hasil situs web menjadi 100 dan hasil organisasi menjadi 200. Nama parameter harus cocok dengan nama kolom 'data' dalam template mereka.
+                                    </li>
+                                    <li>
+                                        <strong>Opsi Lanjutan:</strong> Argumen tambahan seperti "previous", "other", "dbDetail", dan "regDetail" dapat digunakan untuk mengatur opsi utama awal guna penyesuaian lebih lanjut.
+                                    </li>
+                                    <li>
+                                        <strong>Menggunakan Template:</strong> Sebagai alternatif, Anda dapat menggunakan file template yang disediakan di situs tersebut untuk menentukan nilai apa pun dan mengubah label di dalam diagram.
+                                    </li>
+                                </ul>
                             </div>
                         </div>
                     )}
