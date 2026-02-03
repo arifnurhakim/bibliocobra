@@ -1205,22 +1205,7 @@ const IdeKTI = ({
                         <label className="block text-gray-700 text-sm font-bold mb-2">Topik atau Tema:</label>
                         <textarea name="topikTema" value={projectData.topikTema} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Menganalisis dampak budaya inovasi digital terhadap kinerja organisasi di sektor perbankan" rows="3"></textarea>
                     </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Jenis Karya Tulis:</label>
-                        <select name="jenisKaryaTulis" value={projectData.jenisKaryaTulis} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
-                            <option value="Artikel Ilmiah">Artikel Ilmiah</option>
-                            <option value="Makalah">Makalah</option>
-                            <option value="Skripsi">Skripsi</option>
-                            <option value="Tesis">Tesis</option>
-                            <option value="Lainnya">Isi Sendiri...</option>
-                        </select>
-                    </div>
-                    {projectData.jenisKaryaTulis === 'Lainnya' && (
-                         <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Sebutkan Jenis Lainnya:</label>
-                            <input type="text" name="jenisKaryaTulisLainnya" value={projectData.jenisKaryaTulisLainnya} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Naskah Kebijakan"/>
-                        </div>
-                    )}
+                    {/* BAGIAN JENIS KARYA TULIS DIHAPUS - DEFAULT: ARTIKEL ILMIAH */}
                     <div className="md:col-span-2">
                         <label className="block text-gray-700 text-sm font-bold mb-2">Pendekatan Penelitian (Wajib):</label>
                         <select name="pendekatan" value={projectData.pendekatan} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
@@ -1737,7 +1722,7 @@ const Referensi = ({
                         onClick={() => toggleMethod('method2')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method2' ? 'bg-purple-100' : 'bg-purple-50 hover:bg-purple-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 2: Cari via Semantic Scholar</span>
+                        <span className="font-semibold text-gray-800">Metode 2: Cari via Semantic Scholar (Gratis)</span>
                         <ChevronDownIcon isOpen={openMethod === 'method2'} />
                     </button>
                     {openMethod === 'method2' && (
@@ -1886,7 +1871,7 @@ const Referensi = ({
                         onClick={() => toggleMethod('method4')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method4' ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual, Impor RIS (SLR) & Smart Paste</span>
+                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual, Impor RIS & Smart Paste (Gratis)</span>
                         <ChevronDownIcon isOpen={openMethod === 'method4'} />
                     </button>
                     {openMethod === 'method4' && (
