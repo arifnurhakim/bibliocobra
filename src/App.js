@@ -1722,7 +1722,7 @@ const Referensi = ({
                         onClick={() => toggleMethod('method2')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method2' ? 'bg-purple-100' : 'bg-purple-50 hover:bg-purple-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 2: Cari via Semantic Scholar</span>
+                        <span className="font-semibold text-gray-800">Metode 2: Cari via Semantic Scholar (Gratis)</span>
                         <ChevronDownIcon isOpen={openMethod === 'method2'} />
                     </button>
                     {openMethod === 'method2' && (
@@ -5864,6 +5864,50 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
         showInfoModal("Keputusan telah diubah. Artikel akan muncul kembali di antrean screening yang sesuai.");
     };
 
+    // --- FUNGSI BARU: NAVIGASI STUDY (LANJUTKAN / KEMBALI) ---
+    const handleNavigateStudy = (studyId, direction) => {
+        setProjectData(p => {
+            const studies = [...p.prismaState.studies];
+            // Cari index dokumen yang sedang ditampilkan (biasanya yang pertama ditemukan dengan status target)
+            const currentIndex = studies.findIndex(s => s.id === studyId);
+            
+            if (currentIndex === -1) return p;
+
+            const currentStatus = studies[currentIndex].screeningStatus;
+
+            if (direction === 'next') {
+                // Logic Lanjutkan: Pindahkan item saat ini ke paling belakang (antrean akhir)
+                const [moved] = studies.splice(currentIndex, 1);
+                studies.push(moved);
+            } else if (direction === 'prev') {
+                // Logic Kembali: Ambil item PALING BELAKANG (dengan status sama) dan pindahkan ke DEPAN item saat ini
+                // Cari index terakhir yang punya status sama
+                let lastIndex = -1;
+                for (let i = studies.length - 1; i >= 0; i--) {
+                    if (studies[i].screeningStatus === currentStatus) {
+                        lastIndex = i;
+                        break;
+                    }
+                }
+
+                // Jika ditemukan dan bukan item yang sama (artinya ada antrean di belakang)
+                if (lastIndex > -1 && lastIndex !== currentIndex) {
+                    const [moved] = studies.splice(lastIndex, 1);
+                    studies.splice(currentIndex, 0, moved);
+                }
+            }
+            
+            return {
+                ...p,
+                prismaState: {
+                    ...p.prismaState,
+                    studies: studies
+                }
+            };
+        });
+    };
+    // ----------------------------------------
+
     // --- FUNGSI BARU: ANALISIS FULLTEXT ---
     const handleAnalyzeFulltext = async () => {
         if (!fulltextInput.trim()) {
@@ -6502,12 +6546,33 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
                     )}
                 </div>
 
-                <div className="mt-6 flex justify-center gap-4">
-                    <button onClick={() => openExclusionModal(studyToScreen.id, isAbstract ? 'abstract' : 'fulltext')} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg">
+                <div className="mt-6 flex justify-center gap-4 flex-wrap">
+                    {/* Urutan Baru: Include - Exclude - Kembali - Lanjutkan */}
+                    
+                    <button onClick={() => handleScreeningDecision(studyToScreen.id, isAbstract ? 'abstract_included' : 'fulltext_included')} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm">
+                        Include
+                    </button>
+
+                    <button onClick={() => openExclusionModal(studyToScreen.id, isAbstract ? 'abstract' : 'fulltext')} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm">
                         Exclude
                     </button>
-                     <button onClick={() => handleScreeningDecision(studyToScreen.id, isAbstract ? 'abstract_included' : 'fulltext_included')} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg">
-                        Include
+
+                    <button 
+                        onClick={() => handleNavigateStudy(studyToScreen.id, 'prev')} 
+                        className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg shadow-sm flex items-center gap-2"
+                        title="Kembali ke dokumen sebelumnya (Ambil dari akhir antrean)"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fillRule="evenodd" d="M12 8a.5.5 0 0 1-.5.5H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5H11.5a.5.5 0 0 1 .5.5z"/></svg>
+                        Kembali
+                    </button>
+                    
+                    <button 
+                        onClick={() => handleNavigateStudy(studyToScreen.id, 'next')} 
+                        className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm flex items-center gap-2"
+                        title="Lewati dokumen ini dan kerjakan nanti (Pindah ke akhir antrean)"
+                    >
+                        Lanjutkan
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fillRule="evenodd" d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"/></svg>
                     </button>
                 </div>
             </div>
