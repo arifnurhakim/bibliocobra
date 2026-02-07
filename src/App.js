@@ -9439,32 +9439,30 @@ Gunakan kerangka kategori standar berikut dan patuhi semua aturan. Untuk setiap 
 - explanation: "Mencari literatur tentang efek bioakustik dari kebisingan yang dihasilkan kapal terhadap organisme laut untuk memahami mekanisme dampaknya."
 
 ---
-**KERANGKA & ATURAN**
+**KERANGKA & ATURAN CERDAS**
 
 **Kategori 1: Definisi Inti & Konsep Kunci**
-- **Aturan:** Urai 'Topik atau Judul' menjadi komponennya: **Penyebab/Variabel Independen**, **Akibat/Variabel Dependen**, dan **Subjek/Konteks Spesifik**. Jika ada nama organisasi atau lokasi spesifik (misal: 'di BRIN'), WAJIB jadikan itu sebagai 'clue' tersendiri.
+- **Aturan:** Urai 'Topik atau Judul' menjadi komponennya. Fokus pada Variabel Utama. Jika ada nama organisasi spesifik, jadikan clue tersendiri.
 
 **Kategori 2: Landasan Teori (Hierarki 3 Level)**
-- **Aturan:** Anda WAJIB menyarankan 3 'clue' yang berbeda untuk mengisi struktur 'Theory Pyramid' Bab II:
-    1. **Grand Theory (Payung):** Kata kunci untuk teori induk yang abstrak (misal: Manajemen Strategis, Public Administration). Jelaskan di explanation bahwa ini untuk Grand Theory.
-    2. **Middle-Range Theory (Penghubung):** Kata kunci untuk teori spesifik yang menjelaskan hubungan variabel (misal: TAM, Dynamic Governance). Jelaskan di explanation bahwa ini untuk Middle Theory.
-    3. **Applied Theory (Operasional):** Kata kunci untuk konsep operasional, model pengukuran, atau regulasi teknis (misal: Indikator GII, UU Cipta Kerja). Jelaskan di explanation bahwa ini untuk Applied Theory.
+- **Aturan:**
+    1. **Grand Theory:** Teori induk yang abstrak (misal: Manajemen Strategis).
+    2. **Middle-Range Theory:** Teori penghubung variabel (misal: TAM, UTAUT).
+    3. **Applied Theory:** Model pengukuran atau regulasi teknis.
 
-**Kategori 3: Metodologi Penelitian**
-- **Aturan (SANGAT PENTING - BACA DENGAN TELITI):**
-    - WAJIB berpegang pada "Pendekatan Penelitian" yang ditetapkan.
-    - **Jika Metode Spesifik mengandung 'Bibliometrik' atau 'Bibliometric':** Sarankan panduan analisis bibliometrik standar seperti "Best practices for bibliometric analysis" atau "Science mapping workflow". **JANGAN** menyarankan PRISMA guidelines kecuali pengguna juga secara eksplisit menulis 'SLR' atau 'Systematic Review', karena PRISMA spesifik untuk SLR.
-    - **Jika Metode Spesifik mengandung 'SLR' atau 'Systematic Review':** WAJIB sarankan 'PRISMA 2020 guidelines'.
-    - Jika Kualitatif: Sarankan metode seperti studi kasus, etnografi, atau fenomenologi.
+**Kategori 3: Metodologi Penelitian (CRITICAL RULE)**
+- **Jika Metode mengandung 'Bibliometrik':** Sarankan "bibliometric analysis best practices" atau "science mapping guidelines". **DILARANG** menyarankan PRISMA kecuali pengguna juga menulis 'SLR' atau 'Systematic Review'.
+- **Jika Metode mengandung 'SLR':** WAJIB sarankan 'PRISMA 2020 guidelines'.
+- **Jika Kualitatif:** Sarankan metode seperti studi kasus, etnografi, dll.
 
 **Kategori 4: Studi Terdahulu & Praktik Terbaik**
-- **Aturan:** Jika ada **Subjek/Konteks Spesifik**, sarankan 'clue' untuk mencari studi kasus di organisasi sejenis. Jika ada **Metode Spesifik**, sarankan 'clue' untuk mencari artikel tinjauan dengan topik serupa.
+- **Aturan:** Sarankan clue untuk mencari studi kasus (Case Study) atau praktik terbaik (Best Practices) di konteks sejenis.
 
-**Kategori 5: Tantangan & Arah Masa Depan**
-- **Aturan:** Identifikasi 'clue' untuk tantangan dari perspektif **Internal** (budaya, SDM) dan **Eksternal** (kebijakan, teknologi). Sarankan satu 'clue' yang merupakan **celah penelitian (research gap)**.
+**Kategori 5: Tantangan & Kesenjangan Riset (Research Gap)**
+- **Aturan:** Jangan hanya menulis "research gap". Gunakan kata kunci indikator masalah seperti "challenges", "barriers", "limitations", atau "future research agenda" dalam clue untuk menemukan gap yang nyata.
 
 **Kategori 6: Peraturan Terkait**
-- **Aturan:** Identifikasi potensi peraturan perundang-undangan di Indonesia (Undang-Undang, Peraturan Pemerintah, Peraturan Menteri, Peraturan Daerah, dll.) yang relevan dengan 'Topik atau Judul' dan 'Subjek/Konteks Spesifik'. 'Clue' bisa berupa nama peraturan spesifik (jika umum diketahui, misal: 'UU Cipta Kerja') atau frasa pencarian umum (misal: 'peraturan terkait [topik]'). 'Explanation' harus menjelaskan relevansi peraturan tersebut terhadap topik penelitian. Sarankan 1-2 peraturan atau area peraturan yang paling relevan.
+- **Aturan:** Identifikasi potensi UU/PP/Permen di Indonesia yang relevan.
 
 ---
 **KONTEKS PROYEK PENGGUNA:**
@@ -10200,16 +10198,31 @@ const handleAddRegulationToReference = (regulationResult) => {
     };
 
     const handleGenerateAdvancedSemanticQuery = async (clueObj) => {
-    const prompt = `Anda adalah seorang asisten riset yang efisien. Berdasarkan tujuan dan kata kunci berikut, buatlah satu frasa pencarian (search query phrase) yang ringkas namun kaya konteks (sekitar 5-8 kata) untuk digunakan di database seperti Semantic Scholar atau Google Scholar. Gabungkan konsep-konsep terpenting menjadi sebuah frasa yang logis.
+    const prompt = `Anda adalah "Search Query Engineer" untuk database akademis. Tugas: Ubah Input (Bahasa Indonesia) menjadi SATU frasa pencarian Bahasa Inggris yang "High-Recall" dan "High-Precision".
 
-    Tujuan Pencarian (Explanation): "${clueObj.explanation}"
-    Kata Kunci Inti (Clue): "${clueObj.clue}"
+    Input:
+    - Tujuan (Explanation): "${clueObj.explanation}"
+    - Kata Kunci (Clue): "${clueObj.clue}"
 
-    Contoh:
-    - Input: Explanation="Mencari definisi...", Clue="pemerintah daerah"
-    - Hasil yang Diharapkan: "definition and characteristics of local government innovation"
+    **ALGORITMA TRANSFORMASI (WAJIB DIPATUHI):**
 
-    Hasilkan HANYA frasa pencariannya saja, tanpa teks atau penjelasan tambahan.`;
+    1. **Hapus Kata Kerja Lemah:** Buang kata seperti "Mendefinisikan", "Mengetahui", "Memahami", "Pentingnya". Fokus pada KATA BENDA (Noun Phrases).
+    2. **Konversi "Definition" -> "Framework/Analysis":**
+       - JANGAN gunakan: "definition of...", "meaning of...", "what is...". (Ini memanggil kamus/textbook).
+       - GANTI dengan: "conceptual framework", "theoretical model", "analysis", "implementation", "dimensions", "determinants".
+    3. **Konversi "Research Gap" -> "Magic Keywords":**
+       - Jika mencari gap/masalah, JANGAN CUMA pakai "research gap".
+       - GUNAKAN: "challenges", "barriers", "limitations", "future research directions", "systematic review", "meta-analysis".
+    4. **Contextualize:** Selalu gabungkan Topik + Konteks.
+       - Salah: "public service" (terlalu luas).
+       - Benar: "public service" AND "artificial intelligence".
+
+    **Contoh:**
+    - Input: "Untuk mendefinisikan metode bibliometrik" -> Output: "bibliometric analysis best practices methodology"
+    - Input: "Mencari gap riset AI" -> Output: "artificial intelligence implementation challenges future research"
+    - Input: "Model adopsi teknologi" -> Output: "technology adoption model framework public sector"
+
+    Hasilkan HANYA string kueri final dalam Bahasa Inggris, tanpa tanda kutip.`;
 
     try {
         const result = await geminiService.run(prompt, geminiApiKeys);
@@ -11093,18 +11106,26 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
     };
     
     // --- FUNGSI BARU UNTUK PENCARIAN KONSEP ---
-    const handleConceptSearch = async () => {
+    const handleConceptSearch = async (overrideQuery = null) => {
+        // Gunakan query dari parameter jika ada, jika tidak gunakan dari state
+        const queryToUse = (typeof overrideQuery === 'string') ? overrideQuery : conceptQuery;
+
         // Validasi input
-        if (!conceptQuery || !conceptQuery.trim()) {
+        if (!queryToUse || !queryToUse.trim()) {
             showInfoModal("Silakan masukkan konsep atau teori untuk dicari.");
             return;
         }
         setIsConceptSearching(true);
         setConceptSearchResult(null);
+        
+        // Jika dipanggil via Clue (overrideQuery ada), update tampilan input juga
+        if (typeof overrideQuery === 'string') {
+            setConceptQuery(overrideQuery);
+        }
     
         try {
             // Langkah 1: Minta AI memberikan judul DAN penulis dalam format JSON yang terstruktur
-            const titlePrompt = `Berdasarkan konsep penelitian "${conceptQuery}", berikan SATU judul referensi yang paling fundamental BESERTA penulis utamanya. Balas HANYA dengan objek JSON dengan format: {"judul": "Judul Referensi", "penulis": "Nama Penulis"}`;
+            const titlePrompt = `Berdasarkan konsep penelitian "${queryToUse}", berikan SATU judul referensi yang paling fundamental BESERTA penulis utamanya. Balas HANYA dengan objek JSON dengan format: {"judul": "Judul Referensi", "penulis": "Nama Penulis"}`;
             const titleSchema = { "type": "OBJECT", "properties": {"judul": {"type": "STRING"}, "penulis": {"type": "STRING"}}, "required": ["judul", "penulis"] };
             
             const titleResponseJson = await geminiService.run(titlePrompt, geminiApiKeys, { schema: titleSchema });
@@ -11116,7 +11137,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             }
     
             // Langkah 2: Setelah mendapatkan penulis, minta AI menjelaskan konsep dari perspektif penulis tersebut dengan grounding
-            const quotePrompt = `Dari perspektif penulis "${authorName}", jelaskan konsep atau teori "${conceptQuery}" secara singkat dan padat dalam 2-3 kalimat. Jawab HANYA dengan penjelasannya.`;
+            const quotePrompt = `Dari perspektif penulis "${authorName}", jelaskan konsep atau teori "${queryToUse}" secara singkat dan padat dalam 2-3 kalimat. Jawab HANYA dengan penjelasannya.`;
             const keyQuote = await geminiService.run(quotePrompt, geminiApiKeys, { useGrounding: true });
     
             // Langkah 3: Cari judul di database akademis
@@ -11126,7 +11147,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             if (s2results.length > 0) {
                 setConceptSearchResult([{
                     paper: s2results[0],
-                    kutipanKunci: keyQuote || `AI tidak dapat menghasilkan kutipan kunci untuk ${conceptQuery}.`
+                    kutipanKunci: keyQuote || `AI tidak dapat menghasilkan kutipan kunci untuk ${queryToUse}.`
                 }]);
             } else {
                 setConceptSearchResult([]);
@@ -11138,6 +11159,30 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         } finally {
             setIsConceptSearching(false);
         }
+    };
+
+    // --- HANDLER BARU: Clue ke Metode 4 (Konsep) ---
+    const handleClueSearchConcept = async (clueObj) => {
+        // 1. Tutup modal Peta Jalan
+        setShowSearchPromptModal(false);
+
+        // 2. Pindah ke tab Referensi
+        setCurrentSection('referensi');
+
+        // 3. Buka (expand) Metode 5 (yang berisi pencarian konsep)
+        setOpenMethod('method5');
+
+        // 4. Set mode pencarian ke 'Konsep'
+        setConceptSearchMode('concept');
+
+        // 5. Isi kolom input (Visual)
+        setConceptQuery(clueObj.clue);
+
+        // 6. Tunggu sebentar agar UI update
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // 7. Mulai pencarian konsep secara otomatis
+        handleConceptSearch(clueObj.clue);
     };
 
 // --- LANGKAH B DIMULAI DI SINI: Kerangka Fungsi Pencarian Peraturan ---
@@ -11629,6 +11674,9 @@ try {
                                                 {category.clues.map((clueObj, clueIndex) => {
                                                     const dropdownId = `cat-${catIndex}-clue-${clueIndex}`;
                                                     const isPeraturan = category.category === "Peraturan Terkait";
+                                                    // Deteksi kategori Teori & Definisi untuk menampilkan tombol Metode 4
+                                                    const isTeoriOrDefinisi = category.category.includes("Landasan Teori") || category.category.includes("Definisi Inti");
+
                                                     // --- LANGKAH 5 DIMULAI DI SINI ---
     let searchEngines; // Gunakan let karena nilainya akan diisi di if/else
 
@@ -11642,7 +11690,7 @@ try {
             // Anda bisa menambahkan sumber hukum lain di sini jika perlu
         ];
     } else {
-        // Jika bukan, isi dengan mesin pencari akademis (kode asli)
+        // Jika bukan, isi dengan mesin pencari akademis standard
         searchEngines = [
             { name: 'Google Scholar', url: `https://scholar.google.com/scholar?q=${encodeURIComponent(clueObj.clue)}+file:.pdf` },
             { name: 'Perplexity', url: `https://www.perplexity.ai/search?q=${encodeURIComponent(clueObj.clue)}` },
@@ -11668,13 +11716,27 @@ try {
                                                                         {isRegulationSearching ? 'Mencari...' : 'Cari Peraturan Ini di App'}
                                                                     </button>
                                                                 ) : (
-                                                                    <button 
-                                                                        onClick={() => handleClueSearch(clueObj)} 
-                                                                        className="bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold py-2 px-3 rounded-lg h-full disabled:bg-purple-300 disabled:cursor-not-allowed"
-                                                                        disabled={isLoading}
-                                                                    >
-                                                                        {isLoading ? 'Memproses...' : 'Cek di Semantic Scholar'}
-                                                                    </button>
+                                                                    <>
+                                                                        {/* Tombol Konsep (Metode 4) - Muncul HANYA jika kategori Teori/Definisi */}
+                                                                        {isTeoriOrDefinisi && (
+                                                                            <button 
+                                                                                onClick={() => handleClueSearchConcept(clueObj)} 
+                                                                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded-lg h-full inline-flex items-center disabled:bg-indigo-300 disabled:cursor-not-allowed shadow-sm"
+                                                                                disabled={isConceptSearching}
+                                                                            >
+                                                                                {isConceptSearching ? 'Mencari...' : 'Cari Konsep Fundamental'}
+                                                                            </button>
+                                                                        )}
+
+                                                                        {/* Tombol Semantic Scholar (Metode 2) - Selalu muncul jika bukan peraturan */}
+                                                                        <button 
+                                                                            onClick={() => handleClueSearch(clueObj)} 
+                                                                            className="bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold py-2 px-3 rounded-lg h-full disabled:bg-purple-300 disabled:cursor-not-allowed"
+                                                                            disabled={isLoading}
+                                                                        >
+                                                                            {isLoading ? 'Memproses...' : 'Cek di Semantic Scholar'}
+                                                                        </button>
+                                                                    </>
                                                                 )}
                                                                 {/* --- LANGKAH 6 BERAKHIR DI SINI --- */}
                                                                 
