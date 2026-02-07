@@ -694,7 +694,11 @@ const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
 
     const handleActivation = () => {
         // --- UPDATE TAHAP 1: Daftar Kode Lisensi Terpisah ---
-        const PREMIUM_CODES = ["BIBLIO-2025", "KTI-PRO", "AKADEMIK-Q1", "EL-COBRA"]; // Akses Premium (No Scopus)
+        
+        // Generator Kode Promo (PROMOBRIN001 - PROMOBRIN020)
+        const PROMO_CODES = Array.from({length: 20}, (_, i) => `PROMOBRIN${String(i + 1).padStart(3, '0')}`);
+
+        const PREMIUM_CODES = ["BIBLIO-2025", "KTI-PRO", "AKADEMIK-Q1", "EL-COBRA", ...PROMO_CODES]; // Akses Premium (No Scopus)
         // Menambahkan SOBATJRENG dan ABDISIKOBRA ke daftar Elite
         const ELITE_CODES = ["BRIN-INTERNAL-X8", "KST-HABIBIE", "SCOPUS-MASTER", "PROFESSOR-MODE", "SOBATJRENG", "ABDISIKOBRA"]; // Akses Elite (With Scopus)
         
@@ -729,7 +733,7 @@ const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">Aktivasi Akun</h2>
                 {/* UPDATE: Menghapus referensi teks ke "Elite" agar tidak dianggap dijual umum */}
                 <p className="text-gray-600 mb-6 text-sm">
-                    Masukkan <strong>Kode Lisensi</strong> untuk akses Premium (atau Kode Internal), atau lanjutkan dengan versi Gratis.
+                    Masukkan <strong>Kode Lisensi</strong> untuk akses Premium (berbayar), atau lanjutkan dengan versi Gratis.
                 </p>
 
                 <div className="mb-4">
@@ -9447,9 +9451,11 @@ Gunakan kerangka kategori standar berikut dan patuhi semua aturan. Untuk setiap 
     3. **Applied Theory (Operasional):** Kata kunci untuk konsep operasional, model pengukuran, atau regulasi teknis (misal: Indikator GII, UU Cipta Kerja). Jelaskan di explanation bahwa ini untuk Applied Theory.
 
 **Kategori 3: Metodologi Penelitian**
-- **Aturan (SANGAT PENTING):**
-    - WAJIB berpegang pada "Pendekatan Penelitian" yang ditetapkan. Jika "Kualitatif", semua 'clue' HARUS metode kualitatif (studi kasus, etnografi). JANGAN campur.
-    - Jika pengguna SUDAH menyebutkan "Metode Spesifik" (misal: 'SLR'), berikan 'clue' yang spesifik untuk metode itu (misal: 'PRISMA guidelines', 'co-citation analysis').
+- **Aturan (SANGAT PENTING - BACA DENGAN TELITI):**
+    - WAJIB berpegang pada "Pendekatan Penelitian" yang ditetapkan.
+    - **Jika Metode Spesifik mengandung 'Bibliometrik' atau 'Bibliometric':** Sarankan panduan analisis bibliometrik standar seperti "Best practices for bibliometric analysis" atau "Science mapping workflow". **JANGAN** menyarankan PRISMA guidelines kecuali pengguna juga secara eksplisit menulis 'SLR' atau 'Systematic Review', karena PRISMA spesifik untuk SLR.
+    - **Jika Metode Spesifik mengandung 'SLR' atau 'Systematic Review':** WAJIB sarankan 'PRISMA 2020 guidelines'.
+    - Jika Kualitatif: Sarankan metode seperti studi kasus, etnografi, atau fenomenologi.
 
 **Kategori 4: Studi Terdahulu & Praktik Terbaik**
 - **Aturan:** Jika ada **Subjek/Konteks Spesifik**, sarankan 'clue' untuk mencari studi kasus di organisasi sejenis. Jika ada **Metode Spesifik**, sarankan 'clue' untuk mencari artikel tinjauan dengan topik serupa.
@@ -11885,7 +11891,7 @@ try {
                                         <span className="font-semibold text-purple-700">Fitur Kebebasan & Privasi:</span> Bibliocobra menggunakan koneksi langsung (Direct-to-Google). Ini menjamin <strong>Privasi Data 100%</strong> (data tidak singgah di server kami) dan <strong>Akses Tanpa Batas</strong> sesuai akun Google Anda.
                                         <br/>
                                         <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold inline-flex items-center gap-1 mt-1">
-                                            Aktifkan Kunci Akses Pribadi Anda di sini 
+                                            Aktifkan Kunci Akses Pribadi Anda di sini (Gratis) 
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                                         </a>
                                     </p>
