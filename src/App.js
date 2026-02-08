@@ -9092,51 +9092,69 @@ Output Wajib JSON:
     };
 
     const handleAiReview = React.useCallback(async (paper, searchContext) => {
-        if (!projectData.topikTema) {
-          throw new Error("Harap tentukan 'Topik atau Tema' utama di tab 'Ide KTI' terlebih dahulu.");
+        // 1. Validasi Awal: Pastikan User punya Judul atau Topik
+        if (!projectData.topikTema && !projectData.judulKTI) {
+          throw new Error("Harap tentukan 'Topik atau Tema' atau 'Judul' di tab 'Ide KTI' terlebih dahulu.");
         }
         
-        const prompt = `Anda adalah seorang asisten peneliti ahli. Tugas utama Anda adalah mengevaluasi apakah sebuah paper secara spesifik menjawab **fokus pencarian/clue** yang diberikan.
+        // 2. Tentukan Konteks Utama (The Truth)
+        // Ini adalah logika baru: Judul KTI adalah "Kiblat Kebenaran"
+        const mainContext = projectData.judulKTI 
+            ? `Judul Proyek: "${projectData.judulKTI}"\nTopik: "${projectData.topikTema}"`
+            : `Topik Proyek: "${projectData.topikTema}"`;
+        
+        // 3. Susun Prompt dengan Logika Prioritas
+        const prompt = `Anda adalah seorang asisten peneliti ahli (Reviewer Jurnal). Tugas utama Anda adalah memfilter apakah paper ini **RELEVAN/LAYAK DIKUTIP** untuk mendukung **PROYEK PENELITIAN PENGGUNA** di bawah ini.
 
-**Konteks Umum (Tema Penelitian Utama):**
-"${projectData.topikTema}"
+**PROYEK PENELITIAN PENGGUNA (ACUAN UTAMA/KIBLAT):**
+${mainContext}
 
-**Fokus Pencarian Spesifik / Clue (Tugas Utama Anda):**
-"${searchContext || 'Tidak ada fokus spesifik yang diberikan. Evaluasi berdasarkan Konteks Umum saja.'}"
+**Kata Kunci Pencarian Saat Ini (Sekadar Konteks):**
+"${searchContext || 'Tidak ada'}"
 
-**Detail Paper untuk Dievaluasi:**
+**Paper yang Dinilai:**
 - Judul: ${paper.title}
 - Abstrak: ${paper.abstract || "Tidak tersedia."}
 
-**Instruksi (Ikuti dengan Ketat):**
-1.  **Identifikasi Finding:** Baca abstraknya, lalu sintesis informasi berikut ke dalam **satu paragraf tunggal yang padat**: (a) Latar belakang/konteks masalah, (b) Tujuan penelitian, (c) Metode penelitian yang digunakan, (d) Hasil utama/temuan kunci, dan (e) Kesimpulan/implikasi singkat. **PENTING: Jangan gunakan kalimat pembuka seperti 'Paper ini membahas...' atau 'Penelitian ini bertujuan...'. Langsung mulai dengan inti informasinya.**
-2.  **Analisis Relevansi:** Jelaskan secara spesifik dan lugas bagaimana paper ini **menjawab atau membahas 'Fokus Pencarian Spesifik / Clue'** di atas. Contoh: "Paper ini secara langsung memberikan definisi 'budaya inovasi' di bagian pendahuluan dan mengukurnya menggunakan tiga dimensi...", atau "Paper ini tidak secara eksplisit mendefinisikan 'budaya inovasi', namun membahas faktor-faktor pembentuknya...". Jadilah langsung pada tujuan.
-3.  **Kategorikan Relevansi:** Berikan salah satu dari tiga kategori berikut berdasarkan seberapa baik paper ini menjawab **'Fokus Pencarian Spesifik'**: "Sangat Relevan", "Relevan", atau "Tidak Relevan".
+**LOGIKA PENILAIAN RELEVANSI (CRITICAL - BACA DENGAN TELITI):**
+Jangan terjebak hanya mencocokkan paper dengan "Kata Kunci Pencarian". Fokuslah pada apakah paper ini berguna untuk **PROYEK PENELITIAN PENGGUNA**.
+
+1. **Sangat Relevan:** Paper membahas topik yang SAMA PERSIS atau sangat mendukung substansi Proyek Pengguna.
+2. **Relevan:** Paper membahas teori dasar, metode, atau konteks yang berguna bagi Proyek Pengguna.
+3. **Tidak Relevan:** Paper membahas topik yang JAUH BERBEDA atau BERTENTANGAN dengan Proyek Pengguna, meskipun mungkin cocok dengan "Kata Kunci Pencarian" yang dimasukkan pengguna. 
+   *(Contoh: User meneliti 'AI Pemerintahan' tapi iseng mencari 'Sepakbola'. Paper bola harus dinilai TIDAK RELEVAN meskipun match dengan kata kunci).*
+
+**Instruksi Output:**
+1.  **Finding:** Rangkum inti paper (Tujuan, Metode, Hasil) dalam satu paragraf padat Bahasa Indonesia.
+2.  **Analisis Relevansi:** Jelaskan secara spesifik hubungan paper ini dengan **JUDUL PROYEK PENGGUNA**. Jelaskan mengapa ia mendukung atau tidak mendukung proyek tersebut.
+3.  **Kategorikan Relevansi:** Pilih satu: "Sangat Relevan", "Relevan", atau "Tidak Relevan".
 
 Berikan jawaban HANYA dalam format JSON yang ketat.`;
     
+        // 4. Skema Output JSON
         const schema = {
             type: "OBJECT",
             properties: {
-                finding: { type: "STRING", description: "Satu paragraf padat yang merangkum: latar belakang, tujuan, metode, hasil, dan kesimpulan." },
-                relevansi: { type: "STRING", description: "Penjelasan spesifik bagaimana paper menjawab 'Fokus Pencarian Spesifik'." },
+                finding: { type: "STRING", description: "Satu paragraf padat yang merangkum paper." },
+                relevansi: { type: "STRING", description: "Penjelasan hubungan paper dengan JUDUL PROYEK PENGGUNA." },
                 kategori_relevansi: { 
                     type: "STRING", 
-                    description: "Kategori relevansi: 'Sangat Relevan', 'Relevan', atau 'Tidak Relevan'.",
+                    description: "Kategori relevansi.",
                     enum: ["Sangat Relevan", "Relevan", "Tidak Relevan"]
                 }
             },
             required: ["finding", "relevansi", "kategori_relevansi"]
         };
     
+        // 5. Eksekusi AI
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             return result;
         } catch (error) {
             showInfoModal(`Gagal mereview paper: ${error.message}`);
         }
-    }, [geminiApiKeys, projectData.topikTema, showInfoModal]);
-    
+    }, [geminiApiKeys, projectData.topikTema, projectData.judulKTI, showInfoModal]);
+  
     const parseManualReference = (text) => {
         const lines = text.split('\n');
         const reference = {
