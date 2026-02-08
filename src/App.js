@@ -9768,8 +9768,6 @@ PENTING (Batasan):
             const records_screened = initialRecordCount - duplicateCount - automationIneligible - otherReasonsRemoved;
             const records_excluded = studies.filter(s => s.screeningStatus === 'abstract_excluded').length;
             const reports_sought_for_retrieval = records_screened - records_excluded;
-            const reports_assessed_for_eligibility = reports_sought_for_retrieval - reportsNotRetrieved;
-            const reports_excluded_fulltext = studies.filter(s => s.screeningStatus === 'fulltext_excluded').length;
             const extractionColumns = projectData.synthesisTableColumns
                 .map(col => `- ${col.label}`)
                 .join('\n');
