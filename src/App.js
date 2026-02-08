@@ -9770,7 +9770,6 @@ PENTING (Batasan):
             const reports_sought_for_retrieval = records_screened - records_excluded;
             const reports_assessed_for_eligibility = reports_sought_for_retrieval - reportsNotRetrieved;
             const reports_excluded_fulltext = studies.filter(s => s.screeningStatus === 'fulltext_excluded').length;
-            const studies_included_in_review = reports_assessed_for_eligibility - reports_excluded_fulltext;
             const extractionColumns = projectData.synthesisTableColumns
                 .map(col => `- ${col.label}`)
                 .join('\n');
@@ -9972,10 +9971,6 @@ ${kutipanString}
                 return `[REF] ${ref.author} (${ref.year}): "${content}"`;
             })
             .join('\n');
-
-        const contextBab1 = projectData.pendahuluanDraft || "Belum ada draf Bab 1.";
-        const contextBab2 = projectData.studiLiteraturDraft || "Belum ada draf Bab 2.";
-        const contextBab3 = projectData.metodeDraft || "Belum ada draf Bab 3.";
 
         const prompt = `Anda adalah penulis akademis ahli. Tulis draf Bab 4: Hasil dan Pembahasan yang TAJAM dan TERINTEGRASI.
 
