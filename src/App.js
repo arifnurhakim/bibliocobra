@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // ============================================================================
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 // HAPUS: import { getAnalytics } from "firebase/analytics";
 
 // ============================================================================
@@ -687,33 +687,48 @@ class ErrorBoundary extends React.Component {
 }
 
 // --- KOMPONEN BARU: GERBANG LISENSI (PAYWALL) ---
-const LicenseGate = ({ onActivate, handleCopyToClipboard }) => {
+const LicenseGate = ({ onActivate, handleCopyToClipboard, currentUser }) => {
     const [inputCode, setInputCode] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
+    const [isVerifying, setIsVerifying] = useState(false);
     const adminContact = "6285123048010"; // Ganti dengan nomor WhatsApp Admin
 
-    const handleActivation = () => {
-        // --- UPDATE TAHAP 1: Daftar Kode Lisensi Terpisah ---
-        
-        // Generator Kode Promo (PROMOBRIN001 - PROMOBRIN020)
-        const PROMO_CODES = Array.from({length: 20}, (_, i) => `PROMOBRIN${String(i + 1).padStart(3, '0')}`);
+  // Pastikan fungsi ini sekarang menggunakan 'async'
+const handleActivation = async () => {
+    const code = inputCode.toUpperCase().trim();
+    if (!code) return;
 
-        const PREMIUM_CODES = ["BIBLIO-2025", "KTI-PRO", "AKADEMIK-Q1", "EL-COBRA", ...PROMO_CODES]; // Akses Premium (No Scopus)
-        // Menambahkan SOBATJRENG dan ABDISIKOBRA ke daftar Elite
-        const ELITE_CODES = ["BRIN-INTERNAL-X8", "KST-HABIBIE", "SCOPUS-MASTER", "PROFESSOR-MODE", "SOBATJRENG", "ABDISIKOBRA"]; // Akses Elite (With Scopus)
-        
-        const code = inputCode.toUpperCase().trim();
+    setIsVerifying(true); // Sekarang tidak akan error karena sudah didefinisikan di atas
+    setErrorMsg('');
 
-        if (PREMIUM_CODES.includes(code)) {
-            // Premium: isPremium=true, showScopus=false
-            onActivate(true, false); 
-        } else if (ELITE_CODES.includes(code)) {
-            // Elite: isPremium=true, showScopus=true
-            onActivate(true, true); 
+    try {
+        // Ambil data kode dari folder 'licenses' menggunakan KODE sebagai ID-nya
+        const licenseRef = doc(db, 'artifacts', 'bibliocobra', 'public', 'data', 'licenses', code);
+        const licenseSnap = await getDoc(licenseRef);
+
+        if (licenseSnap.exists()) {
+            const data = licenseSnap.data();
+            const emailTerdaftar = data.assignedEmail?.toLowerCase().trim();
+            const emailSaya = currentUser?.email?.toLowerCase().trim();
+
+            // CEK APAKAH EMAIL COCOK
+            if (emailTerdaftar === emailSaya) {
+                const isElite = data.tier === 'elite';
+                // Jika cocok, buka akses
+                onActivate(true, isElite);
+            } else {
+                setErrorMsg(`Kode ini hanya untuk email: ${emailTerdaftar}.`);
+            }
         } else {
-            setErrorMsg("Kode lisensi tidak valid. Silakan periksa kembali atau hubungi admin.");
+            setErrorMsg("Kode lisensi tidak ditemukan di database.");
         }
-    };
+    } catch (error) {
+        console.error(error);
+        setErrorMsg("Kesalahan koneksi ke server. Cek Rules Firebase Anda.");
+    } finally {
+        setIsVerifying(false);
+    }
+}; 
 
     // --- UPDATE TAHAP 1: Handler untuk Masuk Gratis ---
     const handleFreeAccess = () => {
@@ -8412,9 +8427,8 @@ const setGeminiApiKey = (val) => {
 
     // --- UPDATE TAHAP 1: Handler Aktivasi Lisensi Dinamis ---
     const handleLicenseActivation = async (enablePremium = false, enableScopus = false) => {
-        // 1. Buka Akses Sesi Ini & Update Refs
-        setIsLicenseVerified(true);
-        setForceShowLicense(false); 
+    setIsLicenseVerified(true);
+    setForceShowLicense(false); 
         
         licenseVerifiedRef.current = enablePremium; // Premium true/false
         eliteStatusRef.current = enableScopus;      // Scopus true/false
@@ -8433,28 +8447,17 @@ const setGeminiApiKey = (val) => {
         // TAPI: Jika ini pendaftaran baru, nilai default di DB sudah false.
         
         if (currentUser && enablePremium) {
-            try {
-                const docRef = doc(db, "projects", currentUser.uid);
-                await setDoc(docRef, { 
-                    isPremium: enablePremium,
-                    showScopus: enableScopus 
-                }, { merge: true });
-            } catch (error) {
-                console.error("Gagal menyimpan status aktivasi:", error);
-            }
+        try {
+            const userDocRef = doc(db, "projects", currentUser.uid);
+            await updateDoc(userDocRef, { 
+                isPremium: enablePremium,
+                showScopus: enableScopus 
+            });
+        } catch (error) {
+            console.error("Gagal menyimpan status premium:", error);
         }
-        
-        // Notifikasi UI
-        if (enablePremium) {
-            if (enableScopus) {
-                alert("Aktivasi ELITE Berhasil! Akses Scopus Institusi dibuka.");
-            } else {
-                alert("Aktivasi PREMIUM Berhasil! Fitur AI Lanjutan dibuka.");
-            }
-        } else {
-            // Mode Free: Tidak perlu alert mengganggu, langsung masuk
-        }
-    };
+    }
+};
 
     // Efek untuk menampilkan pop-up selamat datang
     useEffect(() => {
@@ -11551,6 +11554,7 @@ try {
                 <LicenseGate 
                     onActivate={handleLicenseActivation} 
                     handleCopyToClipboard={handleCopyToClipboard} 
+                    currentUser={currentUser}
                 />
             );
         }
@@ -12004,15 +12008,21 @@ try {
     }
 
     // 3. Logika Render untuk Pengguna BELUM Login (GUEST)
-    // Sesuai permintaan: INPUT KODE LISENSI DULUAN, baru Login Page
-    if (!isLicenseVerified) {
-        return (
-            <LicenseGate 
-                onActivate={handleLicenseActivation} 
-                handleCopyToClipboard={handleCopyToClipboard} 
-            />
-        );
-    }
+    // 1. Prioritas utama: Pastikan user login agar kita tahu email-nya
+if (!currentUser) {
+    return <AuthPage />;
+}
+
+// 2. Jika sudah login, cek apakah dia sudah punya lisensi di DB atau sesi ini
+if ((!isLicenseVerified && !projectData.isPremium) || forceShowLicense) {
+    return (
+        <LicenseGate 
+            onActivate={handleLicenseActivation} 
+            handleCopyToClipboard={handleCopyToClipboard} 
+            currentUser={currentUser} // <--- TAMBAHKAN PROP INI
+        />
+    );
+}
 
     // Jika sudah input kode tapi belum login -> Tampilkan Halaman Login
     return <AuthPage />;
