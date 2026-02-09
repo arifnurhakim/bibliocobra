@@ -759,6 +759,7 @@ const handleActivation = async () => {
                             setInputCode(e.target.value);
                             setErrorMsg('');
                         }}
+                        disabled={isVerifying}
                         className="w-full px-4 py-3 border-2 border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-600 text-center text-lg font-bold tracking-widest uppercase placeholder-gray-300 transition-colors"
                         placeholder="MASUKKAN KODE"
                     />
@@ -777,13 +778,24 @@ const handleActivation = async () => {
                     </div>
                 </div>
                 {/* ----------------------------------------- */}
-
-                <button 
-                    onClick={handleActivation}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 mb-4"
-                >
-                    Aktifkan Lisensi
-                </button>
+<button 
+    onClick={handleActivation}
+    // PERBAIKAN 1: Gunakan variabel isVerifying agar tidak lagi "Unused"
+    disabled={isVerifying} 
+    className={`w-full font-bold py-3 px-6 rounded-lg shadow-lg mb-4 flex items-center justify-center gap-2 transition-all ${
+        isVerifying 
+        ? 'bg-indigo-400 cursor-not-allowed text-indigo-100' // Warna pudar saat loading
+        : 'bg-indigo-600 hover:bg-indigo-700 text-white transform hover:-translate-y-1' // Warna normal
+    }`}
+>
+    {/* PERBAIKAN 2: Tampilkan ikon loading jika isVerifying bernilai true */}
+    {isVerifying && (
+        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+    )}
+    
+    {/* PERBAIKAN 3: Ubah teks tombol secara dinamis */}
+    {isVerifying ? "Memvalidasi..." : "Aktifkan Lisensi"}
+</button>
 
                 {/* --- UPDATE TAHAP 1: Tombol Masuk Gratis --- */}
                 <button 
