@@ -5392,23 +5392,29 @@ INSTRUKSI ANALISIS:
    - **X (Centrality):** Seberapa penting/relevan tema ini? (1=Periferal, 10=Sentral).
    - **Y (Density):** Seberapa matang/berkembang tema ini? (1=Emerging/Baru, 10=Mature/Jenuh).
 3. Hitung "Volume" (Ukuran Bubble): Estimasi popularitas (1-10).
-4. **Isi Klaster:** Sebutkan 3-5 kata kunci spesifik yang menyusun tema ini.
+4. **Isi Klaster (Keywords):** Sebutkan 3-5 istilah atau kata kunci spesifik yang menjadi anggota klaster ini.
 
 Berikan jawaban HANYA dalam format JSON Array.`;
 
         const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    theme: { type: "STRING", description: "Nama tema singkat (max 3 kata)." },
-                    x: { type: "NUMBER", description: "Nilai Centrality (1-10)." },
-                    y: { type: "NUMBER", description: "Nilai Density (1-10)." },
-                    volume: { type: "NUMBER", description: "Estimasi jumlah paper/volume (1-10)." }
-                },
-                required: ["theme", "x", "y", "volume"]
+    type: "ARRAY",
+    items: {
+        type: "OBJECT",
+        properties: {
+            theme: { type: "STRING", description: "Nama tema singkat (max 3 kata)." },
+            x: { type: "NUMBER", description: "Nilai Centrality (1-10)." },
+            y: { type: "NUMBER", description: "Nilai Density (1-10)." },
+            volume: { type: "NUMBER", description: "Estimasi jumlah paper/volume (1-10)." },
+            // TAMBAHAN PENTING: Minta array keywords
+            keywords: { 
+                type: "ARRAY", 
+                items: { type: "STRING" }, 
+                description: "Daftar 3-5 kata kunci anggota klaster." 
             }
-        };
+        },
+        required: ["theme", "x", "y", "volume", "keywords"] // Tambahkan keywords ke required
+    }
+};
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
@@ -5421,10 +5427,11 @@ Berikan jawaban HANYA dalam format JSON Array.`;
         }
     };
 
-    // Logika Utama: Analisis Teks Gap (Existing)
+    // Logika Utama: Analisis Teks Gap (Updated)
     const handleAnalyze = async () => {
-        if (selectedRefIds.length === 0) {
-            showInfoModal("Pilih setidaknya satu referensi untuk dianalisis.");
+        // 1. Validasi: Cukup pastikan Peta Tematik sudah dibuat
+        if (!projectData.thematicMapData) {
+            showInfoModal("Silakan buat 'Peta Tematik' terlebih dahulu sebelum menulis analisis naratif.");
             return;
         }
         
@@ -5435,35 +5442,51 @@ Berikan jawaban HANYA dalam format JSON Array.`;
 
         setIsAnalyzing(true);
 
-        // 1. Siapkan Data Referensi (Updated: Prioritas Abstrak -> Catatan -> Metadata)
+        // 1. Siapkan Data Pendukung (Fleksibel & Berbasis Tab)
         const selectedRefs = projectData.allReferences.filter(ref => selectedRefIds.includes(ref.id));
         
-        const refsDataString = selectedRefs.map((ref, index) => {
-            let contentSource = "Tidak ada data konten rinci.";
-            
-            // Prioritas 1: Data Ekstraksi SLR (Paling terstruktur)
-            const extraction = projectData.extractedData?.find(e => String(e.refId) === String(ref.id));
-            
-            if (extraction) {
-                contentSource = `Data Ekstraksi SLR:\n${JSON.stringify(extraction.data)}`;
-            } else if (ref.abstract && ref.abstract.trim().length > 20) {
-                // Prioritas 2: Abstrak (Sesuai request: baca abstrak jika ada)
-                contentSource = `Abstrak:\n"${ref.abstract}"`;
-            } else if (ref.isiKutipan && ref.isiKutipan.trim() !== "") {
-                // Prioritas 3: Catatan/Kutipan (Fallback jika abstrak tidak ada)
-                contentSource = `Catatan/Kutipan (Pengganti Abstrak):\n"${ref.isiKutipan}"`;
-            } else {
-                contentSource = "(Hanya Metadata Tersedia)";
-            }
+        let refsDataString = "";
+        
+        // UPDATE LOGIKA: Cek Active Tab untuk kepastian mode
+        if (activeTab === 'literature' && selectedRefs.length > 0) {
+            // Jika Mode Literatur: Format data referensi seperti biasa
+            refsDataString = selectedRefs.map((ref, index) => {
+                let contentSource = "Tidak ada data konten rinci.";
+                
+                // Prioritas 1: Data Ekstraksi SLR (Paling terstruktur)
+                const extraction = projectData.extractedData?.find(e => String(e.refId) === String(ref.id));
+                
+                if (extraction) {
+                    contentSource = `Data Ekstraksi SLR:\n${JSON.stringify(extraction.data)}`;
+                } else if (ref.abstract && ref.abstract.trim().length > 20) {
+                    // Prioritas 2: Abstrak (Sesuai request: baca abstrak jika ada)
+                    contentSource = `Abstrak:\n"${ref.abstract}"`;
+                } else if (ref.isiKutipan && ref.isiKutipan.trim() !== "") { // FIX: Typo .trim(). !== dihapus
+                    // Prioritas 3: Catatan/Kutipan (Fallback jika abstrak tidak ada)
+                    contentSource = `Catatan/Kutipan (Pengganti Abstrak):\n"${ref.isiKutipan}"`;
+                } else {
+                    contentSource = "(Hanya Metadata Tersedia)";
+                }
 
-            // Hapus [index+1] agar AI tidak bingung menggunakannya sebagai nomor sitasi
-            return `--- REFERENSI ${index + 1} ---\nPenulis: ${ref.author}\nTahun: ${ref.year}\nJudul: "${ref.title}"\nKonten: ${contentSource}`;
-        }).join('\n\n');
+                // Hapus [index+1] agar AI tidak bingung menggunakannya sebagai nomor sitasi
+                return `--- REFERENSI ${index + 1} ---\nPenulis: ${ref.author}\nTahun: ${ref.year}\nJudul: "${ref.title}"\nKonten: ${contentSource}`;
+            }).join('\n\n');
+        } else {
+            // Jika Mode Kata Kunci (atau Tab Literatur tapi tidak ada ref dipilih): Berikan instruksi fallback ke AI
+            refsDataString = "DATA LITERATUR SPESIFIK TIDAK TERSEDIA (MODE KONSEP). Silakan lakukan analisis naratif sepenuhnya berdasarkan interpretasi visual Peta Tematik di atas dan pengetahuan global (Grounding) Anda mengenai topik-topik tersebut.";
+        }
 
         // Data Peta Tematik untuk Konteks
         const thematicMapContext = projectData.thematicMapData 
             ? JSON.stringify(projectData.thematicMapData) 
             : "Data Peta Tematik belum dihasilkan oleh pengguna.";
+
+        // --- UPDATE: Instruksi Sitasi Dinamis ---
+        const isConceptMode = activeTab === 'keyword' || selectedRefs.length === 0;
+        
+        const citationInstruction = isConceptMode
+            ? "2. **DILARANG HALUSINASI REFERENSI:** Karena ini Mode Konsep (tanpa input literatur riil), JANGAN PERNAH membuat sitasi fiktif seperti '(Smith, 2023)'. Gunakan frasa umum seperti 'Literatur terkini menunjukkan...', 'Secara teoritis...', atau 'Tren global mengindikasikan...'."
+            : "2. **SITASI APA 7th MURNI:** Wajib menggunakan data dari 'DATA LITERATUR (PENDUKUNG)' di bawah. Gunakan format (Author, Year). Dilarang mengarang referensi yang tidak ada di input.";
 
         // 2. Siapkan Prompt (Updated: Strict APA & Clean Output)
         const prompt = `Anda adalah ahli riset strategis. Tugas Anda adalah menyusun narasi "Gap & Novelty" yang **SINGKAT, PADAT, dan TO-THE-POINT**.
@@ -5483,7 +5506,7 @@ ${refsDataString}
 
 **ATURAN PENULISAN WAJIB (STRICT MODE):**
 1.  **DILARANG MENULIS ANGKA SKOR/KOORDINAT:** Jangan pernah menyertakan nilai angka dalam kurung seperti "(9.5/9)" atau "(4/5)" di dalam narasi. Cukup sebutkan nama kuadran (Motor/Niche/Emerging/Basic) untuk menggambarkan posisi tema.
-2.  **SITASI APA 7th MURNI:** Wajib menggunakan format (Author, Year) atau Author (Year). **DILARANG KERAS** menggunakan format seperti "(Ref 12, 33)", "[1]", "(Ref 1)", atau angka referensi lainnya. Abaikan label "REFERENSI X" pada data input.
+${citationInstruction}
 3.  **BERSIH DARI META-TEKS:** Jangan sertakan hitungan kata (word count), label "Hasil:", atau komentar penutup di akhir teks.
 
 **ALUR NARASI:**
@@ -5633,7 +5656,7 @@ ${refsDataString}
             <div className="flex flex-col items-center mb-8 border-t pt-6">
                 <button 
                     onClick={handleAnalyze}
-                    disabled={isAnalyzing || selectedRefIds.length === 0 || !isPremium}
+                    disabled={isAnalyzing || !projectData.thematicMapData || !isPremium} // Aktif jika Peta sudah ada
                     className={`font-bold py-3 px-8 rounded-full shadow-lg transform transition-all ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-purple-600 hover:bg-purple-700 text-white hover:-translate-y-1 disabled:bg-purple-300 disabled:transform-none'}`}
                     title={!isPremium ? "Fitur Premium" : ""}
                 >
@@ -12004,13 +12027,14 @@ try {
                                     {/* ---------------------------------- */}
 
                                     
-                                    <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                                        <span className="font-semibold text-purple-700">Fitur Kebebasan & Privasi:</span> Bibliocobra menggunakan koneksi langsung (Direct-to-Google). Ini menjamin <strong>Privasi Data 100%</strong> (data tidak singgah di server kami) dan <strong>Akses Tanpa Batas</strong> sesuai akun Google Anda.
-                                        <br/>
-                                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold inline-flex items-center gap-1 mt-1">
-                                            Aktifkan Kunci Akses Pribadi Anda di sini (Gratis) 
+                                    <p className="text-xs text-gray-600 mt-3 leading-relaxed border-t border-purple-200 pt-2">
+                                        <span className="font-bold text-purple-700">Wajib Diisi:</span> Key dibutuhkan untuk menjalankan fitur AI. Dapatkan gratis di 
+                                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold mx-1 inline-flex items-center gap-0.5">
+                                            Google AI Studio 
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                                        </a>
+                                        </a>.
+                                        <br/>
+                                        <span className="text-gray-500 italic">Tips: Disarankan menambah 2-3 API key dari email yang berbeda untuk menghindari limitasi token AI (Rate Limit).</span>
                                     </p>
                                 </div>
 
