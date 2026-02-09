@@ -759,7 +759,6 @@ const handleActivation = async () => {
                             setInputCode(e.target.value);
                             setErrorMsg('');
                         }}
-                        disabled={isVerifying}
                         className="w-full px-4 py-3 border-2 border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-600 text-center text-lg font-bold tracking-widest uppercase placeholder-gray-300 transition-colors"
                         placeholder="MASUKKAN KODE"
                     />
@@ -5230,49 +5229,54 @@ const ThematicMapVisualizer = ({ data }) => {
                 {/* Titik Data (Bubbles) */}
                 <svg width={size} height={size} className="absolute top-0 left-0 overflow-visible">
                     {data.map((item, i) => {
-                        // Tentukan warna berdasarkan kuadran
-                        let color = "#6B7280"; // Gray default
-                        if (item.x >= 5 && item.y >= 5) color = "#EF4444"; // Motor (Red)
-                        else if (item.x < 5 && item.y >= 5) color = "#3B82F6"; // Niche (Blue)
-                        else if (item.x < 5 && item.y < 5) color = "#10B981"; // Emerging (Green)
-                        else color = "#F59E0B"; // Basic (Yellow)
+                        
 
                         return (
-                            <g key={i} className="transition-all duration-300 hover:opacity-100 cursor-default group">
-                                {/* Bubble */}
-                                <circle 
-                                    cx={scale(item.x)} 
-                                    cy={scaleY(item.y)} 
-                                    r={Math.max(5, (item.volume || 1) * 3)} 
-                                    fill={color} 
-                                    opacity="0.7"
-                                    stroke="white"
-                                    strokeWidth="1.5"
-                                    className="filter drop-shadow-sm group-hover:scale-110 transition-transform origin-center"
-                                />
-                                {/* Label Tema */}
-                                <text 
-                                    x={scale(item.x)} 
-                                    y={scaleY(item.y) - (Math.max(5, (item.volume || 1) * 3) + 4)} 
-                                    textAnchor="middle" 
-                                    fontSize="10" 
-                                    fill="#1F2937"
-                                    className="font-bold pointer-events-none"
-                                    style={{ textShadow: "0px 0px 4px white, 0px 0px 4px white" }}
-                                >
-                                    {item.theme}
-                                </text>
-                                {/* Tooltip sederhana via title (native) */}
-                                <title>{`${item.theme}\nRelevansi: ${item.x}/10\nPengembangan: ${item.y}/10`}</title>
-                            </g>
-                        );
-                    })}
-                </svg>
+                 <g key={i} className="transition-all duration-300 hover:opacity-100 cursor-default group">
+    {(() => {
+        // Palet warna akademik variatif (Teal, Orange, Blue, Pink, Purple, Green, dll)
+        const clusterColors = ["#26a69a", "#ff7043", "#42a5f5", "#ec407a", "#7e57c2", "#66bb6a", "#ffa726", "#8d6e63"];
+        const nodeColor = clusterColors[i % clusterColors.length];
+
+        return (
+            <>
+                {/* Bubble dengan warna unik per klaster */}
+                <circle 
+                    cx={scale(item.x)} 
+                    cy={scaleY(item.y)} 
+                    r={Math.max(6, (item.volume || 1) * 3.5)} 
+                    fill={nodeColor} 
+                    opacity="0.8"
+                    stroke="white"
+                    strokeWidth="1.5"
+                    className="filter drop-shadow-sm group-hover:scale-110 transition-transform origin-center"
+                />
+                {/* Label Tema */}
+                <text 
+                    x={scale(item.x)} 
+                    y={scaleY(item.y) - (Math.max(6, (item.volume || 1) * 3.5) + 5)} 
+                    textAnchor="middle" 
+                    fontSize="10" 
+                    fill="#1F2937"
+                    className="font-bold pointer-events-none"
+                    style={{ textShadow: "0px 0px 4px white, 0px 0px 4px white" }}
+                >
+                    {item.theme}
+                </text>
+                {/* UPDATE TOOLTIP AGAR MENAMPILKAN ISI KLASTER */}
+                <title>{`Tema: ${item.theme}\nRelevansi: ${item.x}/10\nPengembangan: ${item.y}/10\n\nIsi Klaster:\n${item.keywords ? item.keywords.map(k => `• ${k}`).join('\n') : '-'}`}</title>
+            </>
+        );
+    })()}
+</g>          
+                ); 
+            })}
+        </svg>
             </div>
             
             <div className="mt-4 pt-3 border-t w-full max-w-md">
                 <p className="text-[10px] text-gray-400 italic text-center mb-3">
-                    *Visualisasi ini dihasilkan oleh AI berdasarkan analisis semantik judul & abstrak referensi terpilih. Posisi koordinat adalah estimasi kualitatif.
+                    *Warna node mewakili klaster tema yang berbeda. Posisi menentukan kategori strategis (Motor/Niche/dll).
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-600 leading-tight">
                     <div className="bg-red-50 p-2 rounded border border-red-100">
@@ -5305,6 +5309,7 @@ const AnalisisGapNovelty = ({
     handleCopyToClipboard 
 }) => {
     const [selectedRefIds, setSelectedRefIds] = useState([]);
+    const [activeTab, setActiveTab] = useState('literature'); // Default: 'literature' (Data);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isMapping, setIsMapping] = useState(false); 
     const [targetDraft, setTargetDraft] = useState('pendahuluanDraft');
@@ -5335,58 +5340,59 @@ const AnalisisGapNovelty = ({
 
     // --- LOGIKA AI PETA TEMATIK (LANGKAH 3 SELESAI) ---
     const handleGenerateThematicMap = async () => {
-        // --- UPDATE: Validasi Jumlah Referensi Minimal ---
-        if (selectedRefIds.length < 5) {
-            showInfoModal(`Analisis Peta Tematik membutuhkan minimal 5 referensi agar hasilnya valid dan membentuk cluster yang bermakna. Saat ini Anda hanya memilih ${selectedRefIds.length} referensi.`);
+        const hasKeywords = manualKeywords && manualKeywords.trim() !== "";
+
+        // 1. VALIDASI DINAMIS BERDASARKAN TAB
+        if (activeTab === 'literature' && selectedRefIds.length < 5) {
+            showInfoModal(`Mode Literatur membutuhkan minimal 5 referensi agar klaster yang dihasilkan valid. Saat ini hanya ${selectedRefIds.length} terpilih.`);
             return;
         }
-        // ------------------------------------------------
+        
+        if (activeTab === 'keyword' && !hasKeywords) {
+            showInfoModal("Silakan masukkan daftar kata kunci/topik terlebih dahulu pada kolom yang tersedia.");
+            return;
+        }
 
         setIsMapping(true);
         setProjectData(p => ({ ...p, thematicMapData: null })); // Reset peta lama
 
-        // 1. Siapkan Data Referensi
+        // 2. PERSIAPAN DATA INPUT (FLEKSIBEL)
         const selectedRefs = projectData.allReferences.filter(ref => selectedRefIds.includes(ref.id));
-        const refsInput = selectedRefs.map((ref, i) => {
-            let content = "Tidak ada data ringkasan.";
-            
-            // Prioritas 1: Abstrak (jika ada dan cukup panjang)
-            if (ref.abstract && ref.abstract.trim().length > 20) {
-                // Ambil 500 karakter pertama agar muat di context window tapi cukup detail
-                content = ref.abstract.substring(0, 500) + (ref.abstract.length > 500 ? "..." : "");
-            } 
-            // Prioritas 2: Kutipan / Catatan (jika abstrak kosong)
-            else if (ref.isiKutipan && ref.isiKutipan.trim().length > 0) {
-                content = `[Dari Catatan/Kutipan]: ${ref.isiKutipan.substring(0, 500)}`;
-            }
+        
+        // Jika Mode Kata Kunci (refs kosong), kirim teks dummy agar prompt tidak error
+        let refsInput = selectedRefs.length > 0 
+            ? selectedRefs.map((ref, i) => {
+                let content = ref.abstract && ref.abstract.length > 20 ? ref.abstract.substring(0, 500) : (ref.isiKutipan || "Tidak ada data ringkasan.");
+                return `[${i+1}] "${ref.title}" (${ref.year}). Ringkasan: ${content}`;
+            }).join('\n')
+            : "TIDAK ADA REFERENSI (MODE KONSEP - GUNAKAN PENGETAHUAN GLOBAL).";
 
-            return `[${i+1}] "${ref.title}" (${ref.year}). Ringkasan: ${content}`;
-        }).join('\n');
-
-        // --- UPDATE: Logika Guided Topic Modeling (Keywords) ---
-        let themeInstruction = "Kelompokkan literatur menjadi 5-10 'Tema Utama' (Cluster) secara induktif.";
+        // 3. INSTRUKSI KHUSUS
         let keywordContext = "";
-
         if (manualKeywords && manualKeywords.trim() !== "") {
-            themeInstruction = "Lakukan 'Guided Topic Modeling'. Kelompokkan literatur menjadi tema-tema yang SANGAT ERAT KAITANNYA dengan 'Daftar Kata Kunci Prioritas' yang diberikan pengguna. Gunakan kata kunci tersebut sebagai label tema jika relevan.";
-            keywordContext = `\nDAFTAR KATA KUNCI PRIORITAS (User Seed Keywords):\n${manualKeywords}\n\n`;
+            keywordContext = `\nDAFTAR KATA KUNCI PRIORITAS (User Input):\n${manualKeywords}\n\n`;
         }
-        // ------------------------------------------
 
-        // 2. Prompt Strategis (Strategic Diagram / Thematic Map)
-        const prompt = `Anda adalah ahli Bibliometrik (Science Mapping). Tugas Anda adalah membuat "Thematic Map" (Peta Tematik) dari daftar literatur berikut.
+        const groundingInstruction = (activeTab === 'keyword') 
+            ? "Karena ini adalah Mode Konsep (tanpa literatur spesifik), Anda WAJIB menggunakan pengetahuan internal/global Anda (Google Search Grounding) untuk memetakan posisi strategis tema-tema dari 'Daftar Kata Kunci' di atas dalam lanskap riset dunia saat ini."
+            : "Gunakan daftar literatur yang disediakan di bawah ini sebagai sumber data utama pemetaan (Inductive Clustering).";
+
+        // 4. Prompt Strategis
+        const prompt = `Anda adalah ahli Bibliometrik (Science Mapping). Tugas Anda adalah membuat "Thematic Map" (Peta Tematik) dari data berikut.
 
 ${keywordContext}
+${groundingInstruction}
 
-DAFTAR LITERATUR:
+DATA INPUT:
 ${refsInput}
 
 INSTRUKSI ANALISIS:
-1. ${themeInstruction} Gunakan Ringkasan (Abstrak atau Catatan) yang tersedia.
+1. Kelompokkan menjadi 5-10 'Tema Utama' (Cluster).
 2. Untuk setiap tema, berikan nilai skor (Skala 1-10) untuk dua dimensi:
-   - **X (Centrality):** Seberapa penting/relevan tema ini terhadap topik umum kumpulan literatur ini? (1=Sangat Periferal/Sampingan, 10=Sangat Sentral/Inti).
-   - **Y (Density):** Seberapa matang/berkembang tema ini dibahas? (1=Baru muncul/Sedikit dibahas, 10=Sangat jenuh/Banyak dibahas).
-3. Hitung "Volume" (Ukuran Bubble): Berapa banyak paper yang masuk dalam tema ini? (Skala relatif 1-10).
+   - **X (Centrality):** Seberapa penting/relevan tema ini? (1=Periferal, 10=Sentral).
+   - **Y (Density):** Seberapa matang/berkembang tema ini? (1=Emerging/Baru, 10=Mature/Jenuh).
+3. Hitung "Volume" (Ukuran Bubble): Estimasi popularitas (1-10).
+4. **Isi Klaster:** Sebutkan 3-5 kata kunci spesifik yang menyusun tema ini.
 
 Berikan jawaban HANYA dalam format JSON Array.`;
 
@@ -5519,20 +5525,46 @@ ${refsDataString}
     };
 
     return (
-        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-2 text-gray-800">Analisis Kesenjangan & Kebaruan (Gap & Novelty)</h2>
-            <p className="text-gray-600 mb-6">Fitur ini menggunakan AI untuk membaca literatur Anda, menemukan celah riset (Gap), dan merumuskan argumen kebaruan (Novelty) untuk penelitian Anda.</p>
+    <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+        {/* Header dan Tab Switcher (Sesuai Gambar Desain) */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+            <h2 className="text-xl font-bold text-gray-800">Pengaturan Peta Visual</h2>
+            <div className="flex bg-gray-200 p-1 rounded-xl shadow-inner">
+                <button 
+                    onClick={() => setActiveTab('literature')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'literature' ? 'bg-white shadow-md text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    Analisis Literatur (Data)
+                </button>
+                <button 
+                    onClick={() => setActiveTab('keyword')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'keyword' ? 'bg-white shadow-md text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    Analisis Kata Kunci (Konsep)
+                </button>
+            </div>
+        </div>
 
-            {/* BAGIAN 1: SELEKSI DATA */}
-            <div className="mb-6 border rounded-lg overflow-hidden">
+        {/* Info Box Dinamis (Sesuai Gambar Desain) */}
+        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-r-lg shadow-sm">
+            <p className="text-xs text-blue-800 leading-relaxed italic">
+                {activeTab === 'literature' 
+                    ? `Mode Literatur: AI akan membaca abstrak dari ${selectedRefIds.length} referensi yang Anda centang di bawah, lalu mengelompokkannya menjadi tema-tema strategis secara induktif. (Minimal 5 referensi).`
+                    : "Mode Kata Kunci: Gunakan saat Anda belum memiliki data literatur. AI akan memproyeksikan posisi strategis topik-topik di bawah ini berdasarkan pengetahuan umum AI (Global Grounding)."}
+            </p>
+        </div>
+
+       {/* KONTEN TAB 1: ANALISIS LITERATUR (DATA) */}
+        {activeTab === 'literature' && (
+            <div className="mb-6 border rounded-lg overflow-hidden animate-fade-in">
                 <div className="bg-gray-100 p-3 flex justify-between items-center border-b">
-                    <h3 className="font-bold text-gray-700">Pilih Literatur Pembanding ({selectedRefIds.length} dipilih)</h3>
+                    <h3 className="font-bold text-gray-700 text-sm">Pilih Literatur Pembanding ({selectedRefIds.length} dipilih)</h3>
                     <div className="space-x-2">
                         <button onClick={() => handleSelectAll(true)} className="text-xs text-blue-600 hover:underline">Pilih Semua</button>
                         <button onClick={() => handleSelectAll(false)} className="text-xs text-red-600 hover:underline">Hapus Semua</button>
                     </div>
                 </div>
-                <div className="max-h-60 overflow-y-auto p-4 bg-gray-50 space-y-2">
+                <div className="max-h-60 overflow-y-auto p-4 bg-gray-50 space-y-2 custom-scrollbar">
                     {projectData.allReferences.length > 0 ? (
                         projectData.allReferences.map(ref => (
                             <label key={ref.id} className="flex items-start gap-3 p-2 hover:bg-white rounded border border-transparent hover:border-gray-200 cursor-pointer transition-colors">
@@ -5543,70 +5575,59 @@ ${refsDataString}
                                     className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                                 />
                                 <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-semibold text-sm text-gray-800">{ref.title}</span>
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                        <span className="font-semibold text-xs text-gray-800 line-clamp-1">{ref.title}</span>
                                         {getDataBadge(ref)}
                                     </div>
-                                    <p className="text-xs text-gray-500">{ref.author} ({ref.year})</p>
+                                    <p className="text-[10px] text-gray-500">{ref.author} ({ref.year})</p>
                                 </div>
                             </label>
                         ))
                     ) : (
-                        <p className="text-center text-gray-500 italic text-sm py-4">Belum ada referensi. Silakan tambahkan di menu "Literatur & Referensi".</p>
+                        <p className="text-center text-gray-500 italic text-sm py-4">Belum ada referensi di perpustakaan.</p>
                     )}
                 </div>
             </div>
+        )}
 
-            {/* BAGIAN 1.5: TOMBOL & VISUALISASI PETA TEMATIK (BARU) */}
-            <div className="mb-8">
-                {/* --- AREA INPUT KEYWORDS (BARU) --- */}
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
-                    <h4 className="font-bold text-gray-700 text-sm mb-2">Fokus Kata Kunci (Opsional)</h4>
-                    <p className="text-xs text-gray-500 mb-2">
-                        Gunakan add-on <a href="https://cobrasaurus.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline font-bold">Cobrasaurus</a> untuk generate dan cleaning kata kunci.
-                    </p>
-                    <textarea 
-                        value={manualKeywords}
-                        onChange={(e) => setManualKeywords(e.target.value)}
-                        className="w-full p-2 text-xs border rounded-lg h-24 focus:ring-2 focus:ring-indigo-500 font-mono"
-                        placeholder={`Contoh:\nartificial intelligence\nmachine learning\ndeep learning`}
-                    ></textarea>
-                </div>
-                {/* ---------------------------------- */}
+        {/* KONTEN TAB 2: ANALISIS KATA KUNCI (KONSEP) */}
+        {activeTab === 'keyword' && (
+            <div className="mb-6 animate-fade-in">
+                <h4 className="font-bold text-gray-700 text-sm mb-2">Daftar Kata Kunci / Topik (Satu per baris):</h4>
+                <p className="text-xs text-gray-500 mb-2">
+                    Gunakan add-on <a href="https://cobrasaurus.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">Cobrasaurus</a> untuk generate dan cleaning kata kunci.
+                </p>
+                <textarea 
+                    value={manualKeywords}
+                    onChange={(e) => setManualKeywords(e.target.value)}
+                    className="w-full p-3 text-xs border-2 border-gray-200 rounded-xl h-32 focus:ring-2 focus:ring-blue-500 font-mono shadow-inner outline-none transition-all"
+                    placeholder={`Contoh:\nartificial intelligence\npublic trust\ndata privacy\nethical governance`}
+                ></textarea>
+            </div>
+        )}
 
-                {/* Tombol Generasi Peta */}
-                <div className="flex justify-end mb-4">
-                    <button 
-                        onClick={handleGenerateThematicMap}
-                        disabled={isMapping || selectedRefIds.length === 0 || !isPremium}
-                        className={`font-bold py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 text-sm ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-indigo-300'}`}
-                        title={!isPremium ? "Fitur Premium" : ""}
-                    >
-                        {isMapping ? (
-                            <>
-                                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                Memetakan...
-                            </>
-                        ) : (
-                            <>
-                                {!isPremium ? '🔒 Peta Tematik (Premium)' : (
-                                    <>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                            <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/>
-                                        </svg>
-                                        Analisis Visual Peta Tematik
-                                    </>
-                                )}
-                            </>
-                        )}
-                    </button>
-                </div>
+        {/* Tombol Aksi Dinamis (Sesuai Gambar Desain) */}
+        <div className="flex justify-end mb-8 border-b pb-8">
+            <button 
+                onClick={handleGenerateThematicMap}
+                disabled={isMapping || !isPremium || (activeTab === 'literature' && selectedRefIds.length === 0) || (activeTab === 'keyword' && !manualKeywords.trim())}
+                className={`font-bold py-2.5 px-6 rounded-xl shadow-lg flex items-center gap-2 text-sm transition-all transform hover:-translate-y-1 active:scale-95 ${
+                    !isPremium ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
+            >
+                {isMapping ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg>
+                )}
+                {activeTab === 'literature' ? 'Buat Peta dari Literatur' : 'Buat Peta dari Kata Kunci'}
+            </button>
+        </div>
 
                 {/* Render Visualizer jika data ada */}
                 {projectData.thematicMapData && (
                     <ThematicMapVisualizer data={projectData.thematicMapData} />
                 )}
-            </div>
 
             {/* BAGIAN 2: TOMBOL AKSI UTAMA (NARASI) */}
             <div className="flex flex-col items-center mb-8 border-t pt-6">
@@ -11440,7 +11461,7 @@ try {
                 ]
             },
             slr_workflow: {
-                title: "Alur Kerja SLR",
+                title: "Alur Kerja SLR & Bibliometrik",
                 items: [
                     { id: 'genLogKueri', name: 'Generator & Log Kueri'}, // Campuran (Manual Free, AI Premium)
                     { id: 'prisma', name: 'Generator PRISMA SLR'} // Campuran
@@ -11459,7 +11480,7 @@ try {
             analisis: {
                 title: "Analisis Data",
                 items: [
-                    { id: 'analisisGap', name: label('Analisis Gap & Novelty', true) },
+                    { id: 'analisisGap', name: label('Lanskap Riset & Posisi Strategis', true) },
                     { id: 'deskripsiResponden', name: label('Karakteristik Responden', true) },
                     { id: 'analisisKuantitatif', name: label('Analisis Kuantitatif', true) },
                     { id: 'analisisKualitatif', name: label('Analisis Kualitatif', true) },
