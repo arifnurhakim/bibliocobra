@@ -717,7 +717,7 @@ const handleActivation = async () => {
                 // Jika cocok, buka akses
                 onActivate(true, isElite);
             } else {
-                setErrorMsg(`Kode ini hanya untuk email: ${emailTerdaftar}.`);
+                setErrorMsg("Kode lisensi tidak valid atau tidak terdaftar untuk akun email ini.");
             }
         } else {
             setErrorMsg("Kode lisensi tidak ditemukan di database.");
@@ -2842,14 +2842,30 @@ const StudiLiteratur = ({
         setProjectData(p => ({ ...p, theoryClassification: newClassification }));
     };
 
-    // Helper untuk merender Kartu Teori
+    // Helper untuk merender Kartu Teori (Updated: Full Text & Citation)
     const renderTheoryCard = (item, category, colorClass) => (
-        <div key={item.id} className="bg-white p-3 rounded border shadow-sm mb-2 text-left group hover:shadow-md transition-all">
-            <p className="font-bold text-gray-800 text-xs mb-1">{item.title}</p>
-            <p className="text-[10px] text-gray-500 italic leading-tight mb-2">{item.reason}</p>
+        <div key={item.id} className="bg-white p-3 rounded border shadow-sm mb-2 text-left group hover:shadow-md transition-all flex flex-col h-auto">
+            {/* Konsep Singkat */}
+            <p className="font-bold text-gray-800 text-xs mb-1 uppercase tracking-wide">
+                {item.concept || item.title}
+            </p>
+            
+            {/* Alasan (Full Text - Hapus line-clamp) */}
+            <p className="text-[10px] text-gray-600 italic leading-relaxed mb-2">
+                {item.reason}
+            </p>
+
+            {/* Sitasi (Baru) */}
+            {item.citation && (
+                <div className="mt-auto pt-1 border-t border-dashed border-gray-100">
+                    <span className="text-[9px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                        {item.citation}
+                    </span>
+                </div>
+            )}
             
             {/* Kontrol Pemindahan */}
-            <div className="flex justify-between items-center pt-2 border-t border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity">
+            <div className="flex justify-between items-center pt-2 mt-1 opacity-50 group-hover:opacity-100 transition-opacity">
                 {category !== 'grand' && (
                     <button 
                         onClick={() => handleMoveTheory(item, category, category === 'applied' ? 'middle' : 'grand')}
@@ -9077,61 +9093,74 @@ Output (JSON Format):
 
     // --- LOGIKA BAB II: THEORY PYRAMID (Auto-Classification) ---
     const handleClassifyTheories = async (selectedIds) => {
-        // Cek Premium
-        if (!projectData.isPremium) {
-            showInfoModal("Fitur 'Klasifikasi Teori Otomatis' khusus untuk pengguna Premium.");
-            return;
-        }
-
-        if (!selectedIds || selectedIds.length === 0) {
-            showInfoModal("Pilih minimal satu referensi untuk diklasifikasikan.");
-            return;
-        }
+        // ... (validasi awal tetap sama) ...
 
         setIsLoading(true);
 
         // Filter referensi terpilih
         const sourceRefs = projectData.allReferences.filter(ref => selectedIds.includes(ref.id));
         
-        // Format data untuk AI
+        // --- PERBAIKAN: Sertakan Penulis dan Tahun dalam Input AI ---
         const refList = sourceRefs.map((ref, index) => 
-            `[ID: ${ref.id}] Judul: "${ref.title}"\nAbstrak/Catatan: ${ref.abstract || ref.isiKutipan || "Tidak ada data"}`
+            `[ID: ${ref.id}]
+Judul: "${ref.title}"
+Penulis: ${ref.author || "Anonim"}
+Tahun: ${ref.year || "n.d."}
+Abstrak/Catatan: ${ref.abstract || ref.isiKutipan || "Tidak ada data"}`
         ).join('\n---\n');
+        // -----------------------------------------------------------
 
         const prompt = `Anda adalah arsitek teori penelitian. Tugas Anda adalah memilah literatur berikut ke dalam 3 tingkatan hierarki teori (Theory Pyramid).
 
 DAFTAR LITERATUR:
 ${refList}
 
-INSTRUKSI KLASIFIKASI:
-1. **Grand Theory (Payung):** Teori induk yang sangat abstrak/umum. (Misal: Manajemen Strategi, Public Administration, TPB).
-2. **Middle-Range Theory (Penghubung):** Teori yang menjelaskan hubungan spesifik antar variabel. (Misal: Dynamic Governance, Budaya Organisasi, TAM).
-3. **Applied Theory (Operasional):** Indikator teknis, regulasi, atau model pengukuran spesifik. (Misal: Indikator GII, UU No. 11/2019, Skala Likert).
+INSTRUKSI KLASIFIKASI (STRICT MODE):
+1. **Grand Theory (Payung):** Teori induk yang sangat abstrak/umum.
+2. **Middle-Range Theory (Penghubung):** Teori yang menjelaskan hubungan spesifik antar variabel.
+3. **Applied Theory (Operasional):** Indikator teknis, regulasi, atau model pengukuran spesifik.
 
-Berikan alasan singkat (reason) kenapa masuk kategori tersebut.
+**ATURAN FORMAT OUTPUT (WAJIB):**
+1. **field 'concept':** Ekstrak **HANYA NAMA TEORI/KONSEP** dalam 2-5 kata (Bahasa Indonesia). 
+   - SALAH: "YAGO: A Large Ontology from Wikipedia..."
+   - BENAR: "Ontologi YAGO" atau "Konsep Knowledge Graph".
+2. **field 'reason':** Alasan singkat kenapa masuk kategori ini (maksimal 2 kalimat).
+3. **field 'citation':** Ambil langsung dari data 'Penulis' dan 'Tahun' input. Format: "(Penulis, Tahun)". Jika penulis banyak, gunakan "et al.". JANGAN mengarang data.
+4. **DILARANG:** Jangan menuliskan ID internal.
 
-Output Wajib JSON:
-{
-  "grand": [{ "id": "...", "title": "...", "reason": "..." }],
-  "middle": [{ "id": "...", "title": "...", "reason": "..." }],
-  "applied": [{ "id": "...", "title": "...", "reason": "..." }]
-}`;
-
+Berikan output JSON yang valid.`;
+        
         const schema = {
             type: "OBJECT",
             properties: {
-                grand: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, title: {type: "STRING"}, reason: {type: "STRING"} } } },
-                middle: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, title: {type: "STRING"}, reason: {type: "STRING"} } } },
-                applied: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, title: {type: "STRING"}, reason: {type: "STRING"} } } }
+                grand: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, concept: {type: "STRING"}, reason: {type: "STRING"}, citation: {type: "STRING"} } } },
+                middle: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, concept: {type: "STRING"}, reason: {type: "STRING"}, citation: {type: "STRING"} } } },
+                applied: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, concept: {type: "STRING"}, reason: {type: "STRING"}, citation: {type: "STRING"} } } }
             },
             required: ["grand", "middle", "applied"]
         };
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            
+            // --- FIX: SANITASI ID AGAR UNIK ---
+            // AI sering memberi ID duplikat (misal: 1, 2, 3 untuk setiap kategori).
+            // Kita timpa dengan timestamp + random untuk menjamin keunikan mutlak.
+            const sanitize = (list) => list ? list.map((item, idx) => ({ 
+                ...item, 
+                id: Date.now() + Math.random() + idx // ID Unik Sistem
+            })) : [];
+
+            const sanitizedResult = {
+                grand: sanitize(result.grand),
+                middle: sanitize(result.middle),
+                applied: sanitize(result.applied)
+            };
+            // ----------------------------------
+
             setProjectData(prev => ({ 
                 ...prev, 
-                theoryClassification: result 
+                theoryClassification: sanitizedResult 
             }));
             showInfoModal("Klasifikasi Teori (Grand/Middle/Applied) berhasil dipetakan!");
         } catch (error) {
@@ -9605,6 +9634,15 @@ ${context}
 - **Gunakan Sub-judul Bernomor:** Wajib gunakan format seperti "1.1 Latar Belakang", "1.2 Rumusan Masalah", dst.
 - **WAJIB SERTAKAN SITASI:** Saat Anda menggunakan informasi dari "Catatan dari Referensi" untuk sub-bab 1.1 Latar Belakang, Anda wajib menyertakan sitasinya di dalam teks, misal: (Penulis, Tahun).
 
+**ATURAN VISUALISASI (WAJIB ADA):**
+Meskipun hanya teks, Anda WAJIB menyarankan penempatan elemen visual untuk meningkatkan kualitas paper.
+- Jika membahas tren data atau statistik di Latar Belakang, sisipkan:
+  **Gambar 1.X: [Judul Grafik yang Disarankan]**
+  *[Instruksi: Masukkan grafik tren ... di sini]*
+- Jika membandingkan fenomena, sisipkan:
+  **Tabel 1.X: [Judul Tabel yang Disarankan]**
+  *[Instruksi: Masukkan tabel perbandingan ... di sini]*
+
 **Konteks Proyek (Satu-satunya Sumber Informasi Anda):**
 - Judul: "${projectData.judulKTI}"
 - Pokok Masalah: "${projectData.faktaMasalahDraft}"
@@ -9719,38 +9757,49 @@ PENTING (Batasan):
     const handleGenerateMetode = async (selectedIds = []) => {
         setIsLoading(true);
         
-        // --- PERUBAHAN (LOGIKA INTEGRASI SLR) DIMULAI DI SINI ---
-
+        const lowerMetode = (projectData.metode || '').toLowerCase();
+        
         // 1. Cek apakah ini riset SLR/Bibliometrik
         const isSLR = projectData.metode && (
-            projectData.metode.toLowerCase().includes('slr') ||
-            projectData.metode.toLowerCase().includes('systematic literature review') ||
-            projectData.metode.toLowerCase().includes('bibliometric')
+            lowerMetode.includes('slr') ||
+            lowerMetode.includes('systematic') ||
+            lowerMetode.includes('bibliometric') || 
+            lowerMetode.includes('bibliometrik')
         );
+
+        // --- DETEKSI KHUSUS: BIBLIOMETRIK MURNI ---
+        const isBibliometricOnly = (lowerMetode.includes('bibliometric') || lowerMetode.includes('bibliometrik')) && 
+                                   !(lowerMetode.includes('slr') || lowerMetode.includes('systematic'));
 
         // 2. Siapkan data SLR jika relevan
         let slrContext = '';
         if (isSLR) {
             // Data dari Log Kueri
             const logRingkasan = projectData.searchLog
-                .map(log => `- Database: ${log.database}, Kueri: "${log.query}", Hasil: ${log.resultsCount} (Tanggal: ${log.searchDate})`)
+                .map(log => `- [Database: ${log.database}] String Kueri: ${log.query} (Hasil: ${log.resultsCount} dok, Tanggal: ${log.searchDate})`)
                 .join('\n');
             
-            // Data dari PRISMA
-            const { studies = [], initialRecordCount = 0, duplicateCount = 0, automationIneligible = 0, otherReasonsRemoved = 0, reportsNotRetrieved = 0 } = projectData.prismaState || {};
-            const records_screened = initialRecordCount - duplicateCount - automationIneligible - otherReasonsRemoved;
-            const records_excluded = studies.filter(s => s.screeningStatus === 'abstract_excluded').length;
-            const reports_sought_for_retrieval = records_screened - records_excluded;
-            const reports_assessed_for_eligibility = reports_sought_for_retrieval - reportsNotRetrieved;
-            const reports_excluded_fulltext = studies.filter(s => s.screeningStatus === 'fulltext_excluded').length;
-            const studies_included_in_review = reports_assessed_for_eligibility - reports_excluded_fulltext;
-            
-            // Data dari Template Ekstraksi
-            const extractionColumns = projectData.synthesisTableColumns
-                .map(col => `- ${col.label}`)
-                .join('\n');
+            // --- LOGIKA KONTEKS DINAMIS ---
+            if (isBibliometricOnly) {
+                slrContext = `
+**Konteks Bibliometrik Spesifik (WAJIB DIGUNAKAN):**
+---
+**Strategi Pencarian (dari Log Kueri):**
+${logRingkasan || "Log kueri belum diisi."}
+---
+`;
+            } else {
+                const { studies = [], initialRecordCount = 0, duplicateCount = 0, automationIneligible = 0, otherReasonsRemoved = 0, reportsNotRetrieved = 0 } = projectData.prismaState || {};
+                const records_screened = initialRecordCount - duplicateCount - automationIneligible - otherReasonsRemoved;
+                const records_excluded = studies.filter(s => s.screeningStatus === 'abstract_excluded').length;
+                const reports_sought_for_retrieval = records_screened - records_excluded;
+                const reports_assessed_for_eligibility = reports_sought_for_retrieval - reportsNotRetrieved;
+                const reports_excluded_fulltext = studies.filter(s => s.screeningStatus === 'fulltext_excluded').length;
+                const studies_included_in_review = reports_assessed_for_eligibility - reports_excluded_fulltext;
+                
+                const extractionColumns = projectData.synthesisTableColumns.map(col => `- ${col.label}`).join('\n');
 
-            slrContext = `
+                slrContext = `
 **Konteks SLR Spesifik (WAJIB DIGUNAKAN):**
 ---
 **Strategi Pencarian (dari Log Kueri):**
@@ -9765,96 +9814,133 @@ ${logRingkasan || "Log kueri belum diisi."}
 - Laporan dieksklusi (full-text): ${reports_excluded_fulltext}
 - Studi final yang diinklusi: ${studies_included_in_review}
 
-**Ekstraksi Data (dari Template Tabel Sintesis):**
-Kolom-kolom berikut digunakan untuk ekstraksi data:
+**Ekstraksi Data:**
 ${extractionColumns}
 ---
 `;
+            }
         }
 
-        // 3. Mengambil kutipan metodologi (logika yang sudah ada) -> UPDATE: Filtered
+        // 3. Mengambil kutipan metodologi (TERKONSOLIDASI - Filter hanya catatan terisi)
         // Filter referensi: Gunakan yang dipilih jika ada
         const sourceRefs = (selectedIds && selectedIds.length > 0) 
             ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
             : projectData.allReferences;
 
         const kutipanMetodologiString = sourceRefs
-            .filter(ref => ref.isiKutipan)
-            .map(ref => `- Dari "${ref.title}" oleh ${ref.author} (${ref.year}): "${ref.isiKutipan}"`)
-            .join('\n');
+            .filter(ref => ref.isiKutipan && ref.isiKutipan.trim() !== "") // FILTER AKTIF: Hanya kirim yang punya catatan
+            .map(ref => `[REF] Penulis: ${ref.author} (${ref.year}). Judul: "${ref.title}". Isi/Catatan: "${ref.isiKutipan}"`)
+            .join('\n\n');
 
         // 4. Memilih prompt yang tepat
         let prompt;
+
+        // --- LOGIKA VISUALISASI DINAMIS (DIPERBAIKI) ---
+        let visualInstruction = "";
+        if (isBibliometricOnly) {
+             // KOREKSI: Peta Visualisasi dipindah ke Bab 4. Di Bab 3 kita butuh Tabel Parameter.
+             visualInstruction = `- Sisipkan: **Tabel 3.2: Konfigurasi Parameter Analisis**\n  *[Instruksi: Masukkan tabel yang berisi setting software (misal: VOSviewer threshold, unit analisis, metode normalisasi) untuk menjamin reproduktifitas penelitian]*`;
+        } else if (isSLR) {
+             visualInstruction = `- Sisipkan: **Gambar 3.2: Diagram PRISMA**\n  *[Instruksi: Masukkan diagram alir seleksi studi PRISMA 2020 di sini]*`;
+        }
+        
+        // --- INSTRUKSI SITASI GLOBAL (DIPERKETAT) ---
+        const citationInstruction = `
+**Aturan Sitasi (SANGAT KETAT - WAJIB DITERAPKAN):**
+1. **HINDARI PENJELASAN UMUM TANPA SITASI:** Jangan menjelaskan definisi software (VOSviewer, Biblioshiny) atau metode secara "common sense" (misal: "VOSviewer adalah..."). Setiap klaim harus bersumber.
+2. **STRATEGI SITASI (BACKING):** Gunakan HANYA referensi dari daftar "[REF]". Jika referensi tersebut bukan buku metode, gunakan sebagai **PRESEDEN**.
+   - *Contoh Salah:* "VOSviewer digunakan untuk pemetaan bibliometrik." (Tidak ada sitasi).
+   - *Contoh Benar:* "Mengikuti pendekatan yang dilakukan oleh (Author, Year) dalam studi sebelumnya, penelitian ini memanfaatkan VOSviewer untuk..."
+   - *Contoh Benar:* "Analisis bibliometrik diterapkan untuk memetakan struktur intelektual, sejalan dengan kerangka kerja (Author, Year)..."
+3. **JANGAN HALUSINASI:** Jangan mengarang sitasi (Van Eck, Aria, dll) jika nama tersebut tidak ada di daftar "[REF]". Gunakan referensi pengguna yang ada.
+
+**ATURAN FORMATTING (STRICT):**
+1. **DILARANG MENGGUNAKAN SIMBOL MARKDOWN UNTUK JUDUL:** Jangan gunakan tanda pagar (#, ##, ###). 
+2. Gunakan penomoran teks biasa: **3.1 Desain Penelitian**, **3.2...**, **3.3.1...**.
+3. Hasilkan teks yang bersih dan siap salin.
+
+**ATURAN VISUALISASI (WAJIB ADA):**
+Bantu pembaca memahami metode dengan menyarankan visualisasi:
+- Untuk Desain Penelitian, sisipkan: **Gambar 3.1: Alur Penelitian (Flowchart)**
+  *[Instruksi: Masukkan diagram alir tahapan penelitian di sini]*
+${visualInstruction}
+`;
+        // ---------------------------------------------
+
         if (isSLR) {
-            // PROMPT KHUSUS SLR
-            prompt = `Anda adalah seorang penulis akademik dan ahli metodologi SLR/Bibliometrik. Tugas Anda adalah menulis draf Bab 3: Metode Penelitian yang sangat rinci HANYA berdasarkan data yang disediakan.
+            // --- STRUKTUR BAB DINAMIS ---
+            let structureInstructions = "";
+            
+            if (isBibliometricOnly) {
+                structureInstructions = `
+**Struktur Bab Metode Bibliometrik:**
+1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
+2.  **3.1 Desain Penelitian:** Jelaskan penggunaan pendekatan analisis Bibliometrik dengan merujuk pada referensi pengguna sebagai contoh penerapan.
+3.  **3.2 Sumber Data & Strategi Pencarian:** Tampilkan String Kueri (Verbatim), Database, dan Tanggal dari data Log Kueri.
+4.  **3.3 Analisis Data:** Jelaskan Tools dan teknik analisis. Pastikan setiap penjelasan alat didukung oleh sitasi ke referensi pengguna yang juga menggunakan alat/metode serupa.
+`;
+            } else {
+                structureInstructions = `
+**Struktur Bab Metode SLR:**
+1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
+2.  **3.1 Desain Penelitian:** Jelaskan penggunaan SLR/PRISMA dengan sitasi preseden.
+3.  **3.2 Strategi Pencarian:** Tampilkan String Kueri, Database, dan Tanggal.
+4.  **3.3 Seleksi Studi:** Gunakan angka PRISMA.
+5.  **3.4 Ekstraksi Data:** Sebutkan kolom data.
+6.  **3.5 Analisis Data:** Jelaskan teknik analisis dengan sitasi pendukung.
+`;
+            }
 
-**Aturan Paling Penting (WAJIB DIPATUHI):**
-- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek" dan "Konteks SLR Spesifik". JANGAN membuat asumsi atau menambahkan informasi yang tidak ada.
-- **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
-- **Gunakan Sub-judul Bernomor:** Wajib gunakan format "3.1 ...", "3.2 ...", dst.
+            prompt = `Anda adalah ahli metodologi SLR/Bibliometrik. Tulis draf Bab 3 berdasarkan data berikut.
 
-**Konteks Proyek (Sumber Umum):**
+${citationInstruction}
+
+**Konteks Proyek:**
 - Judul: "${projectData.judulKTI}"
-- Pendekatan Penelitian: "${projectData.pendekatan}"
-- Metode Spesifik: "${projectData.metode}"
-- Sumber Data: "${projectData.basisData}"
-- Periode: "${projectData.periode}"
-- Tools Analisis: "${projectData.tools}"
+- Metode: "${projectData.metode}"
+- Tools: "${projectData.tools}"
 
 ${slrContext} 
 
-**Catatan Relevan dari Referensi (Gunakan untuk Mendukung Penjelasan):**
+**Referensi Pendukung (Gunakan untuk Sitasi Preseden):**
 ---
-${kutipanMetodologiString || "Tidak ada catatan relevan dari referensi yang dapat digunakan."}
+${kutipanMetodologiString || "Tidak ada referensi terpilih."}
 ---
 
-**Struktur Bab Metode SLR yang Harus Anda Hasilkan:**
-1.  **Judul Bab:** "BAB III METODE PENELITIAN".
-2.  **3.1 Desain Penelitian:** Jelaskan secara singkat bahwa penelitian ini menggunakan ${projectData.metode}.
-3.  **3.2 Strategi Pencarian:** Uraikan proses pencarian. Gunakan data dari "Strategi Pencarian (dari Log Kueri)" untuk menjelaskan database yang digunakan dan ringkasan kueri. Sebutkan juga "Periode" dan "Sumber Data" dari Konteks Proyek.
-4.  **3.3 Seleksi Studi dan Kriteria Inklusi/Eksklusi:** Jelaskan alur seleksi studi. Gunakan angka-angka dari "Seleksi Studi (dari Diagram PRISMA)" untuk menjelaskan proses dari identifikasi awal hingga studi final yang diinklusi (alur PRISMA).
-5.  **3.4 Ekstraksi Data:** Jelaskan proses ekstraksi data. Gunakan daftar kolom dari "Ekstraksi Data (dari Template Tabel Sintesis)" untuk menjelaskan data apa saja yang dikumpulkan dari setiap studi.
-6.  **3.5 Analisis Data:** Jelaskan "Tools Analisis" yang digunakan (misal: VOSviewer, R) untuk menganalisis data yang telah diekstrak.
+${structureInstructions}
 
-Susun poin-poin di atas menjadi narasi bab metode yang koheren dan didukung data.`;
+Susun narasi akademis yang mengalir.`;
         
         } else {
-            // PROMPT UMUM (yang sudah ada sebelumnya)
-            prompt = `Anda adalah seorang penulis akademik dan metodolog penelitian yang sangat teliti. Tugas Anda adalah menulis draf Bab 3: Metode Penelitian yang komprehensif HANYA berdasarkan informasi dan kutipan yang disediakan.
+             // PROMPT UMUM (NON-SLR)
+            prompt = `Anda adalah penulis akademik. Tulis draf Bab 3: Metode Penelitian.
 
-**Aturan Paling Penting (WAJIB DIPATUHI):**
-- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek" dan "Catatan Relevan dari Referensi" di bawah. JANGAN menambahkan informasi, asumsi, atau referensi lain yang tidak ada secara eksplisit.
-- **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
-- **Gunakan Sub-judul Bernomor:** Wajib gunakan format "3.1 Desain Penelitian", "3.2 ...", dst.
-- **Integrasikan Sitasi:** Jika "Catatan Relevan dari Referensi" tersedia, gunakan kutipan tersebut untuk memperkuat penjelasan metodologi. Sebutkan sumbernya (penulis, tahun) saat Anda mengutip sebuah ide.
+${citationInstruction}
 
-**Konteks Proyek (Sumber Utama):**
+**Konteks Proyek:**
 - Judul: "${projectData.judulKTI}"
-- Pendekatan Penelitian: "${projectData.pendekatan}"
-- Metode Spesifik: "${projectData.metode || 'Tidak ditentukan'}"
+- Pendekatan: "${projectData.pendekatan}"
+- Metode: "${projectData.metode || 'Tidak ditentukan'}"
 - Sumber Data: "${projectData.basisData || 'Tidak ditentukan'}"
-- Periode: "${projectData.periode || 'Tidak ditentukan'}"
-- Tools Analisis: "${projectData.tools || 'Tidak ditentukan'}"
+- Tools: "${projectData.tools || 'Tidak ditentukan'}"
 
-**Catatan Relevan dari Referensi (Gunakan untuk Mendukung Penjelasan):**
+**Referensi Pendukung (Gunakan untuk Sitasi Preseden):**
 ---
-${kutipanMetodologiString || "Tidak ada catatan relevan dari referensi yang dapat digunakan."}
+${kutipanMetodologiString || "Tidak ada referensi terpilih."}
 ---
 
-**Struktur Bab Metode yang Harus Anda Hasilkan:**
-1.  **Judul Bab:** Mulai dengan "BAB III METODE PENELITIAN".
-2.  **3.1 Desain Penelitian:** Jelaskan desain penelitian berdasarkan "Pendekatan Penelitian". Jika ada kutipan yang relevan tentang pendekatan ini, gunakan untuk memperkuat argumen.
-3.  **3.2 Metode Pengumpulan Data:** Uraikan bagaimana data akan dikumpulkan, sebutkan "Sumber Data" dan "Periode".
-4.  **3.3 Metode Analisis Data:** Jelaskan "Metode Spesifik" dan "Tools Analisis" yang akan digunakan. Ini adalah bagian terpenting untuk didukung oleh referensi. Jika ada catatan tentang metode (misalnya, tentang SLR, PRISMA, atau studi kasus), integrasikan kutipan tersebut di sini untuk memberikan dasar teoretis pada metode yang Anda pilih.
+**Struktur Bab:**
+1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
+2.  **3.1 Desain Penelitian:** Jelaskan desain penelitian. Gunakan sitasi dari referensi pengguna sebagai contoh penerapan.
+3.  **3.2 Prosedur/Pengumpulan Data:** Jelaskan langkah kerja.
+4.  **3.3 Analisis Data:** Jelaskan cara data diolah dengan dukungan referensi.
 
-Susun poin-poin di atas menjadi sebuah narasi bab metode yang koheren dan didukung oleh sitasi yang relevan.`;
+Susun narasi akademis yang mengalir.`;
         }
-        // --- PERUBAHAN (LOGIKA INTEGRASI SLR) BERAKHIR DI SINI ---
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
-            const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
+            const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, ""); // Pembersihan markdown tambahan
             setProjectData(prev => ({ ...prev, metodeDraft: cleanResult }));
             showInfoModal("Draf Bab Metode berhasil dibuat!");
         } catch (error) {
@@ -9894,6 +9980,15 @@ Susun poin-poin di atas menjadi sebuah narasi bab metode yang koheren dan diduku
 - **Fokus pada Rumusan Masalah:** Prioritaskan sintesis catatan yang paling relevan untuk memberikan landasan teoretis bagi "Rumusan Masalah".
 - **Format Teks:** Tulis seluruhnya sebagai teks biasa (plain text). Jangan gunakan markdown (*, _, **), HTML.
 - **Wajib Sitasi:** Saat Anda menggunakan ide dari 'Catatan dari Referensi', Anda WAJIB menyertakan sitasinya (Penulis, Tahun).
+
+**ATURAN VISUALISASI (WAJIB ADA):**
+Tinjauan Pustaka yang baik membutuhkan sintesis visual.
+- Sisipkan placeholder berikut di bagian akhir bab atau tempat yang relevan:
+  **Gambar 2.X: Kerangka Konseptual / Berpikir**
+  *[Instruksi: Masukkan diagram hubungan antar variabel atau alur konsep di sini]*
+- Jika ada perbandingan teori, sisipkan:
+  **Tabel 2.X: Matriks Perbandingan Teori**
+  *[Instruksi: Masukkan tabel perbandingan studi terdahulu di sini]*
 
 **Konteks Proyek (Satu-satunya Sumber Informasi Anda):**
 - Judul Karya Tulis: "${projectData.judulKTI}"
@@ -9968,6 +10063,13 @@ Aturan Paling Penting (WAJIB DIPATUHI):
 5. **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Sumber Data & Konteks". JANGAN membuat asumsi atau menambahkan informasi yang tidak ada.
 6. **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
 7. **Gunakan Sub-judul Bernomor:** Wajib gunakan format "4.1 ...", "4.2 ...", dst.
+
+**ATURAN VISUALISASI (WAJIB ADA):**
+Bab 4 adalah tempatnya data. Anda WAJIB memberikan instruksi penempatan Tabel/Gambar untuk setiap data penting.
+- Untuk data responden, sisipkan: **Tabel 4.X: Karakteristik Responden**
+  *[Instruksi: Masukkan tabel demografi di sini]*
+- Untuk hasil uji/analisis, sisipkan: **Tabel/Gambar 4.X: [Judul Sesuai Data]**
+  *[Instruksi: Masukkan output statistik/diagram di sini]*
 
 **Sumber Data & Konteks:**
 - Judul: "${projectData.judulKTI}"
@@ -10275,31 +10377,22 @@ const handleAddRegulationToReference = (regulationResult) => {
     };
 
     const handleGenerateAdvancedSemanticQuery = async (clueObj) => {
-    const prompt = `Anda adalah "Search Query Engineer" untuk database akademis. Tugas: Ubah Input (Bahasa Indonesia) menjadi SATU frasa pencarian Bahasa Inggris yang "High-Recall" dan "High-Precision".
+    const prompt = `Anda adalah "Search Query Engineer". Tugas: Terjemahkan dan optimalkan kata kunci pencarian.
 
-    Input:
-    - Tujuan (Explanation): "${clueObj.explanation}"
-    - Kata Kunci (Clue): "${clueObj.clue}"
+    Input Asli: "${clueObj.clue}"
+    Konteks: "${clueObj.explanation}"
 
-    **ALGORITMA TRANSFORMASI (WAJIB DIPATUHI):**
+    **ATURAN TRANSFORMASI (SMART & STRICT MODE):**
+    1. **PERTAHANKAN VARIABEL INTI (MUTLAK):** Jangan ubah istilah teknis spesifik. Contoh: "Knowledge Graph" JANGAN diubah jadi "Information System". "Stunting" JANGAN diubah jadi "Malnutrition".
+    2. **UPGRADE KATA UMUM (ACADEMIC DICTION):** - Jangan gunakan "Definition" -> Ganti dengan "Concept", "Ontology", "Conceptualization", atau "Theoretical Framework".
+       - Jangan gunakan "Benefits/Advantages" -> Ganti dengan "Implications", "Efficacy", atau "Impact Analysis".
+       - Jangan gunakan "Ways/How to" -> Ganti dengan "Mechanism", "Approach", atau "Strategy".
+    3. **HAPUS STOP WORDS:** Buang kata sambung yang tidak perlu (of, the, in, for) agar kueri padat.
+    4. **KONTEKSTUALISASI:** Gabungkan Variabel Inti + Kata Akademis. 
+       - Contoh Salah: "Definition of Knowledge Graph"
+       - Contoh Benar: "Knowledge Graph ontology architecture"
 
-    1. **Hapus Kata Kerja Lemah:** Buang kata seperti "Mendefinisikan", "Mengetahui", "Memahami", "Pentingnya". Fokus pada KATA BENDA (Noun Phrases).
-    2. **Konversi "Definition" -> "Framework/Analysis":**
-       - JANGAN gunakan: "definition of...", "meaning of...", "what is...". (Ini memanggil kamus/textbook).
-       - GANTI dengan: "conceptual framework", "theoretical model", "analysis", "implementation", "dimensions", "determinants".
-    3. **Konversi "Research Gap" -> "Magic Keywords":**
-       - Jika mencari gap/masalah, JANGAN CUMA pakai "research gap".
-       - GUNAKAN: "challenges", "barriers", "limitations", "future research directions", "systematic review", "meta-analysis".
-    4. **Contextualize:** Selalu gabungkan Topik + Konteks.
-       - Salah: "public service" (terlalu luas).
-       - Benar: "public service" AND "artificial intelligence".
-
-    **Contoh:**
-    - Input: "Untuk mendefinisikan metode bibliometrik" -> Output: "bibliometric analysis best practices methodology"
-    - Input: "Mencari gap riset AI" -> Output: "artificial intelligence implementation challenges future research"
-    - Input: "Model adopsi teknologi" -> Output: "technology adoption model framework public sector"
-
-    Hasilkan HANYA string kueri final dalam Bahasa Inggris, tanpa tanda kutip.`;
+    Hasilkan HANYA string kueri final dalam Bahasa Inggris (tanpa tanda kutip).`;
 
     try {
         const result = await geminiService.run(prompt, geminiApiKeys);
