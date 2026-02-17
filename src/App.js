@@ -5329,11 +5329,57 @@ const AnalisisGapNovelty = ({
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isMapping, setIsMapping] = useState(false); 
     const [targetDraft, setTargetDraft] = useState('pendahuluanDraft');
-    // --- STATE BARU: MANUAL KEYWORDS ---
     const [manualKeywords, setManualKeywords] = useState('');
-    // -----------------------------------
+    // --- STATE UNTUK CSV UPLOAD ---
+    const [csvHeaders, setCsvHeaders] = useState([]);
+    const [csvData, setCsvData] = useState([]);
+    const [selectedColumn, setSelectedColumn] = useState('');
+    
+    // PERBAIKAN UTAMA: Pastikan baris ini ada!
+    const fileInputRef = useRef(null); 
+    // -------------------------------
     const isPremium = projectData.isPremium;
     
+    // --- FUNGSI BARU: HANDLE CSV UPLOAD ---
+    const handleKeywordCsvUpload = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            window.Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    if (results.meta.fields && results.meta.fields.length > 0) {
+                        setCsvHeaders(results.meta.fields);
+                        setCsvData(results.data);
+                        showInfoModal("File berhasil dimuat. Silakan pilih kolom yang berisi kata kunci.");
+                    } else {
+                        showInfoModal("Gagal membaca header kolom CSV.");
+                    }
+                },
+                error: (err) => showInfoModal(`Error parsing CSV: ${err.message}`)
+            });
+        }
+    };
+
+    const handleColumnSelect = (column) => {
+        setSelectedColumn(column);
+        if (csvData.length > 0 && column) {
+            // Ekstrak data dari kolom yang dipilih
+            // Filter nilai kosong & gabungkan dengan baris baru
+            const extractedKeywords = csvData
+                .map(row => row[column])
+                .filter(item => item && item.trim() !== "")
+                .join('\n');
+            
+            // Masukkan ke dalam textarea manualKeywords
+            setManualKeywords(extractedKeywords);
+            
+            // Opsional: Beri notifikasi jumlah data
+            const count = csvData.length;
+            showInfoModal(`Berhasil mengekstrak ${count} baris data dari kolom "${column}" ke dalam area input.`);
+        }
+    };
+
     // Helper: Pilih Semua / Hapus Semua
     const handleSelectAll = (select) => {
         if (select) {
@@ -5389,9 +5435,23 @@ const AnalisisGapNovelty = ({
             keywordContext = `\nDAFTAR KATA KUNCI PRIORITAS (User Input):\n${manualKeywords}\n\n`;
         }
 
+        // --- UPDATE: TIME INJECTION & ATURAN DISTRIBUSI ---
+        const currentYear = new Date().getFullYear();
+        
         const groundingInstruction = (activeTab === 'keyword') 
-            ? "Karena ini adalah Mode Konsep (tanpa literatur spesifik), Anda WAJIB menggunakan pengetahuan internal/global Anda (Google Search Grounding) untuk memetakan posisi strategis tema-tema dari 'Daftar Kata Kunci' di atas dalam lanskap riset dunia saat ini."
+            ? `KONTEKS WAKTU: SAAT INI ADALAH TAHUN ${currentYear}.
+            
+            Karena ini Mode Konsep, gunakan pengetahuan global Anda.
+            
+            **ATURAN DISTRIBUSI KUADRAN (SANGAT KETAT):**
+            AI sering bias menaruh semua di "Motor Themes". HINDARI ITU. Lakukan diferensiasi tajam:
+            1. **Emerging Themes (Kiri-Bawah):** WAJIB digunakan untuk topik yang *Trending/Hype* dalam 1-2 tahun terakhir tetapi belum mapan secara metodologis. (High Centrality potential, Low Density).
+            2. **Motor Themes (Kanan-Atas):** HANYA untuk topik yang sudah MATANG, STABIL, dan menjadi standar baku selama >5-10 tahun.
+            3. **Niche Themes (Kiri-Atas):** Topik yang sangat spesifik, teknis, atau marginal.
+            
+            Tugas Anda adalah menyebarkan topik-topik input ke dalam kuadran yang berbeda, jangan menumpuk di satu tempat.`
             : "Gunakan daftar literatur yang disediakan di bawah ini sebagai sumber data utama pemetaan (Inductive Clustering).";
+        // --------------------------------------------------
 
         // 4. Prompt Strategis
         const prompt = `Anda adalah ahli Bibliometrik (Science Mapping). Tugas Anda adalah membuat "Thematic Map" (Peta Tematik) dari data berikut.
@@ -5630,17 +5690,60 @@ ${citationInstruction}
         )}
 
         {/* KONTEN TAB 2: ANALISIS KATA KUNCI (KONSEP) */}
+        {/* KONTEN TAB 2: ANALISIS KATA KUNCI (KONSEP) */}
         {activeTab === 'keyword' && (
             <div className="mb-6 animate-fade-in">
-                <h4 className="font-bold text-gray-700 text-sm mb-2">Daftar Kata Kunci / Topik (Satu per baris):</h4>
-                <p className="text-xs text-gray-500 mb-2">
-                    Gunakan add-on <a href="https://cobrasaurus.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">Cobrasaurus</a> untuk generate dan cleaning kata kunci.
-                </p>
+                <h4 className="font-bold text-gray-700 text-sm mb-2">Sumber Data Kata Kunci:</h4>
+                
+                {/* --- BAGIAN BARU: UPLOAD CSV --- */}
+                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-4">
+                    <div className="flex flex-col sm:flex-row gap-4 items-center">
+                        <input 
+                            type="file" 
+                            accept=".csv"
+                            ref={fileInputRef}
+                            onChange={handleKeywordCsvUpload}
+                            className="hidden" 
+                        />
+                        <button 
+                            onClick={() => fileInputRef.current.click()}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-lg flex items-center gap-2 whitespace-nowrap"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+                            Upload CSV (Scopus/WoS)
+                        </button>
+
+                        {/* Dropdown Pemilih Kolom (Muncul setelah upload) */}
+                        {csvHeaders.length > 0 && (
+                            <div className="flex-1 w-full">
+                                <select 
+                                    value={selectedColumn}
+                                    onChange={(e) => handleColumnSelect(e.target.value)}
+                                    className="w-full text-xs border-indigo-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 bg-white"
+                                >
+                                    <option value="">-- Pilih Kolom Kata Kunci (Misal: Author Keywords) --</option>
+                                    {csvHeaders.map(header => (
+                                        <option key={header} value={header}>{header}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                    </div>
+                    <p className="text-[10px] text-indigo-800 mt-2">
+                        *Tips: Upload file CSV ekspor dari Scopus/WoS, lalu pilih kolom "Author Keywords" atau "Index Keywords" untuk otomatis mengisi kotak di bawah.
+                    </p>
+                </div>
+                {/* -------------------------------- */}
+
+                <div className="flex justify-between items-center mb-1">
+                    <label className="text-gray-700 text-xs font-bold">Daftar Kata Kunci / Topik (Dapat diedit):</label>
+                    <span className="text-[10px] text-gray-400">{manualKeywords.split('\n').filter(k => k.trim()).length} item</span>
+                </div>
                 <textarea 
                     value={manualKeywords}
                     onChange={(e) => setManualKeywords(e.target.value)}
-                    className="w-full p-3 text-xs border-2 border-gray-200 rounded-xl h-32 focus:ring-2 focus:ring-blue-500 font-mono shadow-inner outline-none transition-all"
-                    placeholder={`Contoh:\nartificial intelligence\npublic trust\ndata privacy\nethical governance`}
+                    className="w-full p-3 text-xs border-2 border-gray-200 rounded-xl h-48 focus:ring-2 focus:ring-blue-500 font-mono shadow-inner outline-none transition-all"
+                    placeholder={`Contoh:\nartificial intelligence\npublic trust\ndata privacy\nethical governance\n\n(Atau gunakan tombol Upload CSV di atas)`}
                 ></textarea>
             </div>
         )}
@@ -9613,6 +9716,17 @@ ${context}
     const handleGenerateFullPendahuluan = async (selectedIds = []) => {
         setIsLoading(true);
         
+        // 1. Cek Draf Lama (Context Injection)
+        const existingContent = projectData.pendahuluanDraft || "";
+        const userNotesContext = existingContent.trim() !== "" ? `
+**CATATAN AWAL / TEMUAN VISUAL PENGGUNA (SANGAT PENTING):**
+Pengguna telah memasukkan catatan berikut ke dalam draf (misalnya hasil Analisis Visual Peta Tematik).
+Anda **WAJIB MENGINTEGRASIKAN** temuan ini ke dalam narasi (misalnya di bagian Latar Belakang atau Research Gap). JANGAN membuangnya.
+---
+${existingContent}
+---
+` : "";
+
         // Filter referensi: Jika ada yang dipilih, pakai itu. Jika tidak, pakai semua (fallback).
         const sourceRefs = (selectedIds && selectedIds.length > 0) 
             ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
@@ -9623,77 +9737,47 @@ ${context}
             .map(ref => `- Dari "${ref.title}" oleh ${ref.author} (${ref.year}): "${ref.isiKutipan}"`)
             .join('\n');
         
-        // [BAGIAN OUTLINE SUDAH DIHAPUS DISINI]
-
-        // --- PERBAIKAN PROMPT DI SINI (AKSI 1 & AKSI 2 LENGKAP) ---
-        const prompt = `Anda adalah seorang penulis akademik ahli yang sangat teliti. Tugas Anda adalah menulis draf Bab 1: Pendahuluan yang lengkap dan koheren HANYA berdasarkan informasi yang disediakan.
+        // --- PROMPT UPDATE ---
+        const prompt = `Anda adalah seorang penulis akademik ahli yang sangat teliti. Tugas Anda adalah menulis draf Bab 1: Pendahuluan yang lengkap dan koheren.
 
 **Aturan Paling Penting (WAJIB DIPATUHI):**
-- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek" di bawah. JANGAN menambahkan informasi, konsep, atau referensi lain yang tidak ada secara eksplisit dalam catatan yang diberikan. Anda harus bekerja HANYA dengan materi yang ada.
-- **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
-- **Gunakan Sub-judul Bernomor:** Wajib gunakan format seperti "1.1 Latar Belakang", "1.2 Rumusan Masalah", dst.
-- **WAJIB SERTAKAN SITASI:** Saat Anda menggunakan informasi dari "Catatan dari Referensi" untuk sub-bab 1.1 Latar Belakang, Anda wajib menyertakan sitasinya di dalam teks, misal: (Penulis, Tahun).
+- **Integrasi Catatan Pengguna:** Jika ada "CATATAN AWAL / TEMUAN VISUAL PENGGUNA" di atas, leburkan isinya secara natural ke dalam alur tulisan. Jangan biarkan terpisah.
+- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek" dan Referensi.
+- **Tulis Seluruhnya sebagai Teks Biasa (Plain Text).**
+- **WAJIB SERTAKAN SITASI.**
 
 **ATURAN VISUALISASI (WAJIB ADA):**
-Meskipun hanya teks, Anda WAJIB menyarankan penempatan elemen visual untuk meningkatkan kualitas paper.
-- Jika membahas tren data atau statistik di Latar Belakang, sisipkan:
-  **Gambar 1.X: [Judul Grafik yang Disarankan]**
-  *[Instruksi: Masukkan grafik tren ... di sini]*
-- Jika membandingkan fenomena, sisipkan:
-  **Tabel 1.X: [Judul Tabel yang Disarankan]**
-  *[Instruksi: Masukkan tabel perbandingan ... di sini]*
+Meskipun hanya teks, Anda WAJIB menyarankan penempatan elemen visual:
+- **Gambar 1.X: [Judul Grafik/Peta yang Disarankan]**
+  *[Instruksi: Masukkan grafik tren atau peta tematik di sini]*
 
-**Konteks Proyek (Satu-satunya Sumber Informasi Anda):**
+**Konteks Proyek:**
 - Judul: "${projectData.judulKTI}"
 - Pokok Masalah: "${projectData.faktaMasalahDraft}"
-- Rumusan Masalah (Pertanyaan Penelitian): "${projectData.rumusanMasalahDraft || 'Belum ada rumusan masalah spesifik.'}" 
+- Rumusan Masalah: "${projectData.rumusanMasalahDraft || 'Belum ada rumusan masalah spesifik.'}" 
 - Tujuan Penelitian: "${projectData.tujuanPenelitianDraft}"
+
+${userNotesContext}
+
 - Catatan dari Referensi (untuk mendukung latar belakang):
 ${kutipanString || "Tidak ada catatan spesifik dari referensi."}
 
 **Struktur Bab Pendahuluan yang Harus Anda Hasilkan:**
-1.1 Latar Belakang / Konteks Ilmiah
-Menyajikan konteks ilmiah dan fenomena terkini terkait topik penelitian.
-Menunjukkan kondisi global/nasional yang relevan, termasuk data terbaru.
-Menguraikan masalah empiris dan pentingnya penelitian ini dilakukan.
-Didukung oleh sitasi terbaru (≤5 tahun terakhir) untuk menunjukkan state of the art.
-
+1.1 Latar Belakang / Konteks Ilmiah (Integrasikan temuan visual di sini jika relevan)
 1.2. Kesenjangan Penelitian (Research Gap)
-Mengidentifikasi kekurangan atau ketidakkonsistenan pada penelitian sebelumnya.
-Menjelaskan secara spesifik aspek apa yang belum dikaji oleh peneliti terdahulu.
-Menunjukkan kebaruan (novelty) penelitian saat ini dengan jelas, misalnya: “Namun, kajian sebelumnya belum membahas … dalam konteks …”
-Bagian ini adalah inti Bab 1 dalam standar Q1.
-
 1.3. Rumusan Masalah (Problem Statement)
-Menyatakan secara tegas masalah inti yang hendak diselesaikan.
-Disusun sebagai jembatan antara research gap dan pertanyaan penelitian.
-Cukup 1–2 kalimat, tanpa elaborasi berlebihan.
-
 1.4. Pertanyaan Penelitian / Hipotesis
-Jika kualitatif atau mixed method: daftar 1–3 pertanyaan penelitian.
-Jika kuantitatif: rumusan hipotesis yang jelas (arah hubungan variabel opsional).
-
 1.5. Tujuan Penelitian
-Menyebutkan tujuan umum dan tujuan khusus penelitian.
-Selaras langsung dengan research gap dan pertanyaan penelitian.
-
 1.6. Kontribusi Penelitian (Teoretis dan Praktis)
-Kontribusi teoretis:
-Menjelaskan bagaimana penelitian memperluas teori, memvalidasi model, atau memperbaiki pendekatan metodologis.
-Kontribusi praktis / kebijakan / manajerial:
-Dampak penelitian pada praktik kebijakan, manajemen, atau pengambilan keputusan di sektor terkait.
-Bagian ini menjadi indikator penting dalam penilaian jurnal Q1 untuk menentukan nilai kebaruan dan relevansi.
-
 1.7. Struktur Artikel
-Satu paragraf pendek yang menjelaskan alur keseluruhan artikel, misalnya:
-“Artikel ini disajikan sebagai berikut. Bagian 2 membahas tinjauan pustaka dan pengembangan hipotesis. Bagian 3 menjelaskan metodologi penelitian. Bagian 4 menyajikan hasil dan pembahasan. Bagian 5 memberikan kesimpulan dan implikasi.”
+
 Pastikan ada kesinambungan dan alur yang logis antar sub-bab.`;
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, pendahuluanDraft: cleanResult }));
-            showInfoModal("Draf Pendahuluan Lengkap berhasil dibuat!");
+            showInfoModal("Draf Pendahuluan Lengkap berhasil dibuat (Catatan/Visual terintegrasi)!");
         } catch (error) {
             showInfoModal(`Gagal menghasilkan Pendahuluan: ${error.message}`);
         } finally {
@@ -9757,6 +9841,16 @@ PENTING (Batasan):
     const handleGenerateMetode = async (selectedIds = []) => {
         setIsLoading(true);
         
+        // 1. Cek Draf Lama (Context Injection)
+        const existingContent = projectData.metodeDraft || "";
+        const userNotesContext = existingContent.trim() !== "" ? `
+**CATATAN AWAL / PILIHAN METODE PENGGUNA:**
+Pengguna telah mengisi draf ini sebelumnya. Gunakan informasi di bawah ini sebagai prioritas panduan penulisan metode (misalnya jika pengguna sudah menuliskan parameter spesifik).
+---
+${existingContent}
+---
+` : "";
+
         const lowerMetode = (projectData.metode || '').toLowerCase();
         
         // 1. Cek apakah ini riset SLR/Bibliometrik
@@ -9838,26 +9932,17 @@ ${extractionColumns}
         // --- LOGIKA VISUALISASI DINAMIS (DIPERBAIKI) ---
         let visualInstruction = "";
         if (isBibliometricOnly) {
-             // KOREKSI: Peta Visualisasi dipindah ke Bab 4. Di Bab 3 kita butuh Tabel Parameter.
              visualInstruction = `- Sisipkan: **Tabel 3.2: Konfigurasi Parameter Analisis**\n  *[Instruksi: Masukkan tabel yang berisi setting software (misal: VOSviewer threshold, unit analisis, metode normalisasi) untuk menjamin reproduktifitas penelitian]*`;
         } else if (isSLR) {
              visualInstruction = `- Sisipkan: **Gambar 3.2: Diagram PRISMA**\n  *[Instruksi: Masukkan diagram alir seleksi studi PRISMA 2020 di sini]*`;
         }
         
-        // --- INSTRUKSI SITASI GLOBAL (DIPERKETAT) ---
+        // --- INSTRUKSI SITASI GLOBAL (MEMAKSA RELEVANSI) ---
         const citationInstruction = `
-**Aturan Sitasi (SANGAT KETAT - WAJIB DITERAPKAN):**
-1. **HINDARI PENJELASAN UMUM TANPA SITASI:** Jangan menjelaskan definisi software (VOSviewer, Biblioshiny) atau metode secara "common sense" (misal: "VOSviewer adalah..."). Setiap klaim harus bersumber.
+**Aturan Sitasi (SANGAT KETAT):**
+1. **HINDARI PENJELASAN UMUM TANPA SITASI:** Jangan menjelaskan definisi software atau metode secara "common sense".
 2. **STRATEGI SITASI (BACKING):** Gunakan HANYA referensi dari daftar "[REF]". Jika referensi tersebut bukan buku metode, gunakan sebagai **PRESEDEN**.
-   - *Contoh Salah:* "VOSviewer digunakan untuk pemetaan bibliometrik." (Tidak ada sitasi).
-   - *Contoh Benar:* "Mengikuti pendekatan yang dilakukan oleh (Author, Year) dalam studi sebelumnya, penelitian ini memanfaatkan VOSviewer untuk..."
-   - *Contoh Benar:* "Analisis bibliometrik diterapkan untuk memetakan struktur intelektual, sejalan dengan kerangka kerja (Author, Year)..."
-3. **JANGAN HALUSINASI:** Jangan mengarang sitasi (Van Eck, Aria, dll) jika nama tersebut tidak ada di daftar "[REF]". Gunakan referensi pengguna yang ada.
-
-**ATURAN FORMATTING (STRICT):**
-1. **DILARANG MENGGUNAKAN SIMBOL MARKDOWN UNTUK JUDUL:** Jangan gunakan tanda pagar (#, ##, ###). 
-2. Gunakan penomoran teks biasa: **3.1 Desain Penelitian**, **3.2...**, **3.3.1...**.
-3. Hasilkan teks yang bersih dan siap salin.
+3. **JANGAN HALUSINASI.**
 
 **ATURAN VISUALISASI (WAJIB ADA):**
 Bantu pembaca memahami metode dengan menyarankan visualisasi:
@@ -9867,38 +9952,13 @@ ${visualInstruction}
 `;
         // ---------------------------------------------
 
-        if (isSLR) {
-            // --- STRUKTUR BAB DINAMIS ---
-            let structureInstructions = "";
-            
-            if (isBibliometricOnly) {
-                structureInstructions = `
-**Struktur Bab Metode Bibliometrik:**
-1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
-2.  **3.1 Desain Penelitian:** Jelaskan penggunaan pendekatan analisis Bibliometrik dengan merujuk pada referensi pengguna sebagai contoh penerapan.
-3.  **3.2 Sumber Data & Strategi Pencarian:** Tampilkan String Kueri (Verbatim), Database, dan Tanggal dari data Log Kueri.
-4.  **3.3 Analisis Data:** Jelaskan Tools dan teknik analisis. Pastikan setiap penjelasan alat didukung oleh sitasi ke referensi pengguna yang juga menggunakan alat/metode serupa.
-`;
-            } else {
-                structureInstructions = `
-**Struktur Bab Metode SLR:**
-1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
-2.  **3.1 Desain Penelitian:** Jelaskan penggunaan SLR/PRISMA dengan sitasi preseden.
-3.  **3.2 Strategi Pencarian:** Tampilkan String Kueri, Database, dan Tanggal.
-4.  **3.3 Seleksi Studi:** Gunakan angka PRISMA.
-5.  **3.4 Ekstraksi Data:** Sebutkan kolom data.
-6.  **3.5 Analisis Data:** Jelaskan teknik analisis dengan sitasi pendukung.
-`;
-            }
-
-            prompt = `Anda adalah ahli metodologi SLR/Bibliometrik. Tulis draf Bab 3 berdasarkan data berikut.
-
-${citationInstruction}
-
+        const promptBase = `
 **Konteks Proyek:**
 - Judul: "${projectData.judulKTI}"
 - Metode: "${projectData.metode}"
 - Tools: "${projectData.tools}"
+
+${userNotesContext}
 
 ${slrContext} 
 
@@ -9906,43 +9966,54 @@ ${slrContext}
 ---
 ${kutipanMetodologiString || "Tidak ada referensi terpilih."}
 ---
+`;
 
+        if (isSLR) {
+            let structureInstructions = "";
+            if (isBibliometricOnly) {
+                structureInstructions = `
+**Struktur Bab Metode Bibliometrik:**
+1.  **Judul Bab:** "BAB III METODE PENELITIAN".
+2.  **3.1 Desain Penelitian:** Jelaskan penggunaan pendekatan analisis Bibliometrik dengan merujuk pada referensi pengguna sebagai contoh penerapan. Integrasikan catatan pengguna jika ada.
+3.  **3.2 Sumber Data & Strategi Pencarian:** Tampilkan String Kueri (Verbatim), Database, dan Tanggal dari data Log Kueri.
+4.  **3.3 Analisis Data:** Jelaskan Tools dan teknik analisis.
+`;
+            } else {
+                structureInstructions = `
+**Struktur Bab Metode SLR:**
+1.  **Judul Bab:** "BAB III METODE PENELITIAN".
+2.  **3.1 Desain Penelitian:** Jelaskan penggunaan SLR/PRISMA dengan sitasi preseden.
+3.  **3.2 Strategi Pencarian:** Tampilkan String Kueri, Database, dan Tanggal.
+4.  **3.3 Seleksi Studi:** Gunakan angka PRISMA.
+5.  **3.4 Ekstraksi Data:** Sebutkan kolom data.
+6.  **3.5 Analisis Data:** Jelaskan teknik analisis.
+`;
+            }
+
+            prompt = `Anda adalah ahli metodologi SLR/Bibliometrik. Tulis draf Bab 3 berdasarkan data berikut.
+${citationInstruction}
+${promptBase}
 ${structureInstructions}
-
 Susun narasi akademis yang mengalir.`;
         
         } else {
              // PROMPT UMUM (NON-SLR)
             prompt = `Anda adalah penulis akademik. Tulis draf Bab 3: Metode Penelitian.
-
 ${citationInstruction}
-
-**Konteks Proyek:**
-- Judul: "${projectData.judulKTI}"
-- Pendekatan: "${projectData.pendekatan}"
-- Metode: "${projectData.metode || 'Tidak ditentukan'}"
-- Sumber Data: "${projectData.basisData || 'Tidak ditentukan'}"
-- Tools: "${projectData.tools || 'Tidak ditentukan'}"
-
-**Referensi Pendukung (Gunakan untuk Sitasi Preseden):**
----
-${kutipanMetodologiString || "Tidak ada referensi terpilih."}
----
-
+${promptBase}
 **Struktur Bab:**
-1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
-2.  **3.1 Desain Penelitian:** Jelaskan desain penelitian. Gunakan sitasi dari referensi pengguna sebagai contoh penerapan.
+1.  **Judul Bab:** "BAB III METODE PENELITIAN".
+2.  **3.1 Desain Penelitian:** Jelaskan desain penelitian. Integrasikan catatan pengguna jika ada.
 3.  **3.2 Prosedur/Pengumpulan Data:** Jelaskan langkah kerja.
-4.  **3.3 Analisis Data:** Jelaskan cara data diolah dengan dukungan referensi.
-
+4.  **3.3 Analisis Data:** Jelaskan cara data diolah.
 Susun narasi akademis yang mengalir.`;
         }
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
-            const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, ""); // Pembersihan markdown tambahan
+            const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, metodeDraft: cleanResult }));
-            showInfoModal("Draf Bab Metode berhasil dibuat!");
+            showInfoModal("Draf Bab Metode berhasil dibuat (Catatan terintegrasi)!");
         } catch (error) {
             showInfoModal(`Gagal menulis Bab Metode: ${error.message}`);
         } finally {
@@ -9954,6 +10025,16 @@ Susun narasi akademis yang mengalir.`;
     const handleGenerateStudiLiteratur = async (selectedIds = []) => {
         setIsLoading(true);
         
+        // 1. Cek Draf Lama (Context Injection)
+        const existingContent = projectData.studiLiteraturDraft || "";
+        const userNotesContext = existingContent.trim() !== "" ? `
+**CATATAN AWAL / SINTESIS PENGGUNA (WAJIB DIINTEGRASIKAN):**
+Pengguna telah memiliki draf awal atau catatan berikut. Gunakan ini sebagai kerangka dasar atau integrasikan poin-poinnya ke dalam Tinjauan Pustaka.
+---
+${existingContent}
+---
+` : "";
+
         // Filter referensi: Gunakan yang dipilih jika ada
         const sourceRefs = (selectedIds && selectedIds.length > 0) 
             ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
@@ -9970,43 +10051,43 @@ Susun narasi akademis yang mengalir.`;
             return;
         }
 
-        // [BAGIAN OUTLINE SUDAH DIHAPUS DISINI]
-
         // --- PERBAIKAN PROMPT DI SINI ---
         const prompt = `Anda adalah seorang penulis akademik yang sangat teliti. Tugas Anda adalah menulis draf Bab 2: Tinjauan Pustaka HANYA berdasarkan informasi yang disediakan.
 
 **Aturan Paling Penting (WAJIB DIPATUHI):**
-- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek". JANGAN menambahkan informasi, konsep, atau teori lain.
-- **Fokus pada Rumusan Masalah:** Prioritaskan sintesis catatan yang paling relevan untuk memberikan landasan teoretis bagi "Rumusan Masalah".
-- **Format Teks:** Tulis seluruhnya sebagai teks biasa (plain text). Jangan gunakan markdown (*, _, **), HTML.
-- **Wajib Sitasi:** Saat Anda menggunakan ide dari 'Catatan dari Referensi', Anda WAJIB menyertakan sitasinya (Penulis, Tahun).
+- **Integrasi Catatan:** Jika ada "CATATAN AWAL" dari pengguna, pastikan idenya tercakup dalam tulisan.
+- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek".
+- **Format Teks:** Tulis seluruhnya sebagai teks biasa (plain text).
+- **Wajib Sitasi:** Saat menggunakan ide dari 'Catatan dari Referensi', WAJIB menyertakan sitasinya (Penulis, Tahun).
 
 **ATURAN VISUALISASI (WAJIB ADA):**
-Tinjauan Pustaka yang baik membutuhkan sintesis visual.
-- Sisipkan placeholder berikut di bagian akhir bab atau tempat yang relevan:
+- Sisipkan placeholder berikut:
   **Gambar 2.X: Kerangka Konseptual / Berpikir**
   *[Instruksi: Masukkan diagram hubungan antar variabel atau alur konsep di sini]*
-- Jika ada perbandingan teori, sisipkan:
+- Jika ada perbandingan teori:
   **Tabel 2.X: Matriks Perbandingan Teori**
   *[Instruksi: Masukkan tabel perbandingan studi terdahulu di sini]*
 
-**Konteks Proyek (Satu-satunya Sumber Informasi Anda):**
+**Konteks Proyek:**
 - Judul Karya Tulis: "${projectData.judulKTI}"
-- Rumusan Masalah (Fokus Utama): "${projectData.rumusanMasalahDraft || 'Belum ada'}"
+- Rumusan Masalah: "${projectData.rumusanMasalahDraft || 'Belum ada'}"
+
+${userNotesContext}
+
 - Catatan dari Referensi (Konten):
 ${kutipanString}
 
 **Tugas Anda:**
 1.  **Buat Judul Bab:** Mulai dengan "BAB II TINJAUAN PUSTAKA".
-2.  **Gunakan Struktur Outline:** Identifikasi sub-bab yang ada di bawah Bab II dari "Outline KTI". Gunakan ini sebagai sub-bab bernomor Anda (misal: 2.1 [Sub-bab dari Outline], 2.2 [Sub-bab dari Outline], dst.).
-3.  **Sintesis per Sub-bab:** Untuk setiap sub-bab, sintesiskan "Catatan dari Referensi" yang paling relevan dengan sub-bab tersebut, dengan fokus untuk mendukung "Rumusan Masalah".
+2.  **Gunakan Struktur Outline:** Identifikasi sub-bab yang ada di bawah Bab II.
+3.  **Sintesis per Sub-bab:** Untuk setiap sub-bab, sintesiskan "Catatan dari Referensi" yang relevan.
 4.  **Alur Logis:** Pastikan ada alur yang logis antar paragraf.
 `;
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, studiLiteraturDraft: cleanResult }));
-            showInfoModal("Draf Studi Literatur berhasil dibuat!");
+            showInfoModal("Draf Studi Literatur berhasil dibuat (Catatan terintegrasi)!");
         } catch (error) {
             showInfoModal(`Gagal menulis Studi Literatur: ${error.message}`);
         } finally {
@@ -10018,15 +10099,27 @@ ${kutipanString}
     // Menerima selectedIds untuk Pembahasan
     const handleGenerateHasilPembahasan = async (selectedIds = []) => {
         setIsLoading(true);
-        setProjectData(p => ({ ...p, hasilPembahasanDraft: '' }));
+        // HAPUS PEMBERSIHAN OTOMATIS: setProjectData(p => ({ ...p, hasilPembahasanDraft: '' })); 
+        // Biarkan data lama ada di 'projectData.hasilPembahasanDraft' untuk dibaca di bawah.
 
         let dataSintesis = '';
         if (projectData.analisisKuantitatifDraft) dataSintesis += `--- ANALISIS KUANTITATIF ---\n${projectData.analisisKuantitatifDraft}\n\n`;
         if (projectData.analisisKualitatifDraft) dataSintesis += `--- ANALISIS KUALITATIF ---\n${projectData.analisisKualitatifDraft}\n\n`;
         if (projectData.analisisVisualDraft) dataSintesis += `--- ANALISIS VISUAL ---\n${projectData.analisisVisualDraft}\n\n`;
 
-        if (!dataSintesis) {
-            showInfoModal("Tidak ada draf analisis yang bisa disintesis. Harap selesaikan salah satu modul analisis terlebih dahulu.");
+        // 1. Cek Draf Lama (Context Injection) - misal dari hasil analisis visual
+        const existingContent = projectData.hasilPembahasanDraft || "";
+        const userNotesContext = existingContent.trim() !== "" ? `
+**CATATAN AWAL / HASIL ANALISIS PENGGUNA (WAJIB DIINTEGRASIKAN):**
+Pengguna sudah memasukkan data/teks berikut (mungkin hasil analisis visual manual atau temuan awal). 
+Anda WAJIB meleburkan teks ini ke dalam pembahasan yang relevan (misal di 4.2 Hasil Penelitian atau 4.3 Pembahasan).
+---
+${existingContent}
+---
+` : "";
+
+        if (!dataSintesis && existingContent.trim() === "") {
+            showInfoModal("Tidak ada draf analisis atau catatan awal yang bisa disintesis. Harap selesaikan salah satu modul analisis terlebih dahulu.");
             setIsLoading(false);
             return;
         }
@@ -10053,77 +10146,45 @@ ${kutipanString}
         const contextBab2 = projectData.studiLiteraturDraft || "Belum ada draf Bab 2.";
         const contextBab3 = projectData.metodeDraft || "Belum ada draf Bab 3."; // <-- BAB 3 DITAMBAHKAN
 
-        const prompt = `Anda adalah seorang penulis akademis dan peneliti ahli. Tugas Anda adalah menulis draf Bab 4: Hasil dan Pembahasan yang komprehensif dan TERINTEGRASI SECARA TEORETIS, dengan kualitas selevel Q1 seperti yang biasa anda lakukan.
+        const prompt = `Anda adalah seorang penulis akademis dan peneliti ahli. Tugas Anda adalah menulis draf Bab 4: Hasil dan Pembahasan yang komprehensif dan TERINTEGRASI SECARA TEORETIS.
 
-Aturan Paling Penting (WAJIB DIPATUHI):
-1. **Theoretical Linking (WAJIB):** Pembahasan Anda JANGAN HANYA deskriptif. Anda WAJIB mengaitkan temuan data kembali ke teori-teori atau konsep yang telah disebutkan dalam "Konteks Bab 1 (Pendahuluan)" atau "Konteks Bab 2 (Tinjauan Pustaka)". Jika di Bab 1 ada teori motivasi atau keadilan, sebutkan kembali di pembahasan untuk memvalidasi atau menolak teori tersebut berdasarkan data.
-2. **Gunakan Referensi Pembanding:** Gunakan data dari "Referensi Pembanding / Included Studies" untuk mendukung argumen pembahasan (misal: "Temuan ini sejalan dengan [Penulis, Tahun]...").
-3. **No Hallucination:** Gunakan data dari "Data Hasil Analisis". Jangan mengarang angka atau kutipan baru.
-4. **Hasil penelitian wajib menjawab rumusan masalah dan tujuan penelitian pada "Konteks Bab 1 (Pendahuluan)":** JANGAN OUT OF CONTEXT, hasil penelitian harus bisa menjawab rumusan masalah dan tujuan penelitian yang disebutkan dalam "Konteks Bab 1 (Pendahuluan)".
-5. **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Sumber Data & Konteks". JANGAN membuat asumsi atau menambahkan informasi yang tidak ada.
-6. **Tulis Seluruhnya sebagai Teks Biasa (Plain Text):** Jangan gunakan format markdown (*, _, **), HTML, atau format lainnya.
-7. **Gunakan Sub-judul Bernomor:** Wajib gunakan format "4.1 ...", "4.2 ...", dst.
+**Aturan Paling Penting:**
+1. **Integrasi Catatan Pengguna:** Jika ada "CATATAN AWAL / HASIL ANALISIS PENGGUNA", pastikan itu masuk dalam tulisan.
+2. **Theoretical Linking:** Hubungkan temuan data kembali ke teori di Bab 1 & 2.
+3. **Referensi Pembanding:** Gunakan data "Referensi Pembanding" untuk mendukung argumen.
+4. **No Hallucination:** Gunakan data dari "Data Hasil Analisis".
+5. **Format:** Teks biasa. Gunakan sub-judul bernomor.
 
 **ATURAN VISUALISASI (WAJIB ADA):**
-Bab 4 adalah tempatnya data. Anda WAJIB memberikan instruksi penempatan Tabel/Gambar untuk setiap data penting.
-- Untuk data responden, sisipkan: **Tabel 4.X: Karakteristik Responden**
-  *[Instruksi: Masukkan tabel demografi di sini]*
-- Untuk hasil uji/analisis, sisipkan: **Tabel/Gambar 4.X: [Judul Sesuai Data]**
-  *[Instruksi: Masukkan output statistik/diagram di sini]*
+Bab 4 adalah tempatnya data. Anda WAJIB memberikan instruksi penempatan Tabel/Gambar.
+- **Tabel 4.X: Karakteristik Responden**
+- **Tabel/Gambar 4.X: [Judul Sesuai Data]**
 
 **Sumber Data & Konteks:**
 - Judul: "${projectData.judulKTI}"
 - Tujuan: "${projectData.tujuanPenelitianDraft}"
-- Konteks Bab 1 (Teori): ${contextBab1.substring(0, 3000)}
-- Konteks Bab 2 (Teori): ${contextBab2.substring(0, 3000)}
-- Konteks Bab 3 (Metode): ${contextBab3.substring(0, 3000)}
+- Konteks Bab 1: ${contextBab1.substring(0, 3000)}
+- Konteks Bab 2: ${contextBab2.substring(0, 3000)}
+- Konteks Bab 3: ${contextBab3.substring(0, 3000)}
 - Deskripsi Responden: ${deskripsiResponden}
-- Data Hasil Analisis: ${dataSintesis}
-- Referensi Pembanding / Included Studies (WAJIB DIGUNAKAN DI PEMBAHASAN): 
+- Data Hasil Analisis (Modul): ${dataSintesis}
+
+${userNotesContext}
+
+- Referensi Pembanding (WAJIB DIGUNAKAN): 
 ${refPembandingString || "Tidak ada referensi pembanding khusus yang dipilih."}
 
-**Instruksi untuk Penulisan Bab 4:**
-
-**1. 4.1 Gambaran Umum Objek Penelitian / Karakteristik Responden:**
-- Sajikan **karakteristik responden** penelitian secara komprehensif. Jika data karakteristik responden sudah disediakan, gunakan informasi tersebut untuk menjelaskan:
-  - **Jumlah responden**, **karakteristik demografis** (misalnya, usia, jabatan, tingkat pendidikan, pengalaman kerja), dan **atribut relevan lainnya** yang menunjukkan **representativitas sampel**.
-  - Berikan penjelasan terkait **kriteria pemilihan responden** dan bagaimana mereka relevan untuk tujuan penelitian ini.
-
-**Saran untuk kualitas Q1:**
-- Jelaskan **metode sampling** yang digunakan (misalnya, purposive sampling, random sampling) dan **alasan pemilihannya**.
-- Pastikan **jumlah responden** dijelaskan dengan jelas dan apakah cukup representatif untuk mendukung temuan yang valid.
-
-**2. 4.2 Hasil Penelitian:**
-- **Sajikan temuan utama** dari penelitian secara terperinci, baik yang diperoleh dari data **kuantitatif** (misalnya, kuesioner, statistik deskriptif) maupun **kualitatif** (wawancara).
-  - Untuk **data kuantitatif**, gunakan **tabel, grafik**, dan sajikan dalam bentuk **frekuensi, persentase, rata-rata**, atau **standar deviasi** sesuai relevansi.
-  - Untuk **data kualitatif**, sediakan **tema-tema utama** yang muncul, dilengkapi dengan **kutipan langsung** dari responden yang relevan.
-  - Jika diperlukan, **bandingkan hasil** dari responden berdasarkan kategori yang relevan (misalnya, peneliti dengan paparan bahan kimia vs peneliti dengan paparan radiasi).
-  
-**Saran untuk kualitas Q1:**
-- Gunakan **tabel dan grafik** yang jelas untuk menyajikan data kuantitatif dan jelaskan bagaimana hasilnya mendukung **rumusan masalah**.
-- Untuk data kualitatif, sertakan **kutipan panjang** dari wawancara untuk menggambarkan tema yang ditemukan dan bagaimana tema tersebut terkait dengan teori yang ada.
-
-**3. 4.3 Pembahasan:**
-- Hubungkan temuan dengan **kerangka teori** yang telah diuraikan di **Bab 1 dan Bab 2**, serta dengan **metode** yang digunakan di Bab 3.
-- Pembahasan harus mencakup:
-  - **Analisis hasil temuan**: Jelaskan **makna dan implikasi** dari temuan utama, apakah temuan tersebut sesuai dengan literatur yang ada atau berbeda.
-  - **Perbandingan dengan studi terdahulu**: Bandingkan temuan penelitian ini dengan temuan-temuan lain di literatur yang relevan dan jelaskan **perbedaan atau kesamaannya**. Gunakan "Referensi Pembanding" yang disediakan di atas.
-  - **Keterkaitan dengan tujuan penelitian**: Tunjukkan bagaimana temuan ini menjawab **pertanyaan penelitian** atau **tujuan penelitian** yang telah ditetapkan sebelumnya.
-  - **Kebaruan penelitian**: Jelaskan apa yang **baru dan inovatif** dari temuan penelitian ini dalam konteks literatur yang ada.
-  - **Implikasi teoretis dan praktis**: Bahas **implikasi teoretis** dari temuan penelitian terhadap perkembangan ilmu pengetahuan di bidang yang diteliti dan **implikasi praktis**nya terhadap kebijakan atau aplikasi nyata di laboratorium atau lembaga riset.
-  - **Tantangan implementasi**: Bahas tentang **tantangan** yang mungkin dihadapi dalam implementasi kebijakan atau rekomendasi yang dihasilkan dari temuan penelitian.
-
-**Saran untuk kualitas Q1:**
-- Pastikan untuk membandingkan temuan penelitian ini dengan **studi terdahulu** dalam **diskusi yang lebih kritis**, bukan hanya merangkum hasil yang ada.
-- Fokus pada **kontribusi teoretis** dan **implikasi praktis** dari hasil penelitian, dengan memperjelas bagaimana temuan ini dapat diimplementasikan dalam kebijakan atau praktik nyata.
-- Jangan lupa untuk **mengakui keterbatasan penelitian**, baik dalam hal metodologi maupun hasil yang diperoleh, dan bagaimana hal ini dapat mempengaruhi kesimpulan.
+**Instruksi Bab 4:**
+1. **4.1 Gambaran Umum/Karakteristik Responden:** Gunakan data deskripsi responden.
+2. **4.2 Hasil Penelitian:** Sajikan temuan utama dari Data Hasil Analisis dan Catatan Awal Pengguna.
+3. **4.3 Pembahasan:** Analisis makna, bandingkan dengan studi terdahulu, kaitkan dengan teori, jelaskan implikasi.
 
 Hasilkan teks biasa tanpa format markdown berlebihan.`;
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
             setProjectData(p => ({ ...p, hasilPembahasanDraft: result }));
-            showInfoModal("Draf Bab Hasil & Pembahasan (Terintegrasi Teori & Metode) berhasil dibuat!");
+            showInfoModal("Draf Bab Hasil & Pembahasan berhasil dibuat (Catatan/Analisis Visual terintegrasi)!");
         } catch(error) {
             showInfoModal(`Gagal membuat draf: ${error.message}`);
         } finally {
@@ -10133,48 +10194,52 @@ Hasilkan teks biasa tanpa format markdown berlebihan.`;
     
     const handleGenerateKesimpulan = async () => {
         setIsLoading(true);
-        setProjectData(p => ({ ...p, kesimpulanDraft: '' }));
+        // HAPUS: setProjectData(p => ({ ...p, kesimpulanDraft: '' }));
         
+        // 1. Cek Draf Lama
+        const existingContent = projectData.kesimpulanDraft || "";
+        const userNotesContext = existingContent.trim() !== "" ? `
+**CATATAN AWAL PENGGUNA (KESIMPULAN):**
+Pengguna telah menulis poin-poin berikut. Pastikan poin-poin ini terwakili dalam Kesimpulan atau Saran.
+---
+${existingContent}
+---
+` : "";
+
         const context = `
 **Judul Penelitian:**
 ${projectData.judulKTI}
-**Draf Pendahuluan (termasuk tujuan penelitian):**
+**Draf Pendahuluan:**
 ${projectData.pendahuluanDraft}
-**Draf Metode Penelitian:**
+**Draf Metode:**
 ${projectData.metodeDraft}
-**Draf Hasil dan Pembahasan:**
+**Draf Hasil & Pembahasan:**
 ${projectData.hasilPembahasanDraft}
+
+${userNotesContext}
 `;
 
-        const prompt = `Anda adalah seorang penulis akademis ahli. Tugas Anda adalah menulis draf Bab 5: Kesimpulan yang lengkap dan koheren berdasarkan keseluruhan konteks penelitian yang diberikan.
+        const prompt = `Anda adalah seorang penulis akademis ahli. Tugas Anda adalah menulis draf Bab 5: Kesimpulan.
 
 **Konteks Penelitian:**
 ---
 ${context}
 ---
 
-**Instruksi Penulisan yang Sangat Rinci:**
-1.  **Struktur Bab:** Susunlah draf Anda ke dalam tiga sub-bab utama dengan nomor: **5.1 Kesimpulan**, **5.2 Keterbatasan**, dan **5.3 Saran**.
-2.  **Instruksi untuk 5.1 Kesimpulan:**
-    - Mulai dengan paragraf pembuka yang menyatakan kembali tujuan utama penelitian.
-    - Rangkum temuan-temuan paling penting dari bab Hasil dan Pembahasan.
-    - Jelaskan bagaimana temuan tersebut secara langsung menjawab pertanyaan atau tujuan penelitian yang ada di Pendahuluan.
-    - Hindari memperkenalkan informasi baru.
-3.  **Instruksi untuk 5.2 Keterbatasan:**
-    - Secara jujur, identifikasi potensi kelemahan atau batasan dari penelitian ini (misalnya, batasan metodologi, ukuran sampel, cakupan data, dll.).
-    - Jelaskan bagaimana keterbatasan ini mungkin mempengaruhi hasil atau generalisasi temuan.
-4.  **Instruksi untuk 5.3 Saran:**
-    - Berikan saran konkret untuk **penelitian selanjutnya** yang dapat dibangun di atas temuan atau mengatasi keterbatasan penelitian ini.
-    - Jika relevan, berikan saran praktis untuk **praktisi atau pembuat kebijakan** berdasarkan implikasi dari temuan Anda.
-5.  **Aturan Format:** Tulis seluruhnya sebagai teks biasa (plain text) tanpa format markdown atau HTML.
+**Instruksi Penulisan:**
+1.  **Struktur Bab:** 5.1 Kesimpulan, 5.2 Keterbatasan, 5.3 Saran.
+2.  **5.1 Kesimpulan:** Rangkum temuan utama yang menjawab tujuan. Jangan ada info baru. Integrasikan catatan pengguna jika ada.
+3.  **5.2 Keterbatasan:** Identifikasi kelemahan studi.
+4.  **5.3 Saran:** Rekomendasi konkret untuk riset lanjut atau praktisi.
+5.  **Format:** Teks biasa.
 
-Pastikan ada alur yang logis dan setiap bagian saling terkait.`;
+Pastikan ada alur yang logis.`;
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(p => ({ ...p, kesimpulanDraft: cleanResult }));
-            showInfoModal("Draf Bab Kesimpulan berhasil dibuat!");
+            showInfoModal("Draf Bab Kesimpulan berhasil dibuat (Catatan terintegrasi)!");
         } catch(error) {
             showInfoModal(`Gagal membuat draf kesimpulan: ${error.message}`);
         } finally {
