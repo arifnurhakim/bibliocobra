@@ -416,9 +416,9 @@ const geminiService = {
 
         // Konfigurasi Retry & Fallback
         const MAX_RETRIES = 5; 
-        const INITIAL_BACKOFF_MS = 1000; 
-        const PRO_MODEL = 'gemini-2.5-pro';
-        const FLASH_MODEL = 'gemini-2.5-flash-preview-09-2025'; // Model cadangan (lebih cepat/murah)
+        const INITIAL_BACKOFF_MS = 5000; 
+        const PRO_MODEL = 'gemini-2.5-flash'; // Flash sebagai utama untuk RPM tinggi
+        const FLASH_MODEL = 'gemini-2.5-flash';
         const FALLBACK_ATTEMPT_THRESHOLD = 2; // Pindah ke Flash setelah 2x gagal
 
         const parts = [{ text: prompt }];
@@ -466,6 +466,8 @@ const geminiService = {
                         
                         // Rotasi ke kunci berikutnya
                         currentKeyIndex++; 
+                        await new Promise(r => setTimeout(r, 4000)); // Jeda paksa 4 detik sebelum ganti kunci
+                        continue;
 
                         // MEKANISME PINDAH MODEL (YANG ANDA TANYAKAN):
                         // Jika kena limit di model Pro, langsung turun ke Flash untuk percobaan berikutnya agar peluang sukses lebih tinggi.
@@ -475,7 +477,7 @@ const geminiService = {
                         }
                         
                         // Jeda singkat lalu coba lagi (continue loop)
-                        await new Promise(r => setTimeout(r, 1500));
+                        await new Promise(r => setTimeout(r, 2000));
                         continue; 
                     }
 
@@ -1602,7 +1604,7 @@ const Referensi = ({
     }, [handleAiReview]);
 
     // Inisialisasi hook antrean
-    const { addTask: addReviewTask, queueSize: reviewQueueSize, currentItem: currentlyReviewingTask } = useRequestQueue(processAiReviewTask, 1100);
+    const { addTask: addReviewTask, queueSize: reviewQueueSize, currentItem: currentlyReviewingTask } = useRequestQueue(processAiReviewTask, 5000);
 
     // Dapatkan ID paper yang sedang direview dari state antrean
     // Fix: Handle both paperId (API) and id (RIS/Manual)
@@ -2825,6 +2827,10 @@ const StudiLiteratur = ({
     handleClassifyTheories 
 }) => {
     const [selectedRefIds, setSelectedRefIds] = useState([]);
+    // --- STATE BARU UNTUK MODAL TAMBAH TEORI ---
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [targetCategory, setTargetCategory] = useState(null);
+    // -------------------------------------------
     const isPremium = projectData.isPremium;
 
     // --- FUNGSI BARU: Pindahkan Teori Antar Kategori ---
@@ -2842,7 +2848,39 @@ const StudiLiteratur = ({
         setProjectData(p => ({ ...p, theoryClassification: newClassification }));
     };
 
-    // Helper untuk merender Kartu Teori (Updated: Full Text & Citation)
+    // --- FUNGSI BARU: Hapus Teori ---
+    const handleDeleteTheory = (itemId, category) => {
+        const newClassification = { ...projectData.theoryClassification };
+        newClassification[category] = newClassification[category].filter(t => t.id !== itemId);
+        setProjectData(p => ({ ...p, theoryClassification: newClassification }));
+    };
+
+    // --- FUNGSI BARU: Buka Modal Pilih Referensi ---
+    const handleAddTheory = (category) => {
+        setTargetCategory(category);
+        setIsAddModalOpen(true);
+    };
+
+    // --- FUNGSI BARU: Eksekusi Tambah ke Peta ---
+    const handleConfirmAddTheory = (ref) => {
+        const newClassification = { ...projectData.theoryClassification };
+        
+        // Format data referensi menjadi kartu teori
+        const newTheory = {
+            id: Date.now(), // ID Unik
+            concept: ref.title, // Gunakan Judul sebagai nama konsep awal
+            reason: "Ditambahkan secara manual dari perpustakaan.",
+            citation: `(${ref.author}, ${ref.year})` // Format sitasi otomatis
+        };
+
+        // Tambahkan ke awal array kategori target
+        newClassification[targetCategory] = [newTheory, ...(newClassification[targetCategory] || [])];
+        
+        setProjectData(p => ({ ...p, theoryClassification: newClassification }));
+        setIsAddModalOpen(false); // Tutup modal
+    };
+
+    // Helper untuk merender Kartu Teori (Updated: Full Text & Citation & Icons)
     const renderTheoryCard = (item, category, colorClass) => (
         <div key={item.id} className="bg-white p-3 rounded border shadow-sm mb-2 text-left group hover:shadow-md transition-all flex flex-col h-auto">
             {/* Konsep Singkat */}
@@ -2864,26 +2902,43 @@ const StudiLiteratur = ({
                 </div>
             )}
             
-            {/* Kontrol Pemindahan */}
-            <div className="flex justify-between items-center pt-2 mt-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                {category !== 'grand' && (
-                    <button 
-                        onClick={() => handleMoveTheory(item, category, category === 'applied' ? 'middle' : 'grand')}
-                        className="text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded flex items-center gap-1"
-                        title="Naik Level"
-                    >
-                        ← Naik
-                    </button>
-                )}
-                {category !== 'applied' && (
-                    <button 
-                        onClick={() => handleMoveTheory(item, category, category === 'grand' ? 'middle' : 'applied')}
-                        className={`text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded flex items-center gap-1 ${category === 'grand' ? 'ml-auto' : ''}`}
-                        title="Turun Level"
-                    >
-                        Turun →
-                    </button>
-                )}
+            {/* Kontrol Aksi: Move Left, Delete, Move Right */}
+            <div className="flex justify-between items-center pt-2 mt-1 border-t border-gray-50 opacity-40 group-hover:opacity-100 transition-opacity">
+                
+                {/* Tombol Kiri (Naik Level) */}
+                <div className="flex-1 text-left">
+                    {category !== 'grand' && (
+                        <button 
+                            onClick={() => handleMoveTheory(item, category, category === 'applied' ? 'middle' : 'grand')}
+                            className="text-gray-400 hover:text-blue-600 font-bold px-1"
+                            title="Pindah ke Kiri"
+                        >
+                            ←
+                        </button>
+                    )}
+                </div>
+
+                {/* Tombol Hapus (Tengah) */}
+                <button 
+                    onClick={() => handleDeleteTheory(item.id, category)}
+                    className="text-gray-300 hover:text-red-500 font-bold px-2 text-lg leading-none"
+                    title="Hapus Teori Ini"
+                >
+                    -
+                </button>
+
+                {/* Tombol Kanan (Turun Level) */}
+                <div className="flex-1 text-right">
+                    {category !== 'applied' && (
+                        <button 
+                            onClick={() => handleMoveTheory(item, category, category === 'grand' ? 'middle' : 'applied')}
+                            className="text-gray-400 hover:text-blue-600 font-bold px-1"
+                            title="Pindah ke Kanan"
+                        >
+                            →
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -2909,7 +2964,7 @@ const StudiLiteratur = ({
                     <button 
                         onClick={() => handleClassifyTheories(selectedRefIds)} 
                         className={`font-bold py-2 px-4 rounded-lg text-xs shadow-sm flex items-center gap-2 ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-indigo-300'}`}
-                        disabled={isLoading || selectedRefIds.length === 0 || !isPremium}
+                        disabled={isLoading || projectData.allReferences.length === 0 || !isPremium}
                     >
                         {isLoading ? (
                             <>
@@ -2930,9 +2985,18 @@ const StudiLiteratur = ({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in">
                         {/* KOLOM 1: GRAND THEORY */}
                         <div className="bg-blue-100 rounded-lg p-3 border border-blue-200 flex flex-col">
-                            <div className="mb-3 text-center border-b border-blue-200 pb-2">
-                                <span className="font-bold text-blue-900 block text-sm">GRAND THEORY</span>
-                                <span className="text-[10px] text-blue-700 block">(Payung/Induk)</span>
+                            <div className="mb-3 flex justify-between items-center border-b border-blue-200 pb-2">
+                                <div className="text-left">
+                                    <span className="font-bold text-blue-900 block text-sm">GRAND THEORY</span>
+                                    <span className="text-[10px] text-blue-700 block">(Payung/Induk)</span>
+                                </div>
+                                <button 
+                                    onClick={() => handleAddTheory('grand')}
+                                    className="bg-blue-200 hover:bg-blue-300 text-blue-800 rounded w-6 h-6 flex items-center justify-center font-bold shadow-sm transition-colors"
+                                    title="Tambah Teori Manual"
+                                >
+                                    +
+                                </button>
                             </div>
                             <div className="flex-grow min-h-[100px]">
                                 {projectData.theoryClassification.grand?.length > 0 ? (
@@ -2945,9 +3009,18 @@ const StudiLiteratur = ({
 
                         {/* KOLOM 2: MIDDLE-RANGE */}
                         <div className="bg-teal-100 rounded-lg p-3 border border-teal-200 flex flex-col">
-                            <div className="mb-3 text-center border-b border-teal-200 pb-2">
-                                <span className="font-bold text-teal-900 block text-sm">MIDDLE-RANGE THEORY</span>
-                                <span className="text-[10px] text-teal-700 block">(Penghubung/Variabel)</span>
+                            <div className="mb-3 flex justify-between items-center border-b border-teal-200 pb-2">
+                                <div className="text-left">
+                                    <span className="font-bold text-teal-900 block text-sm">MIDDLE-RANGE THEORY</span>
+                                    <span className="text-[10px] text-teal-700 block">(Penghubung/Variabel)</span>
+                                </div>
+                                <button 
+                                    onClick={() => handleAddTheory('middle')}
+                                    className="bg-teal-200 hover:bg-teal-300 text-teal-800 rounded w-6 h-6 flex items-center justify-center font-bold shadow-sm transition-colors"
+                                    title="Tambah Teori Manual"
+                                >
+                                    +
+                                </button>
                             </div>
                             <div className="flex-grow min-h-[100px]">
                                 {projectData.theoryClassification.middle?.length > 0 ? (
@@ -2960,9 +3033,18 @@ const StudiLiteratur = ({
 
                         {/* KOLOM 3: APPLIED THEORY */}
                         <div className="bg-orange-100 rounded-lg p-3 border border-orange-200 flex flex-col">
-                            <div className="mb-3 text-center border-b border-orange-200 pb-2">
-                                <span className="font-bold text-orange-900 block text-sm">APPLIED THEORY</span>
-                                <span className="text-[10px] text-orange-700 block">(Operasional/Indikator)</span>
+                            <div className="mb-3 flex justify-between items-center border-b border-orange-200 pb-2">
+                                <div className="text-left">
+                                    <span className="font-bold text-orange-900 block text-sm">APPLIED THEORY</span>
+                                    <span className="text-[10px] text-orange-700 block">(Operasional/Indikator)</span>
+                                </div>
+                                <button 
+                                    onClick={() => handleAddTheory('applied')}
+                                    className="bg-orange-200 hover:bg-orange-300 text-orange-800 rounded w-6 h-6 flex items-center justify-center font-bold shadow-sm transition-colors"
+                                    title="Tambah Teori Manual"
+                                >
+                                    +
+                                </button>
                             </div>
                             <div className="flex-grow min-h-[100px]">
                                 {projectData.theoryClassification.applied?.length > 0 ? (
@@ -2980,6 +3062,45 @@ const StudiLiteratur = ({
                 )}
             </div>
             {/* ------------------------------------------- */}
+
+            {/* --- MODAL PILIH TEORI DARI LIBRARY --- */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-[9999] p-4">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col max-h-[80vh] animate-fade-in">
+                        <div className="p-4 border-b flex justify-between items-center">
+                            <h3 className="font-bold text-gray-800">
+                                Tambah ke {targetCategory === 'grand' ? 'Grand Theory' : targetCategory === 'middle' ? 'Middle-Range Theory' : 'Applied Theory'}
+                            </h3>
+                            <button onClick={() => setIsAddModalOpen(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+                        </div>
+                        
+                        <div className="p-2 bg-blue-50 text-xs text-blue-700 border-b">
+                            Pilih referensi dari perpustakaan untuk dimasukkan ke kategori ini.
+                        </div>
+
+                        <div className="flex-grow overflow-y-auto p-2 space-y-2">
+                            {projectData.allReferences.length > 0 ? (
+                                projectData.allReferences.map(ref => (
+                                    <div key={ref.id} className="flex justify-between items-center p-3 border rounded hover:bg-gray-50 transition-colors">
+                                        <div className="flex-1 mr-2">
+                                            <p className="text-sm font-bold text-gray-800 line-clamp-1">{ref.title}</p>
+                                            <p className="text-xs text-gray-500">{ref.author} ({ref.year})</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => handleConfirmAddTheory(ref)}
+                                            className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm"
+                                        >
+                                            Pilih
+                                        </button>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-center text-gray-500 py-4 text-sm">Perpustakaan kosong.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <button 
                 onClick={() => handleGenerateStudiLiteratur(selectedRefIds)} 
@@ -7951,6 +8072,17 @@ ${context}
 // --- Komponen untuk Donasi ---
 const Donasi = ({ handleCopyToClipboard }) => {
     const accountNumber = '7193560789';
+    // --- TAMBAHAN UNTUK AUTO-SCROLL ---
+    const bottomRef = useRef(null);
+
+    useEffect(() => {
+        // Scroll ke elemen terbawah saat komponen dimuat
+        if (bottomRef.current) {
+            bottomRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }, []);
+    // ----------------------------------
+
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Dampak Sosial & CSR</h2>
@@ -7996,6 +8128,9 @@ const Donasi = ({ handleCopyToClipboard }) => {
                     </div>
                 </div>
             </div>
+            
+            {/* Elemen target scroll */}
+            <div ref={bottomRef} className="h-4"></div>
         </div>
     );
 };
@@ -9194,41 +9329,83 @@ Output (JSON Format):
     };
     // --- AKHIR LOGIKA BAB I ---
 
-    // --- LOGIKA BAB II: THEORY PYRAMID (Auto-Classification) ---
+    // --- LOGIKA BAB II: THEORY PYRAMID (Auto-Classification & Curation) ---
+// --- LOGIKA BAB II: THEORY PYRAMID (Auto-Classification & Curation) ---
     const handleClassifyTheories = async (selectedIds) => {
-        // ... (validasi awal tetap sama) ...
+        // Cek Premium
+        if (!projectData.isPremium) {
+            showInfoModal("Fitur 'Klasifikasi Teori Otomatis' khusus untuk pengguna Premium.");
+            return;
+        }
+
+        // Tentukan Mode: Manual (user milih) atau Auto (AI milih dari semua)
+        const isManualMode = selectedIds && selectedIds.length > 0;
+        
+        // Sumber Data
+        const sourceRefs = isManualMode
+            ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
+            : projectData.allReferences; // Gunakan semua jika tidak ada yang dipilih
+
+        if (sourceRefs.length === 0) {
+            showInfoModal("Tidak ada referensi tersedia untuk diklasifikasikan.");
+            return;
+        }
 
         setIsLoading(true);
 
-        // Filter referensi terpilih
-        const sourceRefs = projectData.allReferences.filter(ref => selectedIds.includes(ref.id));
+        // Format data untuk AI (PERBAIKAN SINTAKS: Format aman tanpa kurung siku)
+        const refList = sourceRefs.map((ref) => {
+            return `ID_REF: ${ref.id}\nJudul: "${ref.title}"\nPenulis: ${ref.author || "Anonim"}\nTahun: ${ref.year || "n.d."}\nAbstrak/Catatan: ${ref.abstract || ref.isiKutipan || "Tidak ada data"}`;
+        }).join('\n---\n');
+
+        // --- CONTEXT INJECTION (BARU) ---
+        const researchContext = `
+**KONTEKS PENELITIAN PENGGUNA (TARGET):**
+- Judul: "${projectData.judulKTI}"
+- Masalah Utama: "${projectData.faktaMasalahDraft || projectData.rumusanMasalahDraft || 'Tidak ditentukan'}"
+`;
+
+        // --- KONSTRUKSI PROMPT DINAMIS ---
+        let instructionMode = "";
         
-        // --- PERBAIKAN: Sertakan Penulis dan Tahun dalam Input AI ---
-        const refList = sourceRefs.map((ref, index) => 
-            `[ID: ${ref.id}]
-Judul: "${ref.title}"
-Penulis: ${ref.author || "Anonim"}
-Tahun: ${ref.year || "n.d."}
-Abstrak/Catatan: ${ref.abstract || ref.isiKutipan || "Tidak ada data"}`
-        ).join('\n---\n');
-        // -----------------------------------------------------------
+        if (isManualMode) {
+            // Mode Manual: Klasifikasikan SEMUA yang dipilih user
+            instructionMode = `
+**TUGAS ANDA (MODE MANUAL):**
+Pengguna telah memilih referensi spesifik. Tugas Anda adalah mengklasifikasikan **SEMUA** referensi dalam daftar di atas ke dalam kategori yang sesuai. Jangan ada yang tertinggal.`;
+        } else {
+            // Mode Otomatis: AI jadi Kurator (Pilih yang terbaik saja)
+            instructionMode = `
+**TUGAS ANDA (MODE KURATOR CERDAS):**
+Daftar di atas adalah seluruh perpustakaan pengguna. **JANGAN GUNAKAN SEMUANYA.**
+Tugas Anda adalah **MENYELEKSI (CURATE)** hanya referensi yang paling relevan untuk membangun kerangka teori yang solid bagi Judul Penelitian di atas.
 
-        const prompt = `Anda adalah arsitek teori penelitian. Tugas Anda adalah memilah literatur berikut ke dalam 3 tingkatan hierarki teori (Theory Pyramid).
+**KUOTA SELEKSI IDEAL:**
+1. **Grand Theory:** Pilih 1-2 referensi terbaik.
+2. **Middle-Range Theory:** Pilih 2-4 referensi terbaik.
+3. **Applied Theory:** Pilih 3-5 referensi terbaik.
+`;
+        }
 
-DAFTAR LITERATUR:
-${refList}
+        const prompt = `Anda adalah arsitek teori penelitian. 
+${researchContext}
 
-INSTRUKSI KLASIFIKASI (STRICT MODE):
-1. **Grand Theory (Payung):** Teori induk yang sangat abstrak/umum.
-2. **Middle-Range Theory (Penghubung):** Teori yang menjelaskan hubungan spesifik antar variabel.
-3. **Applied Theory (Operasional):** Indikator teknis, regulasi, atau model pengukuran spesifik.
+${instructionMode}
 
-**ATURAN FORMAT OUTPUT (WAJIB):**
-1. **field 'concept':** Ekstrak **HANYA NAMA TEORI/KONSEP** dalam 2-5 kata (Bahasa Indonesia). 
-   - SALAH: "YAGO: A Large Ontology from Wikipedia..."
-   - BENAR: "Ontologi YAGO" atau "Konsep Knowledge Graph".
-2. **field 'reason':** Alasan singkat kenapa masuk kategori ini (maksimal 2 kalimat).
-3. **field 'citation':** Ambil langsung dari data 'Penulis' dan 'Tahun' input. Format: "(Penulis, Tahun)". Jika penulis banyak, gunakan "et al.". JANGAN mengarang data.
+**ATURAN KURASI LOGIS (WAJIB DIPATUHI):**
+1. **Peran Unik (Hierarki):**
+   - **Grand Theory (Payung):** Teori induk yang sangat abstrak (misal: Resource-Based View).
+   - **Middle-Range Theory (Mekanisme):** Teori yang menjelaskan *bagaimana* variabel berhubungan (misal: TAM, UTAUT).
+   - **Applied Theory (Operasional):** Indikator teknis, regulasi, atau model pengukuran spesifik.
+2. **Anti-Redundansi:** JANGAN memilih dua referensi yang menjelaskan konsep yang sama persis dengan istilah berbeda (misal: jangan masukkan 2 paper tentang TAM). Pilih satu yang paling otoritatif atau baru.
+3. **Landing ke Gap:** Pastikan teori yang dipilih relevan untuk memecahkan "Masalah Utama" penelitian pengguna.
+
+**ATURAN FORMAT OUTPUT:**
+1. **field 'concept':** Ekstrak **HANYA NAMA TEORI/KONSEP** (2-5 kata). Gunakan nama yang baku/standar di dunia akademis. 
+   - JIKA nama aslinya dalam Bahasa Inggris lebih umum dikenal (seperti TAM, UTAUT, TOE, ServQual, RBV), **GUNAKAN NAMA ASLINYA**. Jangan diterjemahkan paksa.
+   - JIKA konsep umum, gunakan Bahasa Indonesia.
+2. **field 'reason':** Jelaskan singkat (1 kalimat) bagaimana teori ini membantu menjawab masalah penelitian (Landing).
+3. **field 'citation':** Ambil langsung dari data input. Format: "(Penulis, Tahun)".
 4. **DILARANG:** Jangan menuliskan ID internal.
 
 Berikan output JSON yang valid.`;
@@ -9247,11 +9424,9 @@ Berikan output JSON yang valid.`;
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             
             // --- FIX: SANITASI ID AGAR UNIK ---
-            // AI sering memberi ID duplikat (misal: 1, 2, 3 untuk setiap kategori).
-            // Kita timpa dengan timestamp + random untuk menjamin keunikan mutlak.
             const sanitize = (list) => list ? list.map((item, idx) => ({ 
                 ...item, 
-                id: Date.now() + Math.random() + idx // ID Unik Sistem
+                id: Date.now() + Math.random() + idx 
             })) : [];
 
             const sanitizedResult = {
@@ -9259,13 +9434,18 @@ Berikan output JSON yang valid.`;
                 middle: sanitize(result.middle),
                 applied: sanitize(result.applied)
             };
-            // ----------------------------------
 
             setProjectData(prev => ({ 
                 ...prev, 
                 theoryClassification: sanitizedResult 
             }));
-            showInfoModal("Klasifikasi Teori (Grand/Middle/Applied) berhasil dipetakan!");
+            
+            // Pesan notifikasi dinamis
+            const successMsg = isManualMode 
+                ? "Klasifikasi Manual berhasil!" 
+                : "AI berhasil mengurasi teori terbaik yang relevan dengan masalah riset Anda!";
+            showInfoModal(successMsg);
+            
         } catch (error) {
             showInfoModal(`Gagal mengklasifikasikan teori: ${error.message}`);
         } finally {
@@ -9712,22 +9892,36 @@ ${context}
         }
     };
   
-    // UPDATE: Menerima selectedIds untuk Pendahuluan
+    // UPDATE: Menerima selectedIds untuk Pendahuluan (MERGED: Q1 Anchor + Visual Context)
     const handleGenerateFullPendahuluan = async (selectedIds = []) => {
         setIsLoading(true);
         
-        // 1. Cek Draf Lama (Context Injection)
+        // 1. Ambil Data Teori untuk Anchoring & Mechanism (Logika Q1)
+        let mainTheoryContext = "";
+        if (projectData.theoryClassification) {
+            const grand = projectData.theoryClassification.grand?.map(t => t.concept).join(' / ') || "Teori Utama";
+            const middle = projectData.theoryClassification.middle?.map(t => t.concept).join(' / ') || "Mekanisme Pendukung";
+            
+            mainTheoryContext = `
+**STRATEGI TEORETIS (WAJIB DIIKUTI):**
+1. **Theoretical Anchor (Jangkar Utama):** Penelitian ini berdiri di atas tradisi **${grand}**. Ini adalah klaim kontribusi utama.
+2. **Theoretical Mechanism (Mekanisme):** Logika atau jalur perubahannya dijelaskan menggunakan **${middle}**.
+*Gunakan kombinasi ini di paragraf pembuka dan Kontribusi Penelitian (1.6).*
+`;
+        }
+        
+        // 2. Cek Draf Lama / Temuan Visual (Logika Integrasi)
         const existingContent = projectData.pendahuluanDraft || "";
         const userNotesContext = existingContent.trim() !== "" ? `
 **CATATAN AWAL / TEMUAN VISUAL PENGGUNA (SANGAT PENTING):**
-Pengguna telah memasukkan catatan berikut ke dalam draf (misalnya hasil Analisis Visual Peta Tematik).
+Pengguna telah memasukkan catatan berikut (misal hasil analisis visual peta tematik).
 Anda **WAJIB MENGINTEGRASIKAN** temuan ini ke dalam narasi (misalnya di bagian Latar Belakang atau Research Gap). JANGAN membuangnya.
 ---
 ${existingContent}
 ---
 ` : "";
 
-        // Filter referensi: Jika ada yang dipilih, pakai itu. Jika tidak, pakai semua (fallback).
+        // Filter referensi
         const sourceRefs = (selectedIds && selectedIds.length > 0) 
             ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
             : projectData.allReferences;
@@ -9738,46 +9932,44 @@ ${existingContent}
             .join('\n');
         
         // --- PROMPT UPDATE ---
-        const prompt = `Anda adalah seorang penulis akademik ahli yang sangat teliti. Tugas Anda adalah menulis draf Bab 1: Pendahuluan yang lengkap dan koheren.
+        const prompt = `Anda adalah penulis akademik spesialis jurnal Q1. Tulis draf Bab 1: Pendahuluan.
 
-**Aturan Paling Penting (WAJIB DIPATUHI):**
-- **Integrasi Catatan Pengguna:** Jika ada "CATATAN AWAL / TEMUAN VISUAL PENGGUNA" di atas, leburkan isinya secara natural ke dalam alur tulisan. Jangan biarkan terpisah.
-- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek" dan Referensi.
-- **Tulis Seluruhnya sebagai Teks Biasa (Plain Text).**
-- **WAJIB SERTAKAN SITASI.**
+**Aturan Emas Q1 (The Anchor & The Mechanism):**
+- Di paragraf awal, langsung tunjukkan "posisi" penelitian (standing position) menggunakan **Theoretical Anchor**.
+- Di bagian **1.6 Kontribusi**, formulasikan kalimat kontribusi dengan pola: *"Kontribusi utama pada [Anchor] melalui mekanisme [Mechanism]..."*. Jangan biarkan kontribusi melebar ke banyak teori.
 
-**ATURAN VISUALISASI (WAJIB ADA):**
-Meskipun hanya teks, Anda WAJIB menyarankan penempatan elemen visual:
-- **Gambar 1.X: [Judul Grafik/Peta yang Disarankan]**
-  *[Instruksi: Masukkan grafik tren atau peta tematik di sini]*
+**ATURAN VISUALISASI & INTEGRASI:**
+- **Integrasi Catatan Pengguna:** Jika ada "CATATAN AWAL / TEMUAN VISUAL", leburkan isinya secara natural.
+- **Placeholder:** Sisipkan **Gambar 1.X: [Judul Grafik/Peta]** *[Instruksi: Masukkan grafik tren/peta tematik]* pada bagian yang membahas data empiris.
 
 **Konteks Proyek:**
 - Judul: "${projectData.judulKTI}"
 - Pokok Masalah: "${projectData.faktaMasalahDraft}"
-- Rumusan Masalah: "${projectData.rumusanMasalahDraft || 'Belum ada rumusan masalah spesifik.'}" 
+- Rumusan Masalah: "${projectData.rumusanMasalahDraft || 'Belum ada.'}" 
 - Tujuan Penelitian: "${projectData.tujuanPenelitianDraft}"
 
+${mainTheoryContext}
 ${userNotesContext}
 
-- Catatan dari Referensi (untuk mendukung latar belakang):
-${kutipanString || "Tidak ada catatan spesifik dari referensi."}
+- Catatan Referensi:
+${kutipanString || "Tidak ada catatan spesifik."}
 
-**Struktur Bab Pendahuluan yang Harus Anda Hasilkan:**
-1.1 Latar Belakang / Konteks Ilmiah (Integrasikan temuan visual di sini jika relevan)
-1.2. Kesenjangan Penelitian (Research Gap)
-1.3. Rumusan Masalah (Problem Statement)
-1.4. Pertanyaan Penelitian / Hipotesis
+**Struktur Bab 1:**
+1.1 Latar Belakang (Fenomena empiris + Gap data + Integrasi Temuan Visual)
+1.2. Kesenjangan Penelitian (Research Gap - Apa yang belum terjawab?)
+1.3. Rumusan Masalah
+1.4. Pertanyaan Penelitian
 1.5. Tujuan Penelitian
-1.6. Kontribusi Penelitian (Teoretis dan Praktis)
-1.7. Struktur Artikel
-
-Pastikan ada kesinambungan dan alur yang logis antar sub-bab.`;
+1.6. Kontribusi Penelitian (TAJAM & SPESIFIK):
+    - **Teoretis:** Fokus pada ekspansi/validasi [Anchor] melalui lensa [Mechanism].
+    - **Praktis:** Implikasi bagi kebijakan/manajemen.
+1.7. Struktur Artikel`;
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, pendahuluanDraft: cleanResult }));
-            showInfoModal("Draf Pendahuluan Lengkap berhasil dibuat (Catatan/Visual terintegrasi)!");
+            showInfoModal("Draf Pendahuluan (Q1 Anchor + Integrasi Visual) berhasil dibuat!");
         } catch (error) {
             showInfoModal(`Gagal menghasilkan Pendahuluan: ${error.message}`);
         } finally {
@@ -9838,18 +10030,26 @@ PENTING (Batasan):
     };
 
     // UPDATE: Menerima selectedIds untuk Metode
+    // UPDATE: Menerima selectedIds untuk Metode (Golden Thread Fix)
     const handleGenerateMetode = async (selectedIds = []) => {
         setIsLoading(true);
         
-        // 1. Cek Draf Lama (Context Injection)
-        const existingContent = projectData.metodeDraft || "";
-        const userNotesContext = existingContent.trim() !== "" ? `
-**CATATAN AWAL / PILIHAN METODE PENGGUNA:**
-Pengguna telah mengisi draf ini sebelumnya. Gunakan informasi di bawah ini sebagai prioritas panduan penulisan metode (misalnya jika pengguna sudah menuliskan parameter spesifik).
----
-${existingContent}
----
-` : "";
+        // --- INJEKSI PETA TEORI (MENYAMBUNG BENANG MERAH BAB 2 -> BAB 3) ---
+        // Bab 3 harus dilandasi oleh Applied Theory/Operasionalisasi di Bab 2.
+        let theoryContext = "";
+        if (projectData.theoryClassification) {
+            const applied = projectData.theoryClassification.applied || [];
+            if (applied.length > 0) {
+                const appliedList = applied.map(t => `- ${t.concept} (Referensi: ${t.citation || 'n.d.'})`).join('\n');
+                theoryContext = `
+**LANDASAN OPERASIONAL (DARI BAB 2):**
+Berikut adalah teori operasional/indikator yang telah ditetapkan di Tinjauan Pustaka. Metode penelitian WAJIB dirancang untuk mengukur/menganalisis hal ini:
+${appliedList}
+*Gunakan informasi ini untuk menjustifikasi pemilihan metode/alat.*
+`;
+            }
+        }
+        // -------------------------------------------------------------------
 
         const lowerMetode = (projectData.metode || '').toLowerCase();
         
@@ -9915,21 +10115,20 @@ ${extractionColumns}
             }
         }
 
-        // 3. Mengambil kutipan metodologi (TERKONSOLIDASI - Filter hanya catatan terisi)
-        // Filter referensi: Gunakan yang dipilih jika ada
+        // 3. Mengambil kutipan metodologi (TERKONSOLIDASI)
         const sourceRefs = (selectedIds && selectedIds.length > 0) 
             ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
             : projectData.allReferences;
 
         const kutipanMetodologiString = sourceRefs
-            .filter(ref => ref.isiKutipan && ref.isiKutipan.trim() !== "") // FILTER AKTIF: Hanya kirim yang punya catatan
+            .filter(ref => ref.isiKutipan && ref.isiKutipan.trim() !== "")
             .map(ref => `[REF] Penulis: ${ref.author} (${ref.year}). Judul: "${ref.title}". Isi/Catatan: "${ref.isiKutipan}"`)
             .join('\n\n');
 
         // 4. Memilih prompt yang tepat
         let prompt;
 
-        // --- LOGIKA VISUALISASI DINAMIS (DIPERBAIKI) ---
+        // --- LOGIKA VISUALISASI DINAMIS ---
         let visualInstruction = "";
         if (isBibliometricOnly) {
              visualInstruction = `- Sisipkan: **Tabel 3.2: Konfigurasi Parameter Analisis**\n  *[Instruksi: Masukkan tabel yang berisi setting software (misal: VOSviewer threshold, unit analisis, metode normalisasi) untuk menjamin reproduktifitas penelitian]*`;
@@ -9937,7 +10136,7 @@ ${extractionColumns}
              visualInstruction = `- Sisipkan: **Gambar 3.2: Diagram PRISMA**\n  *[Instruksi: Masukkan diagram alir seleksi studi PRISMA 2020 di sini]*`;
         }
         
-        // --- INSTRUKSI SITASI GLOBAL (MEMAKSA RELEVANSI) ---
+        // --- INSTRUKSI SITASI GLOBAL ---
         const citationInstruction = `
 **Aturan Sitasi (SANGAT KETAT):**
 1. **HINDARI PENJELASAN UMUM TANPA SITASI:** Jangan menjelaskan definisi software atau metode secara "common sense".
@@ -9950,7 +10149,6 @@ Bantu pembaca memahami metode dengan menyarankan visualisasi:
   *[Instruksi: Masukkan diagram alir tahapan penelitian di sini]*
 ${visualInstruction}
 `;
-        // ---------------------------------------------
 
         const promptBase = `
 **Konteks Proyek:**
@@ -9958,7 +10156,7 @@ ${visualInstruction}
 - Metode: "${projectData.metode}"
 - Tools: "${projectData.tools}"
 
-${userNotesContext}
+${theoryContext} 
 
 ${slrContext} 
 
@@ -9973,20 +10171,20 @@ ${kutipanMetodologiString || "Tidak ada referensi terpilih."}
             if (isBibliometricOnly) {
                 structureInstructions = `
 **Struktur Bab Metode Bibliometrik:**
-1.  **Judul Bab:** "BAB III METODE PENELITIAN".
-2.  **3.1 Desain Penelitian:** Jelaskan penggunaan pendekatan analisis Bibliometrik dengan merujuk pada referensi pengguna sebagai contoh penerapan. Integrasikan catatan pengguna jika ada.
-3.  **3.2 Sumber Data & Strategi Pencarian:** Tampilkan String Kueri (Verbatim), Database, dan Tanggal dari data Log Kueri.
-4.  **3.3 Analisis Data:** Jelaskan Tools dan teknik analisis.
+1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
+2.  **3.1 Desain Penelitian:** Jelaskan penggunaan pendekatan analisis Bibliometrik. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
+3.  **3.2 Sumber Data & Strategi Pencarian:** Tampilkan String Kueri (Verbatim), Database, dan Tanggal.
+4.  **3.3 Analisis Data:** Jelaskan Tools dan teknik analisis. Pastikan setiap penjelasan alat didukung oleh sitasi ke referensi pengguna yang juga menggunakan alat/metode serupa.
 `;
             } else {
                 structureInstructions = `
 **Struktur Bab Metode SLR:**
-1.  **Judul Bab:** "BAB III METODE PENELITIAN".
-2.  **3.1 Desain Penelitian:** Jelaskan penggunaan SLR/PRISMA dengan sitasi preseden.
+1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
+2.  **3.1 Desain Penelitian:** Jelaskan penggunaan SLR/PRISMA. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
 3.  **3.2 Strategi Pencarian:** Tampilkan String Kueri, Database, dan Tanggal.
 4.  **3.3 Seleksi Studi:** Gunakan angka PRISMA.
 5.  **3.4 Ekstraksi Data:** Sebutkan kolom data.
-6.  **3.5 Analisis Data:** Jelaskan teknik analisis.
+6.  **3.5 Analisis Data:** Jelaskan teknik analisis dengan sitasi pendukung.
 `;
             }
 
@@ -10002,40 +10200,65 @@ Susun narasi akademis yang mengalir.`;
 ${citationInstruction}
 ${promptBase}
 **Struktur Bab:**
-1.  **Judul Bab:** "BAB III METODE PENELITIAN".
-2.  **3.1 Desain Penelitian:** Jelaskan desain penelitian. Integrasikan catatan pengguna jika ada.
+1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
+2.  **3.1 Desain Penelitian:** Jelaskan desain penelitian. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
 3.  **3.2 Prosedur/Pengumpulan Data:** Jelaskan langkah kerja.
-4.  **3.3 Analisis Data:** Jelaskan cara data diolah.
+4.  **3.3 Analisis Data:** Jelaskan cara data diolah dengan dukungan referensi.
 Susun narasi akademis yang mengalir.`;
         }
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
-            const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
+            const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, ""); 
             setProjectData(prev => ({ ...prev, metodeDraft: cleanResult }));
-            showInfoModal("Draf Bab Metode berhasil dibuat (Catatan terintegrasi)!");
+            showInfoModal("Draf Bab Metode berhasil dibuat!");
         } catch (error) {
             showInfoModal(`Gagal menulis Bab Metode: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
     };
-
-    // UPDATE: Menerima selectedIds untuk Studi Literatur
+    
+    // UPDATE: Menerima selectedIds untuk Studi Literatur (Deductive Flow Q1)
     const handleGenerateStudiLiteratur = async (selectedIds = []) => {
         setIsLoading(true);
         
-        // 1. Cek Draf Lama (Context Injection)
+        // 1. Cek Draf Lama
         const existingContent = projectData.studiLiteraturDraft || "";
         const userNotesContext = existingContent.trim() !== "" ? `
-**CATATAN AWAL / SINTESIS PENGGUNA (WAJIB DIINTEGRASIKAN):**
-Pengguna telah memiliki draf awal atau catatan berikut. Gunakan ini sebagai kerangka dasar atau integrasikan poin-poinnya ke dalam Tinjauan Pustaka.
----
+**CATATAN AWAL PENGGUNA:**
 ${existingContent}
----
 ` : "";
 
-        // Filter referensi: Gunakan yang dipilih jika ada
+        // --- INJEKSI PETA STRUKTUR TEORI (ALUR DEDUKTIF Q1) ---
+        let theoryMapContext = "";
+        if (projectData.theoryClassification) {
+            const formatTheories = (list) => list.map(t => `- ${t.concept} (${t.citation || "n.d."}): ${t.reason}`).join('\n');
+            
+            theoryMapContext = `
+**STRUKTUR TEORI (ALUR DEDUKTIF):**
+Anda WAJIB menulis dengan logika penurunan (deduksi), bukan sekadar daftar definisi:
+
+1. **Grand Theory (The Anchor):**
+${formatTheories(projectData.theoryClassification.grand)}
+*Instruksi Khusus:*
+- Jelaskan konsep inti.
+- Jelaskan **Proposisi Turunan**: Apa yang seharusnya terjadi menurut teori ini dalam konteks fenomena ${projectData.topikTema}? (Misal: Jika Resource-Based View benar, maka aset pengetahuan harus dikelola...).
+
+2. **Middle-Range Theory (The Mechanism):**
+${formatTheories(projectData.theoryClassification.middle)}
+*Instruksi Khusus:*
+- Jelaskan teori ini sebagai **MEKANISME** yang menjawab "Bagaimana proposisi di atas terjadi?".
+- Jelaskan interaksi antar variabel/aktor di sini.
+
+3. **Applied Theory (Operational Tools):**
+${formatTheories(projectData.theoryClassification.applied)}
+*Instruksi Khusus:*
+- Tempatkan ini sebagai **instrumen operasional** atau cara kerja teknis, bukan sebagai teori yang setara dengan Grand Theory.
+`;
+        }
+
+        // Filter referensi
         const sourceRefs = (selectedIds && selectedIds.length > 0) 
             ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
             : projectData.allReferences;
@@ -10045,49 +10268,43 @@ ${existingContent}
             .map(ref => `- Dari "${ref.title}" oleh ${ref.author} (${ref.year}): "${ref.isiKutipan}"`)
             .join('\n');
 
-        if (!kutipanString) {
-            showInfoModal("Tidak ada kutipan/catatan dari referensi terpilih. Pastikan Anda memilih referensi yang memiliki catatan.");
+        if (!kutipanString && !theoryMapContext) {
+            showInfoModal("Harap pilih referensi atau buat Peta Struktur Teori terlebih dahulu.");
             setIsLoading(false);
             return;
         }
 
-        // --- PERBAIKAN PROMPT DI SINI ---
-        const prompt = `Anda adalah seorang penulis akademik yang sangat teliti. Tugas Anda adalah menulis draf Bab 2: Tinjauan Pustaka HANYA berdasarkan informasi yang disediakan.
+        const prompt = `Anda adalah penulis akademik spesialis Q1. Tulis draf Bab 2: Tinjauan Pustaka.
 
-**Aturan Paling Penting (WAJIB DIPATUHI):**
-- **Integrasi Catatan:** Jika ada "CATATAN AWAL" dari pengguna, pastikan idenya tercakup dalam tulisan.
-- **Dilarang Keras Menambah Informasi:** Gunakan SECARA EKSKLUSIF informasi dari "Konteks Proyek".
-- **Format Teks:** Tulis seluruhnya sebagai teks biasa (plain text).
-- **Wajib Sitasi:** Saat menggunakan ide dari 'Catatan dari Referensi', WAJIB menyertakan sitasinya (Penulis, Tahun).
+**Aturan Penulisan (Deductive Logic):**
+- **HINDARI INVENTARIS TEORI:** Jangan menulis "Teori A adalah..., Teori B adalah...".
+- **GUNAKAN ALUR DEDUKTIF:** Mulai dari payung besar (Grand) -> turun ke mekanisme (Middle) -> turun ke alat teknis (Applied).
+- **Format:** Teks biasa. Sitasi (Author, Year) wajib.
 
-**ATURAN VISUALISASI (WAJIB ADA):**
-- Sisipkan placeholder berikut:
-  **Gambar 2.X: Kerangka Konseptual / Berpikir**
-  *[Instruksi: Masukkan diagram hubungan antar variabel atau alur konsep di sini]*
-- Jika ada perbandingan teori:
-  **Tabel 2.X: Matriks Perbandingan Teori**
-  *[Instruksi: Masukkan tabel perbandingan studi terdahulu di sini]*
+**ATURAN VISUALISASI:**
+- **Gambar 2.1: Kerangka Konseptual** *[Instruksi: Diagram hubungan antar variabel]*
+- **Tabel 2.X: Perbandingan Studi Terdahulu** *[Instruksi: Matriks state of the art]*
 
 **Konteks Proyek:**
-- Judul Karya Tulis: "${projectData.judulKTI}"
+- Judul: "${projectData.judulKTI}"
 - Rumusan Masalah: "${projectData.rumusanMasalahDraft || 'Belum ada'}"
 
 ${userNotesContext}
+${theoryMapContext}
 
-- Catatan dari Referensi (Konten):
+- Catatan Referensi:
 ${kutipanString}
 
 **Tugas Anda:**
-1.  **Buat Judul Bab:** Mulai dengan "BAB II TINJAUAN PUSTAKA".
-2.  **Gunakan Struktur Outline:** Identifikasi sub-bab yang ada di bawah Bab II.
-3.  **Sintesis per Sub-bab:** Untuk setiap sub-bab, sintesiskan "Catatan dari Referensi" yang relevan.
-4.  **Alur Logis:** Pastikan ada alur yang logis antar paragraf.
+1.  **Buat Judul Bab:** "BAB II TINJAUAN PUSTAKA".
+2.  **Sub-bab:** Gunakan struktur Grand -> Middle -> Applied sebagai judul sub-bab.
+3.  **Pengembangan Hipotesis/Kerangka Berpikir:** Di akhir, tarik kesimpulan logis dari deduksi di atas untuk merumuskan kerangka berpikir.
 `;
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, studiLiteraturDraft: cleanResult }));
-            showInfoModal("Draf Studi Literatur berhasil dibuat (Catatan terintegrasi)!");
+            showInfoModal("Draf Studi Literatur (Deduktif Q1) berhasil dibuat!");
         } catch (error) {
             showInfoModal(`Gagal menulis Studi Literatur: ${error.message}`);
         } finally {
@@ -11806,7 +12023,16 @@ try {
                             <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-8">
                                 <p className="text-sm text-blue-800">
                                     <strong>Research with Impact:</strong> <br/>
-                                    Layanan ini mendukung program CSR <em>(Corporate Social Responsibility)</em> melalui sumbangan sukarela, guna membantu komunitas yang membutuhkan.
+                                    Layanan ini mendukung program CSR <em>(Corporate Social Responsibility)</em> melalui donasi sukarela, guna membantu komunitas yang membutuhkan.
+                                    <button 
+                                        onClick={() => {
+                                            handleCloseWelcomeModal();
+                                            setCurrentSection('donasi');
+                                        }}
+                                        className="text-blue-600 hover:text-blue-800 font-bold underline ml-1 bg-transparent border-0 cursor-pointer p-0 inline"
+                                    >
+                                        klik disini untuk berdonasi
+                                    </button>
                                 </p>
                             </div>
 
