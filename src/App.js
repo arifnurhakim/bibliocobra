@@ -466,18 +466,16 @@ const geminiService = {
                         
                         // Rotasi ke kunci berikutnya
                         currentKeyIndex++; 
-                        await new Promise(r => setTimeout(r, 4000)); // Jeda paksa 4 detik sebelum ganti kunci
-                        continue;
 
-                        // MEKANISME PINDAH MODEL (YANG ANDA TANYAKAN):
+                        // MEKANISME PINDAH MODEL:
                         // Jika kena limit di model Pro, langsung turun ke Flash untuk percobaan berikutnya agar peluang sukses lebih tinggi.
                         if (currentModel !== FLASH_MODEL) {
                              console.warn(`📉 Auto-Downgrade: Beralih ke ${FLASH_MODEL} untuk efisiensi.`);
                              currentModel = FLASH_MODEL;
                         }
                         
-                        // Jeda singkat lalu coba lagi (continue loop)
-                        await new Promise(r => setTimeout(r, 2000));
+                        // Jeda paksa sebelum ganti kunci lalu coba lagi
+                        await new Promise(r => setTimeout(r, 4000));
                         continue; 
                     }
 
@@ -9391,6 +9389,9 @@ Tugas Anda adalah **MENYELEKSI (CURATE)** hanya referensi yang paling relevan un
 ${researchContext}
 
 ${instructionMode}
+
+**DATA REFERENSI YANG TERSEDIA:**
+${refList}
 
 **ATURAN KURASI LOGIS (WAJIB DIPATUHI):**
 1. **Peran Unik (Hierarki):**
