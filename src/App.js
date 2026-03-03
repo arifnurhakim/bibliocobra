@@ -7744,30 +7744,11 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
     const [currentExtractionData, setCurrentExtractionData] = useState(null); // Holds the data for the paper being extracted
     const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
     const isPremium = projectData.isPremium;
-
-    // --- LOGIKA FILTER BARU ---
-    const availableReferences = React.useMemo(() => {
-        // Cek apakah PRISMA sudah diinisialisasi (Artinya user sedang mode SLR)
-        if (projectData.prismaState && projectData.prismaState.isInitialized) {
-            // Ambil ID studi yang statusnya 'fulltext_included'
-            const includedIds = projectData.prismaState.studies
-                .filter(s => s.screeningStatus === 'fulltext_included')
-                .map(s => String(s.id));
-            
-            // Filter allReferences agar hanya menampilkan yang lolos screening
-            return projectData.allReferences.filter(ref => includedIds.includes(String(ref.id)));
-        }
-        // Jika tidak mode SLR, tampilkan semua referensi perpustakaan
-        return projectData.allReferences;
-    }, [projectData.allReferences, projectData.prismaState]);
-    // ---------------------------
-
     const handleExportToCSV = () => {
         if (!projectData.extractedData || projectData.extractedData.length === 0) {
             showInfoModal("Tidak ada data untuk diekspor. Harap isi tabel sintesis terlebih dahulu.");
             return;
         }
-
         // Siapkan data dalam format yang diharapkan PapaParse
         const dataForExport = projectData.extractedData.map(item => {
             const refDetails = projectData.allReferences.find(ref => String(ref.id) === String(item.refId)) || {};
