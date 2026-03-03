@@ -6260,10 +6260,11 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
 
         const prompt = `Anda adalah asisten peneliti ahli untuk Systematic Literature Review (SLR).
         Tugas: Evaluasi kelayakan artikel ini DAN ekstrak datanya untuk sintesis penelitian.
-
+        
         **Konteks Penelitian:**
         - Judul/Topik: "${projectData.judulKTI || projectData.topikTema}"
         - Tujuan: "${projectData.tujuanPenelitianDraft || 'Tidak ditentukan'}"
+        - ISI PAPER YANG HARUS DIANALISIS:${fulltextInput}
 
         **Instruksi Analisis:**
         1. Tentukan Rekomendasi (INCLUDE/EXCLUDE) dan berikan alasannya.
@@ -7739,9 +7740,6 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState(null); // Can be a new column object or an existing one
     const [newColumnLabel, setNewColumnLabel] = useState('');
-    // State for selecting a reference to extract
-    const [selectedRefId, setSelectedRefId] = useState('');
-    // State for the extraction modal
     const [isExtractionModalOpen, setIsExtractionModalOpen] = useState(false);
     const [currentExtractionData, setCurrentExtractionData] = useState(null); // Holds the data for the paper being extracted
     const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
@@ -7868,11 +7866,13 @@ Tuliskan draf narasi sintesisnya.`;
     };
 
     const handleStartExtraction = (refIdToExtract) => {
-        const refId = refIdToExtract || selectedRefId;
-        if (!refId) {
-            showInfoModal("Silakan pilih referensi terlebih dahulu.");
-            return;
-        }
+    // Karena dropdown sudah tidak ada, fungsi ini SEHARUSNYA selalu menerima refIdToExtract dari tabel
+    const refId = refIdToExtract; 
+    if (!refId) {
+        // Pesan info bisa disesuaikan karena pemanggilan sekarang hanya dari tombol "Edit" di tabel
+        showInfoModal("ID Referensi tidak valid.");
+        return;
+    }
 
         const reference = projectData.allReferences.find(ref => String(ref.id) === String(refId));
         if (!reference) {
@@ -8087,69 +8087,11 @@ Tuliskan draf narasi sintesisnya.`;
                     + Tambah Kolom
                 </button>
             </div>
-
-            {/* Section 2: Data Extraction from References */}
-            <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 mb-8">
-                <h3 className="text-lg font-semibold mb-3 text-gray-800">2. Ekstraksi Data dari Referensi</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                    Pilih sebuah referensi dari perpustakaan Anda untuk memulai proses ekstraksi data berbantuan AI.
-                </p>
-
-                {/* --- INDIKATOR FILTER PRISMA --- */}
-                {projectData.prismaState?.isInitialized && (
-                    <div className="mb-4 p-2 bg-teal-50 border border-teal-200 rounded text-xs text-teal-800 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
-                        </svg>
-                        <span><strong>Mode SLR Aktif:</strong> Daftar ini hanya menampilkan artikel yang lolos screening (Inklusi Full-Text).</span>
-                    </div>
-                )}
-
-                {availableReferences.length > 0 ? (
-                    <div className="flex flex-col sm:flex-row items-center gap-2">
-                        <select
-                            value={selectedRefId}
-                            onChange={(e) => setSelectedRefId(e.target.value)}
-                            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                        >
-                            <option value="" disabled>Pilih referensi...</option>
-                            {availableReferences.map(ref => {
-                                const isExtracted = projectData.extractedData.some(d => String(d.refId) === String(ref.id));
-                                const truncatedTitle = ref.title.length > 100 ? `${ref.title.substring(0, 100)}...` : ref.title;
-                                return (
-                                    <option key={ref.id} value={ref.id}>
-                                        {isExtracted ? '✓ ' : '○ '}{truncatedTitle}
-                                    </option>
-                                );
-                            })}
-                        </select>
-                        <button
-                            onClick={() => handleStartExtraction()}
-                            disabled={!selectedRefId}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-full sm:w-auto flex-shrink-0 disabled:bg-blue-300 disabled:cursor-not-allowed"
-                        >
-                            Mulai Ekstraksi
-                        </button>
-                    </div>
-                ) : (
-                    <div className="text-center py-6 text-gray-500 italic text-sm border-2 border-dashed border-gray-200 rounded">
-                        {projectData.prismaState?.isInitialized ? (
-                            <>
-                                <p className="font-semibold text-red-500">Belum ada artikel yang diinklusi.</p>
-                                <p>Silakan selesaikan tahap "Screening Full-Text" di menu Generator PRISMA SLR dan klik tombol "Include" pada artikel yang relevan.</p>
-                            </>
-                        ) : (
-                            <p>Perpustakaan referensi Anda kosong. Silakan tambahkan referensi terlebih dahulu.</p>
-                        )}
-                    </div>
-                )}
-            </div>
-
-
+            
             {/* Section 3: Centralized Synthesis Table */}
             <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-300">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold text-gray-800">3. Tabel Sintesis Terpusat</h3>
+                    <h3 className="text-xl font-bold text-gray-800">2. Tabel Sintesis Terpusat</h3>
                     <button
                         onClick={handleExportToCSV}
                         className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm disabled:bg-green-300"
@@ -8209,7 +8151,7 @@ Tuliskan draf narasi sintesisnya.`;
 
             {/* Placeholder for Narrative Synthesis */}
             <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-300">
-                 <h3 className="text-xl font-bold mb-4 text-gray-800">4. Sintesis Naratif</h3>
+                 <h3 className="text-xl font-bold mb-4 text-gray-800">3. Sintesis Naratif</h3>
                  <div className="p-4 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg mb-6">
                     <p className="text-sm text-blue-700 mb-4">Setelah data terkumpul di tabel sintesis, klik tombol di bawah untuk meminta AI menyintesis semua informasi menjadi sebuah narasi yang koheren.</p>
                     <button
