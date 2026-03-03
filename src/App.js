@@ -6239,6 +6239,27 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
             return;
         }
 
+        // --- FUNGSI BARU UNTUK MENERIMA REKOMENDASI AI ---
+    const handleAcceptAiRecommendation = () => {
+        // Cari studi yang sedang di-screen di tahap fulltext (statusnya 'abstract_included')
+        const targetStudy = prismaState.studies.find(s => s.screeningStatus === 'abstract_included');
+        
+        if (targetStudy && fulltextAnalysis && fulltextAnalysis.extraction) {
+            // 1. Tutup modal analisis AI
+            setShowFulltextModal(false);
+            
+            // 2. Buka modal Include (Formulir Ekstraksi) dan isi otomatis dengan data AI
+            setIncludeModal({ 
+                isOpen: true, 
+                study: targetStudy, 
+                extraction: fulltextAnalysis.extraction 
+            });
+        } else {
+            showInfoModal("Gagal memuat data ekstraksi AI atau dokumen tidak ditemukan.");
+        }
+    };
+    // ------------------------------------------------
+
         setIsAnalyzingFulltext(true);
         setFulltextAnalysis(null);
 
@@ -7619,7 +7640,7 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                                     <div className="mt-6">
                                         {fulltextAnalysis.recommendation === 'INCLUDE' ? (
                                             <button 
-                                                onClick={() => handleAcceptAiRecommendation(studyToScreen)}
+                                                onClick={handleAcceptAiRecommendation}
                                                 className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg shadow flex items-center justify-center gap-2"
                                             >
                                                 <span>✨ Terima & Lanjut ke Formulir Ekstraksi</span>
