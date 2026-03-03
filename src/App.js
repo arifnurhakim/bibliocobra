@@ -1785,6 +1785,8 @@ const Referensi = ({
                                 </div>
                             )}
 
+
+
                             {searchResults && (
                                 <div className="mt-6">
                                     <h5 className="font-bold text-gray-800 mb-2">Hasil Pencarian ({searchResults.length}):</h5>
@@ -4152,6 +4154,8 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                 </div>
             )}
 
+            
+
             {/* Modal Edit Log */}
             {isEditModalOpen && editingLog && (
                 <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
@@ -6061,14 +6065,17 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
 };
 
 // --- Komponen baru untuk PRISMA SLR ---
-const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview, geminiApiKeys }) => { // UPDATE: Terima geminiApiKeys
+    const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview, geminiApiKeys, handleCopyToClipboard }) => { // Tambahkan handleCopyToClipboard
     // FIX: Panggil semua hooks di level atas tanpa kondisional.
     const { prismaState } = projectData || {}; // Destructuring aman jika projectData belum ada
+    
     const [currentStage, setCurrentStage] = useState('setup');
     const [exclusionModal, setExclusionModal] = useState({ isOpen: false, studyId: null, screeningType: '' });
     const [exclusionReason, setExclusionReason] = useState('');
     const [customReason, setCustomReason] = useState('');
     const [expandedAbstractId, setExpandedAbstractId] = useState(null);
+    // --- STATE BARU UNTUK MODAL INCLUDE (DINAMIS) ---
+    const [includeModal, setIncludeModal] = useState({ isOpen: false, study: null, extraction: {} });
     const [aiReviews, setAiReviews] = useState({});
     const [reviewingId, setReviewingId] = useState(null);
     const svgRef = useRef(null); // Tambahkan ref untuk SVG
@@ -6235,30 +6242,46 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
         setIsAnalyzingFulltext(true);
         setFulltextAnalysis(null);
 
+        // Buat daftar kolom untuk instruksi AI agar sinkron dengan tabel sintesis
+        const columnInstructions = projectData.synthesisTableColumns.map(col => `- ${col.label} (Simpan dalam key: "${col.key}")`).join('\n');
+
         const prompt = `Anda adalah asisten peneliti ahli untuk Systematic Literature Review (SLR).
-        Tugas: Evaluasi kelayakan artikel berikut untuk diinklusi dalam penelitian ini berdasarkan teks lengkap (fulltext) yang diberikan.
+        Tugas: Evaluasi kelayakan artikel ini DAN ekstrak datanya untuk sintesis penelitian.
 
         **Konteks Penelitian:**
         - Judul/Topik: "${projectData.judulKTI || projectData.topikTema}"
         - Tujuan: "${projectData.tujuanPenelitianDraft || 'Tidak ditentukan'}"
 
-        **Teks Artikel (Fulltext/Partial):**
-        "${fulltextInput.substring(0, 15000)}" 
-        *(Catatan: Teks mungkin terpotong jika terlalu panjang, fokus pada bagian yang ada)*
-
         **Instruksi Analisis:**
-        1. **Ringkasan Singkat:** Apa inti dari paper ini?
-        2. **Relevansi:** Seberapa relevan paper ini dengan topik penelitian saya? (Sangat Relevan / Relevan / Kurang Relevan / Tidak Relevan).
-        3. **Rekomendasi Keputusan:** Apakah sebaiknya di-INCLUDE atau EXCLUDE?
-        4. **Alasan:** Jelaskan alasan keputusan tersebut secara objektif.
+        1. Tentukan Rekomendasi (INCLUDE/EXCLUDE) dan berikan alasannya.
+        2. JIKA (dan hanya jika) artikel ini layak (INCLUDE), ekstrak data untuk kolom berikut:
+        ${columnInstructions}
+
+        **Aturan Ekstraksi:**
+        - Gunakan Bahasa Indonesia formal.
+        - Jika data tidak ditemukan, isi dengan "-".
 
         Berikan jawaban dalam format JSON:
         {
             "summary": "...",
             "relevance_level": "...",
-            "recommendation": "INCLUDE" | "EXCLUDE",
-            "reason": "..."
+            "recommendation": "INCLUDE",
+            "reason": "...",
+            "extraction": { 
+                "population": "...",
+                "intervention": "...",
+                "comparison": "...",
+                "outcome": "...",
+                "methodology": "...",
+                "keyFinding": "..."
+            }
         }`;
+
+// --- PERBARUAN SCHEMA: MENAMBAHKAN OBJEK EKSTRAKSI SECARA DINAMIS ---
+        const extractionProperties = {};
+        projectData.synthesisTableColumns.forEach(col => {
+            extractionProperties[col.key] = { type: "STRING", description: `Isi dari ${col.label}` };
+        });
 
         const schema = {
             type: "OBJECT",
@@ -6266,10 +6289,15 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
                 summary: { type: "STRING" },
                 relevance_level: { type: "STRING" },
                 recommendation: { type: "STRING", enum: ["INCLUDE", "EXCLUDE"] },
-                reason: { type: "STRING" }
+                reason: { type: "STRING" },
+                extraction: {
+                    type: "OBJECT",
+                    properties: extractionProperties
+                }
             },
             required: ["summary", "relevance_level", "recommendation", "reason"]
         };
+        // ----------------------------------------------------------------------
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
@@ -6281,6 +6309,8 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
         }
     };
     // -------------------------------------
+
+    
 
     const toggleAbstract = (paperId) => {
         setExpandedAbstractId(prevId => (prevId === paperId ? null : paperId));
@@ -6529,6 +6559,42 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
             }
         }));
     };
+
+    // --- FUNGSI BARU: SIMPAN DATA MODAL DAN INCLUDE (REVISI EKSTRAKSI) ---
+    const handleConfirmInclude = () => {
+        const { study, extraction } = includeModal;
+        if (!study) return;
+
+        setProjectData(p => {
+            // 1. Ubah status PRISMA menjadi fulltext_included
+            const updatedStudies = p.prismaState.studies.map(s =>
+                s.id === study.id ? { ...s, screeningStatus: 'fulltext_included' } : s
+            );
+
+            // 2. Simpan hasil ekstraksi langsung ke Tabel Ekstraksi
+            const existingIndex = p.extractedData.findIndex(d => String(d.refId) === String(study.id));
+            let newExtractedData = [...p.extractedData];
+
+            if (existingIndex > -1) {
+                newExtractedData[existingIndex] = { refId: study.id, data: extraction };
+            } else {
+                newExtractedData.push({ refId: study.id, data: extraction });
+            }
+
+            return {
+                ...p,
+                extractedData: newExtractedData, // <-- Data masuk ke tabel sintesis
+                prismaState: {
+                    ...p.prismaState,
+                    studies: updatedStudies
+                }
+            };
+        });
+
+        setIncludeModal({ isOpen: false, study: null, extraction: {} });
+        showInfoModal("Artikel di-Include dan Data Ekstraksi berhasil disimpan ke Tabel Sintesis!");
+    };
+    // -----------------------------------------------------------
     
     const openExclusionModal = (studyId, screeningType) => {
         setExclusionReason('');
@@ -6585,6 +6651,57 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
             studies_included_in_review,
         };
     };
+
+    // --- FUNGSI BARU: COPY METADATA ---
+    // --- FUNGSI BARU: COPY METADATA ---
+    const handleCopyMetadata = (study) => {
+        const textToCopy = `Judul: ${study.title}
+Penulis: ${study.author}
+Tahun: ${study.year}
+DOI: ${study.doi || '-'}
+
+Abstrak:
+${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
+        
+        handleCopyToClipboard(textToCopy);
+    };
+    // ----------------------------------
+
+    // --- FUNGSI BARU: EKSPOR BATCH METADATA (.TXT) ---
+    const handleExportBatchMetadataTxt = (isAbstractStage) => {
+        const targetStatus = isAbstractStage ? 'unscreened' : 'abstract_included';
+        const studiesToExport = prismaState.studies.filter(s => s.screeningStatus === targetStatus);
+
+        if (studiesToExport.length === 0) {
+            showInfoModal("Tidak ada dokumen untuk diekspor pada antrean ini.");
+            return;
+        }
+
+        let txtContent = `=== BATCH EXPORT: SCREENING ${isAbstractStage ? 'ABSTRAK' : 'FULL-TEXT'} ===\n`;
+        txtContent += `Total Dokumen: ${studiesToExport.length}\n\n`;
+        
+        studiesToExport.forEach((study, index) => {
+            txtContent += `[Dokumen ${index + 1}]\n`;
+            txtContent += `Judul: ${study.title || '-'}\n`;
+            txtContent += `Penulis: ${study.author || '-'}\n`;
+            txtContent += `Tahun: ${study.year || '-'}\n`;
+            txtContent += `DOI: ${study.doi || '-'}\n`;
+            txtContent += `Abstrak:\n${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}\n`;
+            txtContent += `--------------------------------------------------\n\n`;
+        });
+
+        const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        const date = new Date().toISOString().slice(0, 10);
+        link.download = `bibliocobra_screening_${isAbstractStage ? 'abstrak' : 'fulltext'}_${date}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+    // ------------------------------------------------
 
     // --- MODIFIKASI TAMPILAN SETUP PRISMA ---
     const renderSetup = () => {
@@ -6771,15 +6888,28 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
         const total = isAbstract 
             ? prismaState.studies.length
             : prismaState.studies.filter(s => ['abstract_included', 'fulltext_excluded', 'fulltext_included'].includes(s.screeningStatus)).length;
-        const screened = total - prismaState.studies.filter(s => s.screeningStatus === targetStatus).length;
+        const remainingToScreen = prismaState.studies.filter(s => s.screeningStatus === targetStatus).length;
+        const screened = total - remainingToScreen;
 
         return (
             <div>
-                <h3 className="text-xl font-semibold mb-4 text-gray-800">
-                    {isAbstract ? 'Screening Abstrak' : 'Screening Full-Text'}
-                </h3>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-semibold text-gray-800">
+                        {isAbstract ? 'Screening Abstrak' : 'Screening Full-Text'}
+                    </h3>
+                    <button 
+                        onClick={() => handleExportBatchMetadataTxt(isAbstract)}
+                        className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1.5 transition-colors border border-indigo-300 shadow-sm"
+                        title="Ekspor seluruh metadata di antrean ini ke format .txt"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/>
+                        </svg>
+                        Ekspor {remainingToScreen} Data (.txt)
+                    </button>
+                </div>
                 <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-                    <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${(screened / total) * 100}%` }}></div>
+                <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${(screened / total) * 100}%` }}></div>
                 </div>
                 <p className="text-sm text-gray-600 mb-4 text-center">Progress: {screened} / {total}</p>
 
@@ -6801,7 +6931,21 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
                             >
                                 {reviewingId === studyToScreen.id ? 'Mereview...' : '✨ Review Abstract AI'}
                             </button>
-                            
+
+                            {/* --- TOMBOL BARU: COPY METADATA --- */}
+                            <button 
+                                onClick={() => handleCopyMetadata(studyToScreen)} 
+                                className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded hover:bg-gray-200 font-semibold flex items-center gap-1 border border-gray-300"
+                                title="Salin metadata untuk direview di ChatGPT/NotebookLM"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                  <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                                  <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3z"/>
+                                </svg>
+                                Copy Metadata
+                            </button>
+                            {/* ---------------------------------- */}
+                                                        
                             {/* --- TOMBOL BARU: PASTE FULLTEXT --- */}
                             {!isAbstract && (
                                 <button 
@@ -6862,9 +7006,29 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
                 <div className="mt-6 flex justify-center gap-4 flex-wrap">
                     {/* Urutan Baru: Include - Exclude - Kembali - Lanjutkan */}
                     
-                    <button onClick={() => handleScreeningDecision(studyToScreen.id, isAbstract ? 'abstract_included' : 'fulltext_included')} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm">
-                        Include
-                    </button>
+                    {/* --- LOGIKA TOMBOL INCLUDE (PISAH ABSTRAK & FULLTEXT) --- */}
+                    {isAbstract ? (
+                        <button 
+                            onClick={() => handleScreeningDecision(studyToScreen.id, 'abstract_included')} 
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm"
+                        >
+                            Include
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={() => {
+                                // Persiapkan form kosong sesuai kolom tabel ekstraksi
+                                const blankExtraction = {};
+                                projectData.synthesisTableColumns.forEach(col => blankExtraction[col.key] = '');
+                                setIncludeModal({ isOpen: true, study: studyToScreen, extraction: blankExtraction });
+                            }} 
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm flex items-center gap-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/><path d="M4.5 10a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5z"/></svg>
+                            Include & Ekstrak
+                        </button>
+                    )}
+                    {/* -------------------------------------------------------- */}
 
                     <button onClick={() => openExclusionModal(studyToScreen.id, isAbstract ? 'abstract' : 'fulltext')} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm">
                         Exclude
@@ -7430,19 +7594,41 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
 
                             {fulltextAnalysis && (
                                 <div className={`p-4 rounded-lg border-l-4 ${fulltextAnalysis.recommendation === 'INCLUDE' ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
-                                    <div className="flex justify-between items-start mb-2">
-                                        <span className="font-bold text-sm uppercase tracking-wide">Rekomendasi AI:</span>
-                                        <span className={`px-2 py-1 rounded text-xs font-bold text-white ${fulltextAnalysis.recommendation === 'INCLUDE' ? 'bg-green-600' : 'bg-red-600'}`}>
-                                            {fulltextAnalysis.recommendation}
-                                        </span>
-                                    </div>
+                                    {/* ... header rekomendasi tetap sama ... */}
+                                    
                                     <div className="space-y-2 text-sm text-gray-800">
                                         <p><strong>Relevansi:</strong> {fulltextAnalysis.relevance_level}</p>
                                         <p><strong>Alasan:</strong> {fulltextAnalysis.reason}</p>
-                                        <p className="text-xs text-gray-600 mt-2 pt-2 border-t border-gray-200"><strong>Ringkasan:</strong> {fulltextAnalysis.summary}</p>
+                                        
+                                        {/* TAMPILKAN PREVIEW EKSTRAKSI JIKA INCLUDE */}
+                                        {fulltextAnalysis.recommendation === 'INCLUDE' && (
+                                            <div className="mt-4 p-3 bg-white border border-green-200 rounded-lg">
+                                                <p className="text-xs font-bold text-green-700 mb-2 uppercase">Hasil Ekstraksi AI:</p>
+                                                <div className="grid grid-cols-1 gap-2 text-[10px]">
+                                                    {projectData.synthesisTableColumns.map(col => (
+                                                        <div key={col.key}>
+                                                            <span className="font-bold">{col.label}:</span> {fulltextAnalysis.extraction[col.key] || '-'}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="mt-4 text-center">
-                                        <p className="text-xs text-gray-500 italic">Gunakan tombol Include/Exclude di layar utama untuk mengambil keputusan akhir.</p>
+
+                                    {/* TOMBOL AKSI CERDAS */}
+                                    <div className="mt-6">
+                                        {fulltextAnalysis.recommendation === 'INCLUDE' ? (
+                                            <button 
+                                                onClick={() => handleAcceptAiRecommendation(studyToScreen)}
+                                                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg shadow flex items-center justify-center gap-2"
+                                            >
+                                                <span>✨ Terima & Lanjut ke Formulir Ekstraksi</span>
+                                            </button>
+                                        ) : (
+                                            <p className="text-xs text-center text-red-600 font-semibold italic">
+                                                AI menyarankan untuk menolak artikel ini. Klik tombol "Exclude" di layar utama.
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -7477,12 +7663,65 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
                     </div>
                 </div>
             )}
+
+        {/* --- MODAL INCLUDE EKSTRAKSI (DINAMIS) --- */}
+            {includeModal.isOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-[90] flex justify-center items-center p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh] animate-fade-in">
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl">
+                            <h3 className="text-lg font-bold text-gray-800">Include & Formulir Ekstraksi Data</h3>
+                            <button onClick={() => setIncludeModal({ isOpen: false, study: null, extraction: {} })} className="text-gray-500 hover:text-red-500 font-bold text-xl">&times;</button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto flex-1 bg-gray-50">
+                            <div className="mb-4 p-3 bg-blue-100 border-l-4 border-blue-500 text-blue-800 text-sm rounded-r-lg shadow-sm">
+                                <strong>Instruksi:</strong> Masukkan hasil bacaan dari <i>AI Full-text Helper</i> (atau NotebookLM) ke dalam kolom yang sesuai. Data ini akan otomatis menyusun <strong>Tabel Sintesis</strong> Anda.
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {projectData.synthesisTableColumns.map(col => (
+                                    <div key={col.key} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+                                        <label className="block text-xs font-bold text-gray-700 mb-1">{col.label}:</label>
+                                        <textarea
+                                            value={includeModal.extraction[col.key] || ''}
+                                            onChange={(e) => setIncludeModal(prev => ({ 
+                                                ...prev, 
+                                                extraction: { ...prev.extraction, [col.key]: e.target.value } 
+                                            }))}
+                                            className="w-full border p-2 rounded text-xs focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                                            rows={col.type === 'textarea' ? 3 : 1}
+                                            placeholder={`Data ${col.label}...`}
+                                        ></textarea>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t bg-white flex justify-end gap-3 rounded-b-xl">
+                            <button 
+                                onClick={() => setIncludeModal({ isOpen: false, study: null, extraction: {} })}
+                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold text-sm transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button 
+                                onClick={handleConfirmInclude}
+                                className="px-6 py-2 bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 font-bold flex items-center gap-2 text-sm transition-transform transform hover:-translate-y-0.5"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg>
+                                Simpan Data & Include
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}    
+            {/* -------------------------------------- */}
         </div>
     );
 };
 
 // --- Komponen untuk Ekstraksi & Sintesis Data ---
-const SintesisData = ({ projectData, setProjectData, showInfoModal, geminiApiKeys, handleCopyToClipboard, setCurrentSection }) => { // UPDATE: geminiApiKeys
+    const SintesisData = ({ projectData, setProjectData, showInfoModal, geminiApiKeys, handleCopyToClipboard, setCurrentSection }) => { // UPDATE: geminiApiKeys
     // State for managing the column definition modal
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
     const [editingColumn, setEditingColumn] = useState(null); // Can be a new column object or an existing one
@@ -7492,7 +7731,6 @@ const SintesisData = ({ projectData, setProjectData, showInfoModal, geminiApiKey
     // State for the extraction modal
     const [isExtractionModalOpen, setIsExtractionModalOpen] = useState(false);
     const [currentExtractionData, setCurrentExtractionData] = useState(null); // Holds the data for the paper being extracted
-    const [isExtracting, setIsExtracting] = useState(false); // For AI loading state
     const [isNarrativeLoading, setIsNarrativeLoading] = useState(false);
     const isPremium = projectData.isPremium;
 
@@ -7615,66 +7853,6 @@ Tuliskan draf narasi sintesisnya.`;
             setIsNarrativeLoading(false);
         }
     };
-
-    const handleAiExtract = async () => {
-        if (!currentExtractionData) return;
-        setIsExtracting(true);
-        const refDetails = currentExtractionData.refDetails;
-        const context = `
-Judul: ${refDetails.title}
-Penulis: ${refDetails.author}
-Tahun: ${refDetails.year}
-Abstrak/Catatan: ${refDetails.abstract || refDetails.isiKutipan || "Tidak ada."}
-        `;
-
-        // Dynamically build the schema from the user-defined columns
-        const schemaProperties = projectData.synthesisTableColumns.reduce((acc, col) => {
-            acc[col.key] = { type: "STRING", description: `Ekstrak informasi untuk: ${col.label}` };
-            return acc;
-        }, {});
-
-        const schema = {
-            type: "OBJECT",
-            properties: schemaProperties,
-            required: projectData.synthesisTableColumns.map(col => col.key)
-        };
-
-        // --- UPDATE PROMPT: MEMAKSA OUTPUT BAHASA INDONESIA ---
-        const prompt = `Anda adalah asisten peneliti yang sangat teliti. Berdasarkan konteks artikel ilmiah berikut, ekstrak informasi yang relevan untuk mengisi tabel sintesis.
-
-**INSTRUKSI UTAMA (WAJIB DIPATUHI):**
-1. Ekstrak data sesuai dengan definisi kolom yang diminta dalam schema.
-2. **WAJIB MENERJEMAHKAN** semua hasil ekstraksi ke dalam **BAHASA INDONESIA** formal/akademis, meskipun teks aslinya (Judul/Abstrak) berbahasa Inggris. Jangan biarkan teks dalam bahasa Inggris kecuali istilah teknis yang tidak ada padanannya.
-3. Jika informasi spesifik tidak ditemukan secara eksplisit, biarkan string kosong ("").
-
-Konteks Artikel:
----
-${context}
----
-        `;
-        // --- AKHIR UPDATE PROMPT ---
-
-        try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema }); // UPDATE: geminiApiKeys
-            
-            // Merge AI results with existing data without overwriting everything
-            setCurrentExtractionData(prev => ({
-                ...prev,
-                data: {
-                    ...prev.data,
-                    ...result
-                }
-            }));
-
-            showInfoModal("Ekstraksi AI berhasil (Bahasa Indonesia)!");
-
-        } catch (error) {
-            showInfoModal(`Gagal mengekstrak data dengan AI: ${error.message}`);
-        } finally {
-            setIsExtracting(false);
-        }
-    };
-
 
     const handleStartExtraction = (refIdToExtract) => {
         const refId = refIdToExtract || selectedRefId;
@@ -7863,18 +8041,11 @@ ${context}
                             </div>
                         </div>
 
-                        <div className="mt-6 pt-4 border-t flex justify-between items-center">
-                            <button
-                                onClick={handleAiExtract} // To be implemented in the next step
-                                disabled={isExtracting || !isPremium}
-                                className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-purple-600 hover:bg-purple-700 text-white disabled:bg-purple-300'}`}
-                                title={!isPremium ? "Fitur Premium" : ""}
-                            >
-                                {!isPremium ? '🔒 Ekstrak AI (Premium)' : (isExtracting ? 'Mengekstrak...' : '✨ Ekstrak dengan AI')}
-                            </button>
+                        {/* UPDATE: Tombol AI Ekstrak dihapus. Ekstraksi wajib dilakukan di tahap PRISMA Full-text */}
+                        <div className="mt-6 pt-4 border-t flex justify-end items-center">
                             <div className="flex gap-2">
                                 <button onClick={() => setIsExtractionModalOpen(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Batal</button>
-                                <button onClick={handleSaveExtraction} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Simpan</button>
+                                <button onClick={handleSaveExtraction} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Simpan Revisi</button>
                             </div>
                         </div>
                     </div>
@@ -11482,7 +11653,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     handleAddAllRisToLibrary
                 }} />;
             case 'prisma':
-                return <PrismaSLR {...{ projectData, setProjectData, showInfoModal, handleAiReview, geminiApiKeys }} />; // UPDATE: Pass geminiApiKeys
+                return <PrismaSLR {...{ projectData, setProjectData, showInfoModal, handleAiReview, geminiApiKeys, handleCopyToClipboard }} />; // Tambahkan handleCopyToClipboard
             case 'sintesis':
                 return <SintesisData {...{ projectData, setProjectData, showInfoModal, geminiApiKeys, handleCopyToClipboard, setCurrentSection }} />; // UPDATE: geminiApiKeys
             case 'genLogKueri':
