@@ -6227,6 +6227,19 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
         });
     };
     // ----------------------------------------
+    const handleAcceptAiRecommendation = () => {
+        const targetStudy = prismaState.studies.find(s => s.screeningStatus === 'abstract_included');
+        if (targetStudy && fulltextAnalysis && fulltextAnalysis.extraction) {
+            setShowFulltextModal(false);
+            setIncludeModal({ 
+                isOpen: true, 
+                study: targetStudy, 
+                extraction: fulltextAnalysis.extraction 
+            });
+        } else {
+            showInfoModal("Gagal memuat data ekstraksi AI atau dokumen tidak ditemukan.");
+        }
+    };
 
     // --- FUNGSI BARU: ANALISIS FULLTEXT ---
     const handleAnalyzeFulltext = async () => {
@@ -6238,28 +6251,7 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
             showInfoModal("Fitur Analisis Fulltext AI khusus untuk pengguna Premium.");
             return;
         }
-
-        // --- FUNGSI BARU UNTUK MENERIMA REKOMENDASI AI ---
-    const handleAcceptAiRecommendation = () => {
-        // Cari studi yang sedang di-screen di tahap fulltext (statusnya 'abstract_included')
-        const targetStudy = prismaState.studies.find(s => s.screeningStatus === 'abstract_included');
-        
-        if (targetStudy && fulltextAnalysis && fulltextAnalysis.extraction) {
-            // 1. Tutup modal analisis AI
-            setShowFulltextModal(false);
-            
-            // 2. Buka modal Include (Formulir Ekstraksi) dan isi otomatis dengan data AI
-            setIncludeModal({ 
-                isOpen: true, 
-                study: targetStudy, 
-                extraction: fulltextAnalysis.extraction 
-            });
-        } else {
-            showInfoModal("Gagal memuat data ekstraksi AI atau dokumen tidak ditemukan.");
-        }
-    };
-    // ------------------------------------------------
-
+         
         setIsAnalyzingFulltext(true);
         setFulltextAnalysis(null);
 
