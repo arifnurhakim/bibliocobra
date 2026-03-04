@@ -71,6 +71,7 @@ const initialProjectData = {
     // State baru untuk Ekstraksi & Sintesis
     synthesisTableColumns: [
         { key: 'author', label: 'Author(s) & Year', type: 'text' },
+        { key: 'qualityScore', label: 'Quality Score / Risk of Bias (Q1 Req)', type: 'textarea' }, // <-- KOLOM WAJIB BARU
         { key: 'population', label: 'Population/Problem', type: 'textarea' },
         { key: 'intervention', label: 'Intervention', type: 'textarea' },
         { key: 'comparison', label: 'Comparison', type: 'textarea' },
@@ -3935,7 +3936,8 @@ const GeneratorLogKueri = ({
     // Props baru untuk PICOS
     handleGenerateQueriesFromPicos,
     geminiApiKeys, // UPDATE: Changed from geminiApiKey to geminiApiKeys
-    handleInputChange // Tambahkan prop ini
+    handleInputChange, // Tambahkan prop ini
+    setCurrentSection
 }) => {
     // State management
     const [isLogModalOpen, setIsLogModalOpen] = useState(false);
@@ -4321,8 +4323,8 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                 <div className="mt-6">
                     <label className="block text-gray-700 text-sm font-bold mb-2">
                         Pertanyaan Penelitian (Research Questions):
-                    </label>
-                    <textarea 
+                        </label>
+                        <textarea 
                         name="rumusanMasalahDraft"
                         value={projectData.rumusanMasalahDraft}
                         onChange={handleInputChange}
@@ -4330,6 +4332,23 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                         placeholder="Hasil formulasi AI akan muncul di sini, atau Anda bisa mengetik langsung. Pisahkan setiap pertanyaan dengan baris baru."
                         rows="4"
                     ></textarea>
+                {/* --- TOMBOL SINKRONISASI BARU --- */}
+    {projectData.rumusanMasalahDraft && (
+        <button 
+            onClick={() => {
+                setCurrentSection('ideKTI');
+                showInfoModal("RQ dari PICOS telah dikunci sebagai Fondasi Penelitian. Silakan tinjau di menu Ide KTI & Fondasi.");
+            }}
+            className="mt-2 bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-200 transition-colors flex items-center gap-2 border border-indigo-200 shadow-sm"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M1.5 1a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V1.5a.5.5 0 0 0-.5-.5h-13zM2 0h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2z"/>
+                <path d="M10.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L9.293 7.5H4.5a.5.5 0 0 0 0 1h4.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+            </svg>
+            Terapkan sebagai Fondasi KTI & Pindah Menu
+        </button>
+    )}     
+
                 </div>
                 {/* --- AKHIR KOTAK BARU --- */}
             </div>
@@ -6580,28 +6599,37 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
         if (!study) return;
 
         setProjectData(p => {
-            // 1. Ubah status PRISMA menjadi fulltext_included
+            // 1. Update status PRISMA
             const updatedStudies = p.prismaState.studies.map(s =>
                 s.id === study.id ? { ...s, screeningStatus: 'fulltext_included' } : s
             );
 
-            // 2. Simpan hasil ekstraksi langsung ke Tabel Ekstraksi
+            // 2. Simpan hasil ekstraksi ke Tabel Sintesis
             const existingIndex = p.extractedData.findIndex(d => String(d.refId) === String(study.id));
             let newExtractedData = [...p.extractedData];
-
             if (existingIndex > -1) {
                 newExtractedData[existingIndex] = { refId: study.id, data: extraction };
             } else {
                 newExtractedData.push({ refId: study.id, data: extraction });
             }
 
+            // --- LOGIKA SINKRONISASI BARU (MODE TIRAN) ---
+            // Cari referensi di perpustakaan dan update catatannya dengan 'Temuan Kunci'
+            const updatedAllReferences = p.allReferences.map(ref => {
+                if (String(ref.id) === String(study.id)) {
+                    return { 
+                        ...ref, 
+                        isiKutipan: `[HASIL EKSTRAKSI SLR]:\n${extraction.keyFinding || extraction.outcome || 'Data terekstrak.'}` 
+                    };
+                }
+                return ref;
+            });
+
             return {
                 ...p,
-                extractedData: newExtractedData, // <-- Data masuk ke tabel sintesis
-                prismaState: {
-                    ...p.prismaState,
-                    studies: updatedStudies
-                }
+                extractedData: newExtractedData,
+                allReferences: updatedAllReferences, // Sinkronisasi ke Perpustakaan
+                prismaState: { ...p.prismaState, studies: updatedStudies }
             };
         });
 
@@ -7791,6 +7819,21 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
             return;
         }
 
+        // --- 1. EKSTRAKSI DATA TEORI DARI BAB 2 (LOGIKA BARU) ---
+        let theoryContext = "PENGGUNA BELUM MENYUSUN PETA TEORI DI BAB 2.";
+        if (projectData.theoryClassification) {
+            const formatT = (list) => list && list.length > 0 
+                ? list.map(t => `- ${t.concept} (${t.citation}): ${t.reason}`).join('\n')
+                : "Tidak ada.";
+            
+            theoryContext = `
+            STRUKTUR TEORI JANGKAR (DARI BAB 2):
+            1. GRAND THEORY: ${formatT(projectData.theoryClassification.grand)}
+            2. MIDDLE-RANGE: ${formatT(projectData.theoryClassification.middle)}
+            3. APPLIED/OPERASIONAL: ${formatT(projectData.theoryClassification.applied)}
+            `;
+        }
+
         // Format the extracted data into a structured string for the prompt
         const dataForPrompt = projectData.extractedData.map(item => {
             const refDetails = projectData.allReferences.find(ref => String(ref.id) === String(item.refId));
@@ -7804,36 +7847,44 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
             return entryString;
         }).join('\n---\n');
 
-        const prompt = `Anda adalah seorang penulis akademik ahli. Tugas Anda adalah menulis sebuah draf tinjauan pustaka naratif yang koheren HANYA berdasarkan data terstruktur yang diekstrak dari beberapa artikel berikut.
+        // --- 3. PROMPT TERINTEGRASI Q1 (REVISI TOTAL) ---
+       const prompt = `Anda adalah Reviewer Jurnal Q1. Tulis naskah akademik untuk BAB 4 (HASIL & PEMBAHASAN).
 
-Konteks Penelitian Utama:
-- Judul: "${projectData.judulKTI || projectData.topikTema}"
+**ATURAN KETAT (CRITICAL):**
+1. DILARANG memberikan kata pengantar atau salam. Langsung mulai dari teks bab.
+2. Gunakan penomoran sub-bab yang presisi.
 
-Data yang Diekstrak:
----
-${dataForPrompt}
----
+**STRUKTUR OUTPUT WAJIB:**
+- 4.2 Hasil Sintesis Literatur: Sintesis temuan berdasarkan RQ (Research Question).
+- 4.3 Pembahasan (Discussion): Hubungkan temuan dengan landasan teori di Bab 2.
 
-Instruksi Penulisan:
-1.  **Sintesis, Jangan Daftar:** Jangan hanya membuat daftar temuan dari setiap paper. Sintesiskan informasi tersebut. Identifikasi tema, pola, atau hubungan yang muncul di antara berbagai paper.
-2.  **Struktur Narasi:** Buat alur cerita yang logis. Mulailah dengan pengenalan umum, kelompokkan temuan serupa, diskusikan perbedaan atau kontradiksi jika ada, dan akhiri dengan ringkasan singkat.
-3.  **Sebutkan Sumber:** Saat membahas sebuah temuan, sebutkan sumbernya (misalnya, "Menurut Smith (2020)..." atau "...seperti yang ditunjukkan oleh Jones et al. (2021).").
-4.  **Gaya Akademis:** Gunakan bahasa yang formal, objektif, dan jelas.
-5.  **Format:** Hasilkan sebagai teks biasa (plain text) tanpa format markdown atau HTML.
+DATA INPUT:
+RQ: ${projectData.rumusanMasalahDraft}
+TABEL: ${dataForPrompt}
+TEORI: ${theoryContext}
 
-Tuliskan draf narasi sintesisnya.`;
+Gunakan Bahasa Indonesia Akademis yang tajam.`;
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys); // UPDATE: geminiApiKeys
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
+            const nCount = projectData.extractedData.length;
 
-            const separator = `\n\n---\n[Sintesis Naratif Dihasilkan pada ${new Date().toLocaleString()}]\n---\n`;
-            const newHasilPembahasan = (projectData.hasilPembahasanDraft || '') + separator + cleanResult;
+            // Separator dengan label yang lebih profesional
+            const separator = `\n\n=== 4.1 GAMBARAN UMUM STUDI ===
+Berdasarkan proses seleksi protokol PRISMA 2020, terdapat ${nCount} studi yang memenuhi kriteria inklusi dan dianalisis dalam tinjauan ini. Karakteristik ringkas dari setiap studi disajikan pada [Tabel 1].
 
-            setProjectData(p => ({ 
+[INTRUKSI: Sisipkan Tabel 1 dari hasil Ekspor CSV di sini]
+
+=== 4.2 & 4.3 HASIL DAN PEMBAHASAN TERINTEGRASI ===
+\n`;
+
+            const newHasilTotal = (projectData.hasilPembahasanDraft || '') + separator + cleanResult;
+
+                setProjectData(p => ({
                 ...p, 
                 sintesisNaratifDraft: cleanResult,
-                hasilPembahasanDraft: newHasilPembahasan
+                hasilPembahasanDraft: newHasilTotal
             }));
             
             showInfoModal("Draf narasi berhasil dibuat dan ditambahkan ke Bab Hasil & Pembahasan. Anda akan diarahkan ke sana sekarang.");
@@ -9330,7 +9381,7 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
         setIsLoading(true);
 
         const context = `
-Judul: "${projectData.judulKTI}"
+Judul: "${String(projectData.judulKTI)}"
 Rumusan Masalah (Pertanyaan):
 ${projectData.rumusanMasalahDraft}
 `;
@@ -11047,14 +11098,15 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
 
         let prompt;
         if (type === 'rq') {
-            prompt = `Berdasarkan kerangka PICOS berikut, formulasikan satu Pertanyaan Penelitian (Research Question) utama yang jelas dan ringkas untuk sebuah Systematic Literature Review.
-            - P (Population/Problem): ${picos.population}
-            - I (Intervention): ${picos.intervention}
-            - C (Comparison): ${picos.comparison || 'Tidak ditentukan'}
-            - O (Outcome): ${picos.outcome}
-            - S (Study Design): ${picos.studyDesign || 'Tidak ditentukan'}
-            
-            Hasilkan HANYA kalimat pertanyaan penelitiannya saja.`;
+            prompt = `Anda adalah pakar metodologi SLR. Berdasarkan kerangka PICOS di bawah, formulasikan 3 Research Questions (RQ) yang saling melengkapi untuk paper internasional:
+            1. RQ1 (Descriptive): Fokus pada pemetaan tren/metode yang digunakan terkait ${picos.intervention}.
+            2. RQ2 (Substantive): Fokus pada dampak/hasil (${picos.outcome}) pada ${picos.population}.
+            3. RQ3 (Future Gap): Fokus pada celah penelitian yang belum terselesaikan.
+
+            Data PICOS:
+            - P: ${picos.population} | I: ${picos.intervention} | C: ${picos.comparison || 'N/A'} | O: ${picos.outcome} | S: ${picos.studyDesign || 'N/A'}
+    
+            Hasilkan dalam bentuk poin-poin tanpa kalimat pengantar.`;
              try {
                 const result = await geminiService.run(prompt, geminiApiKeys);
                 // --- PERUBAHAN DI SINI: Simpan hasil ke projectData ---
@@ -11593,7 +11645,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             case 'sintesis':
                 return <SintesisData {...{ projectData, setProjectData, showInfoModal, geminiApiKeys, handleCopyToClipboard, setCurrentSection }} />; // UPDATE: geminiApiKeys
             case 'genLogKueri':
-                return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, handleCopyQuery, handleDeleteLog, includeIndonesianQuery, setIncludeIndonesianQuery, handleGenerateQueriesFromPicos, geminiApiKeys, handleInputChange }} />; // UPDATE: geminiApiKeys
+                return <GeneratorLogKueri {...{ projectData, setProjectData, handleGenerateQueries, isLoading, showInfoModal, lastCopiedQuery, handleCopyQuery, handleDeleteLog, includeIndonesianQuery, setIncludeIndonesianQuery, handleGenerateQueriesFromPicos, geminiApiKeys, handleInputChange, setCurrentSection }} />; // UPDATE: geminiApiKeys
             case 'genVariabel':
                 return <GeneratorVariabel {...{ projectData, setProjectData, handleGenerateVariabel, isLoading, showInfoModal, handleCopyToClipboard }} />;
             case 'genHipotesis':
@@ -12534,7 +12586,7 @@ try {
                                     <div className="mb-8 p-4 bg-indigo-100 border-l-4 border-indigo-500 rounded-lg animate-fade-in">
                                         <div>
                                             <p className="text-sm font-bold text-indigo-800">Judul Proyek Anda:</p>
-                                            <h2 className="text-lg font-semibold text-gray-800">{projectData.judulKTI}</h2>
+                                            <h2 className="text-lg font-semibold text-gray-800">{String(projectData.judulKTI || "")}</h2>
                                         </div>
                                     </div>
                                 )}
