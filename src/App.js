@@ -9498,9 +9498,13 @@ Output (JSON Format):
         const isManualMode = selectedIds && selectedIds.length > 0;
         
         // Sumber Data
+        // --- LOGIKA FILTER CERDAS (HANYA DATA BERKUALITAS) ---
         const sourceRefs = isManualMode
-            ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
-            : projectData.allReferences; // Gunakan semua jika tidak ada yang dipilih
+    ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
+    : projectData.allReferences.filter(ref => 
+        (ref.abstract && ref.abstract.length > 50) || 
+        (ref.isiKutipan && ref.isiKutipan.length > 50)
+      ); // Otomatis mengeliminasi level LOW jika Mode Kurator Aktif
 
         if (sourceRefs.length === 0) {
             showInfoModal("Tidak ada referensi tersedia untuk diklasifikasikan.");
@@ -10052,89 +10056,85 @@ ${context}
     };
   
     // UPDATE: Menerima selectedIds untuk Pendahuluan (MERGED: Q1 Anchor + Visual Context)
-    const handleGenerateFullPendahuluan = async (selectedIds = []) => {
-        setIsLoading(true);
-        
-        // 1. Ambil Data Teori untuk Anchoring & Mechanism (Logika Q1)
-        let mainTheoryContext = "";
-        if (projectData.theoryClassification) {
-            const grand = projectData.theoryClassification.grand?.map(t => t.concept).join(' / ') || "Teori Utama";
-            const middle = projectData.theoryClassification.middle?.map(t => t.concept).join(' / ') || "Mekanisme Pendukung";
-            
-            mainTheoryContext = `
-**STRATEGI TEORETIS (WAJIB DIIKUTI):**
-1. **Theoretical Anchor (Jangkar Utama):** Penelitian ini berdiri di atas tradisi **${grand}**. Ini adalah klaim kontribusi utama.
-2. **Theoretical Mechanism (Mekanisme):** Logika atau jalur perubahannya dijelaskan menggunakan **${middle}**.
-*Gunakan kombinasi ini di paragraf pembuka dan Kontribusi Penelitian (1.6).*
-`;
-        }
-        
-        // 2. Cek Draf Lama / Temuan Visual (Logika Integrasi)
-        const existingContent = projectData.pendahuluanDraft || "";
-        const userNotesContext = existingContent.trim() !== "" ? `
-**CATATAN AWAL / TEMUAN VISUAL PENGGUNA (SANGAT PENTING):**
-Pengguna telah memasukkan catatan berikut (misal hasil analisis visual peta tematik).
-Anda **WAJIB MENGINTEGRASIKAN** temuan ini ke dalam narasi (misalnya di bagian Latar Belakang atau Research Gap). JANGAN membuangnya.
----
-${existingContent}
----
-` : "";
+    // Gantikan blok handleGenerateFullPendahuluan dengan ini:
+const handleGenerateFullPendahuluan = async (selectedIds = []) => {
+    setIsLoading(true);
+    
+    // 1. Ekstraksi Teori (Tetap Sama)
+    let mainTheoryContext = "";
+    if (projectData.theoryClassification) {
+        const grand = projectData.theoryClassification.grand?.map(t => t.concept).join(' / ') || "Teori Utama";
+        const middle = projectData.theoryClassification.middle?.map(t => t.concept).join(' / ') || "Mekanisme Pendukung";
+        mainTheoryContext = `Theoretical Anchor: ${grand}\nTheoretical Mechanism: ${middle}`;
+    }
+    
+    // 2. Integrasi Content (Tetap Sama)
+    const existingContent = projectData.pendahuluanDraft || "";
+    const userNotesContext = existingContent.trim() !== "" ? `INTEGRASI VISUAL/CATATAN: ${existingContent}` : "";
 
-        // Filter referensi
-        const sourceRefs = (selectedIds && selectedIds.length > 0) 
-            ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
-            : projectData.allReferences;
+    // 3. Filter Referensi
+    const sourceRefs = (selectedIds && selectedIds.length > 0) 
+        ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
+        : projectData.allReferences;
 
-        const kutipanString = sourceRefs
-            .filter(ref => ref.isiKutipan)
-            .map(ref => `- Dari "${ref.title}" oleh ${ref.author} (${ref.year}): "${ref.isiKutipan}"`)
-            .join('\n');
-        
-        // --- PROMPT UPDATE ---
-        const prompt = `Anda adalah penulis akademik spesialis jurnal Q1. Tulis draf Bab 1: Pendahuluan.
+    const kutipanString = sourceRefs
+        .filter(ref => ref.isiKutipan)
+        .map(ref => `- ${ref.author} (${ref.year}): ${ref.isiKutipan}`)
+        .join('\n');
 
-**Aturan Emas Q1 (The Anchor & The Mechanism):**
-- Di paragraf awal, langsung tunjukkan "posisi" penelitian (standing position) menggunakan **Theoretical Anchor**.
-- Di bagian **1.6 Kontribusi**, formulasikan kalimat kontribusi dengan pola: *"Kontribusi utama pada [Anchor] melalui mekanisme [Mechanism]..."*. Jangan biarkan kontribusi melebar ke banyak teori.
+    const isManualSelection = selectedIds && selectedIds.length > 0;    
 
-**ATURAN VISUALISASI & INTEGRASI:**
-- **Integrasi Catatan Pengguna:** Jika ada "CATATAN AWAL / TEMUAN VISUAL", leburkan isinya secara natural.
-- **Placeholder:** Sisipkan **Gambar 1.X: [Judul Grafik/Peta]** *[Instruksi: Masukkan grafik tren/peta tematik]* pada bagian yang membahas data empiris.
+    // 4. PROMPT DIKTATOR (STRICT BINDING)
+    const prompt = `Anda adalah penulis akademik spesialis jurnal Q1. Tulis draf Bab 1: Pendahuluan.
 
-**Konteks Proyek:**
-- Judul: "${projectData.judulKTI}"
-- Pokok Masalah: "${projectData.faktaMasalahDraft}"
-- Rumusan Masalah: "${projectData.rumusanMasalahDraft || 'Belum ada.'}" 
-- Tujuan Penelitian: "${projectData.tujuanPenelitianDraft}"
+**TUGAS ANDA (MODE ${isManualSelection ? 'MANUAL' : 'KURATOR CERDAS'}):**
+${isManualSelection 
+    ? "Gunakan REFERENSI PENDUKUNG yang dipilih pengguna di bawah ini untuk menyusun narasi." 
+    : "Daftar di bawah adalah seluruh perpustakaan pengguna. Tugas Anda adalah MENYELEKSI secara mandiri maksimal 5-8 referensi yang paling kuat dan relevan untuk membangun Latar Belakang dan Gap penelitian ini."
+}
 
-${mainTheoryContext}
-${userNotesContext}
+**STANDAR SITASI WAJIB (CRITICAL):**
+1. Gunakan format **APA 7th Edition** secara konsisten di seluruh narasi (Contoh: Penulis, 2024 atau Menurut Penulis (2024)).
+2. Setiap klaim atau data empiris WAJIB didukung oleh sitasi dari "Referensi Pendukung" atau "Strategi Teori" di bawah.
+3. DILARANG menulis nama penulis tanpa tahun.
 
-- Catatan Referensi:
-${kutipanString || "Tidak ada catatan spesifik."}
+**TUGAS UTAMA:**
+Tulis narasi Pendahuluan secara elegan. Anda memiliki kreativitas penuh untuk poin 1.1, 1.2, 1.6, dan 1.7. Namun, untuk poin 1.3, 1.4, dan 1.5, Anda **DILARANG KERAS** melakukan parafrasa.
 
-**Struktur Bab 1:**
-1.1 Latar Belakang (Fenomena empiris + Gap data + Integrasi Temuan Visual)
-1.2. Kesenjangan Penelitian (Research Gap - Apa yang belum terjawab?)
-1.3. Rumusan Masalah
-1.4. Pertanyaan Penelitian
-1.5. Tujuan Penelitian
-1.6. Kontribusi Penelitian (TAJAM & SPESIFIK):
-    - **Teoretis:** Fokus pada ekspansi/validasi [Anchor] melalui lensa [Mechanism].
-    - **Praktis:** Implikasi bagi kebijakan/manajemen.
-1.7. Struktur Artikel`;
+**DATA FONDASI (WAJIB SALIN 1:1 / VERBATIM):**
+- DATA UNTUK 1.3 (POKOK MASALAH): "${projectData.faktaMasalahDraft}"
+- DATA UNTUK 1.4 (PERTANYAAN PENELITIAN): "${projectData.rumusanMasalahDraft}"
+- DATA UNTUK 1.5 (TUJUAN PENELITIAN): "${projectData.tujuanPenelitianDraft}"
 
-        try {
-            const result = await geminiService.run(prompt, geminiApiKeys);
-            const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
-            setProjectData(prev => ({ ...prev, pendahuluanDraft: cleanResult }));
-            showInfoModal("Draf Pendahuluan (Q1 Anchor + Integrasi Visual) berhasil dibuat!");
-        } catch (error) {
-            showInfoModal(`Gagal menghasilkan Pendahuluan: ${error.message}`);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+**STRATEGI PENULISAN:**
+- Strategi Teori: ${mainTheoryContext}
+- Catatan User: ${userNotesContext}
+- Referensi Pendukung: ${kutipanString}
+
+**STRUKTUR OUTPUT WAJIB:**
+1.1 Latar Belakang (Fenomena + Data Empiris)
+1.2 Kesenjangan Penelitian (Research Gap)
+1.3 Rumusan Masalah (SALIN DATA 1.3 DI ATAS)
+1.4 Pertanyaan Penelitian (SALIN DATA 1.4 DI ATAS)
+1.5 Tujuan Penelitian (SALIN DATA 1.5 DI ATAS)
+1.6 Kontribusi Penelitian (Teoretis & Praktis)
+1.7 Struktur Artikel
+
+**ATURAN TAMBAHAN:**
+- Jangan berikan salam pembuka atau komentar.
+- Gunakan Bahasa Indonesia Akademis standar tinggi.`;
+
+    try {
+        const result = await geminiService.run(prompt, geminiApiKeys);
+        const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
+        setProjectData(prev => ({ ...prev, pendahuluanDraft: cleanResult }));
+        showInfoModal("Draf Pendahuluan berhasil dibuat dengan Sinkronisasi Fondasi 1:1!");
+    } catch (error) {
+        showInfoModal(`Gagal: ${error.message}`);
+    } finally {
+        setIsLoading(false);
+    }
+};
     
     const handleModifyText = async (mode, draftKey) => {
         const currentText = projectData[draftKey];
