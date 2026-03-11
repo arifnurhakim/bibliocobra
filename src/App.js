@@ -96,6 +96,7 @@ const initialProjectData = {
     thematicMapData: null, // <-- Penambahan State untuk Peta Tematik (Langkah 1)
 
     // Data Draf Bab
+    modePenulisan: 'tesis', // <-- TAMBAHAN BARU: Default ke mode Tesis
     teoriPenelitianDraft: '', // Tetap di sini untuk penggunaan lain
     pendahuluanDraft: '',
     metodeDraft: '',
@@ -2831,7 +2832,12 @@ const StudiLiteratur = ({
     // --- STATE BARU UNTUK MODAL TAMBAH TEORI ---
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [targetCategory, setTargetCategory] = useState(null);
+    
+    // --- STATE BARU UNTUK ACCORDION PETA TEORI ---
+    const [isMap1Open, setIsMap1Open] = useState(true); // Default terbuka
+    const [isMap2Open, setIsMap2Open] = useState(true); // Default terbuka
     // -------------------------------------------
+    
     const isPremium = projectData.isPremium;
 
     // --- FUNGSI BARU: Pindahkan Teori Antar Kategori ---
@@ -2880,6 +2886,24 @@ const StudiLiteratur = ({
         setProjectData(p => ({ ...p, theoryClassification: newClassification }));
         setIsAddModalOpen(false); // Tutup modal
     };
+
+    // --- FUNGSI BARU: Hapus Seluruh Peta (Clear Map) ---
+    const handleClearMap = (mapType) => {
+        if (!projectData.theoryClassification) return;
+        
+        const newClassification = { ...projectData.theoryClassification };
+        
+        if (mapType === 'taksonomi') {
+            delete newClassification.grand;
+            delete newClassification.middle;
+            delete newClassification.applied;
+        } else if (mapType === 'framework') {
+            delete newClassification.framework;
+        }
+        
+        setProjectData(p => ({ ...p, theoryClassification: newClassification }));
+    };
+    // ----------------------------------------------------
 
     // Helper untuk merender Kartu Teori (Updated: Full Text & Citation & Icons)
     const renderTheoryCard = (item, category, colorClass) => (
@@ -2946,123 +2970,185 @@ const StudiLiteratur = ({
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Studi Literatur</h2>
+            <h2 className="text-2xl font-bold mb-2 text-gray-800">Studi Literatur</h2>
             <p className="text-gray-700 mb-4">Pilih referensi Grand Theory atau Konsep Utama yang ingin dibahas dalam Tinjauan Pustaka.</p>
             
+            {/* --- INFO BOX BARU: Panduan Q1 vs Tesis --- */}
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-6 rounded-r-lg shadow-sm">
+                <p className="text-xs text-yellow-800 font-medium">
+                    <strong className="font-bold uppercase tracking-wide">💡 Panduan Strategi Penulisan:</strong><br/>
+                    • <strong>Target Jurnal Q1/Internasional:</strong> Cukup gunakan <span className="font-bold">Area 2 (Peta Konsep)</span>. Hindari Area 1 agar tulisan Anda padat dan fokus pada sintesis (standar jurnal).<br/>
+                    • <strong>Target Tesis/Disertasi:</strong> Gunakan <span className="font-bold">Keduanya (Area 1 & Area 2)</span> untuk memenuhi standar pengujian akademik di Indonesia.
+                </p>
+            </div>
+            {/* ------------------------------------------ */}
+
             <ReferenceSelector 
                 projectData={projectData} 
                 selectedRefIds={selectedRefIds} 
                 setSelectedRefIds={setSelectedRefIds} 
             />
-
-            {/* --- AREA KLASIFIKASI TEORI (UI TAHAP 2) --- */}
-            <div className="mb-6 border-2 border-dashed border-indigo-200 rounded-xl bg-indigo-50 p-4">
-                <div className="flex justify-between items-center mb-4">
-                    <div>
-                        <h3 className="font-bold text-indigo-900 text-lg">Peta Struktur Teori (Bab II)</h3>
-                        <p className="text-xs text-indigo-700">Gunakan AI untuk memilah referensi menjadi struktur hierarkis.</p>
+            
+            {/* --- AREA 1: PETA STRUKTUR TEORI (TAKSONOMI / 2.1) --- */}
+            <div className="mb-6 border-2 border-solid border-blue-200 rounded-xl bg-blue-50 relative transition-all duration-300">
+                <span className="absolute -top-3 left-4 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide z-10">Pondasi: Sub-Bab 2.1</span>
+                
+                {/* HEADER (BISA DIKLIK UNTUK BUKA/TUTUP) */}
+                <div 
+                    className={`p-4 pt-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 cursor-pointer transition-colors ${isMap1Open ? 'border-b border-blue-200' : 'hover:bg-blue-100 rounded-xl'}`}
+                    onClick={() => setIsMap1Open(!isMap1Open)}
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="text-blue-600">
+                            <ChevronDownIcon isOpen={isMap1Open} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-blue-900 text-lg flex items-center flex-wrap gap-2">
+                                1. Peta Struktur Teori (Akar Filosofis)
+                                {/* --- LABEL KHUSUS TESIS --- */}
+                                <span className="bg-orange-200 text-orange-800 text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold shadow-sm">
+                                    Opsional (Khusus Tesis)
+                                </span>
+                            </h3>
+                            <p className="text-xs text-blue-700 mt-1">Pilih referensi di atas, lalu minta AI memetakan Grand, Middle, dan Applied Theory.</p>
+                        </div>
                     </div>
-                    <button 
-                        onClick={() => handleClassifyTheories(selectedRefIds)} 
-                        className={`font-bold py-2 px-4 rounded-lg text-xs shadow-sm flex items-center gap-2 ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:bg-indigo-300'}`}
-                        disabled={isLoading || projectData.allReferences.length === 0 || !isPremium}
-                    >
-                        {isLoading ? (
-                            <>
-                                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                Sedang Memilah...
-                            </>
-                        ) : (
-                            <>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
-                                {!projectData.theoryClassification ? "Klasifikasikan Referensi Terpilih" : "Klasifikasi Ulang"}
-                            </>
+                    <div className="flex items-center gap-2 z-10 relative">
+                        {/* --- TOMBOL HAPUS PETA 1 --- */}
+                        {(projectData.theoryClassification?.grand || projectData.theoryClassification?.middle || projectData.theoryClassification?.applied) && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); handleClearMap('taksonomi'); }}
+                                className="text-xs font-bold text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors border border-red-200"
+                            >
+                                Bersihkan Peta
+                            </button>
                         )}
-                    </button>
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation(); // Mencegah accordion tertutup/terbuka saat tombol diklik
+                                handleClassifyTheories(selectedRefIds, 'taksonomi');
+                            }} 
+                            className={`whitespace-nowrap font-bold py-2 px-4 rounded-lg text-xs shadow-sm flex items-center gap-2 ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                            disabled={isLoading || projectData.allReferences.length === 0 || !isPremium}
+                        >
+                            {isLoading ? 'Memilah...' : '✨ Susun Peta Teori (Taksonomi)'}
+                        </button>
+                    </div>
                 </div>
 
-                {/* VISUALISASI 3 KOLOM */}
-                {projectData.theoryClassification ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in">
-                        {/* KOLOM 1: GRAND THEORY */}
-                        <div className="bg-blue-100 rounded-lg p-3 border border-blue-200 flex flex-col">
-                            <div className="mb-3 flex justify-between items-center border-b border-blue-200 pb-2">
-                                <div className="text-left">
-                                    <span className="font-bold text-blue-900 block text-sm">GRAND THEORY</span>
-                                    <span className="text-[10px] text-blue-700 block">(Payung/Induk)</span>
+                {/* KONTEN (Disembunyikan jika isMap1Open = false) */}
+                {isMap1Open && (
+                    <div className="p-4 animate-fade-in">
+                        {projectData.theoryClassification?.grand || projectData.theoryClassification?.middle || projectData.theoryClassification?.applied ? (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                                {/* KOLOM GRAND */}
+                                <div className="bg-white rounded-lg p-3 border border-blue-100 flex flex-col">
+                                    <div className="mb-2 flex justify-between items-center border-b border-blue-100 pb-2">
+                                        <span className="font-bold text-blue-900 text-xs">GRAND THEORY</span>
+                                        <button onClick={() => handleAddTheory('grand')} className="text-blue-500 hover:bg-blue-50 rounded px-1">+</button>
+                                    </div>
+                                    <div className="flex-grow min-h-[50px]">
+                                        {projectData.theoryClassification.grand?.map(item => renderTheoryCard(item, 'grand'))}
+                                    </div>
                                 </div>
-                                <button 
-                                    onClick={() => handleAddTheory('grand')}
-                                    className="bg-blue-200 hover:bg-blue-300 text-blue-800 rounded w-6 h-6 flex items-center justify-center font-bold shadow-sm transition-colors"
-                                    title="Tambah Teori Manual"
-                                >
-                                    +
-                                </button>
-                            </div>
-                            <div className="flex-grow min-h-[100px]">
-                                {projectData.theoryClassification.grand?.length > 0 ? (
-                                    projectData.theoryClassification.grand.map(item => renderTheoryCard(item, 'grand'))
-                                ) : (
-                                    <div className="text-center text-blue-400 text-xs italic py-4 border-2 border-dashed border-blue-200 rounded">Kosong</div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* KOLOM 2: MIDDLE-RANGE */}
-                        <div className="bg-teal-100 rounded-lg p-3 border border-teal-200 flex flex-col">
-                            <div className="mb-3 flex justify-between items-center border-b border-teal-200 pb-2">
-                                <div className="text-left">
-                                    <span className="font-bold text-teal-900 block text-sm">MIDDLE-RANGE THEORY</span>
-                                    <span className="text-[10px] text-teal-700 block">(Penghubung/Variabel)</span>
+                                {/* KOLOM MIDDLE */}
+                                <div className="bg-white rounded-lg p-3 border border-blue-100 flex flex-col">
+                                    <div className="mb-2 flex justify-between items-center border-b border-blue-100 pb-2">
+                                        <span className="font-bold text-blue-900 text-xs">MIDDLE-RANGE</span>
+                                        <button onClick={() => handleAddTheory('middle')} className="text-blue-500 hover:bg-blue-50 rounded px-1">+</button>
+                                    </div>
+                                    <div className="flex-grow min-h-[50px]">
+                                        {projectData.theoryClassification.middle?.map(item => renderTheoryCard(item, 'middle'))}
+                                    </div>
                                 </div>
-                                <button 
-                                    onClick={() => handleAddTheory('middle')}
-                                    className="bg-teal-200 hover:bg-teal-300 text-teal-800 rounded w-6 h-6 flex items-center justify-center font-bold shadow-sm transition-colors"
-                                    title="Tambah Teori Manual"
-                                >
-                                    +
-                                </button>
-                            </div>
-                            <div className="flex-grow min-h-[100px]">
-                                {projectData.theoryClassification.middle?.length > 0 ? (
-                                    projectData.theoryClassification.middle.map(item => renderTheoryCard(item, 'middle'))
-                                ) : (
-                                    <div className="text-center text-teal-400 text-xs italic py-4 border-2 border-dashed border-teal-200 rounded">Kosong</div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* KOLOM 3: APPLIED THEORY */}
-                        <div className="bg-orange-100 rounded-lg p-3 border border-orange-200 flex flex-col">
-                            <div className="mb-3 flex justify-between items-center border-b border-orange-200 pb-2">
-                                <div className="text-left">
-                                    <span className="font-bold text-orange-900 block text-sm">APPLIED THEORY</span>
-                                    <span className="text-[10px] text-orange-700 block">(Operasional/Indikator)</span>
+                                {/* KOLOM APPLIED */}
+                                <div className="bg-white rounded-lg p-3 border border-blue-100 flex flex-col">
+                                    <div className="mb-2 flex justify-between items-center border-b border-blue-100 pb-2">
+                                        <span className="font-bold text-blue-900 text-xs">APPLIED THEORY</span>
+                                        <button onClick={() => handleAddTheory('applied')} className="text-blue-500 hover:bg-blue-50 rounded px-1">+</button>
+                                    </div>
+                                    <div className="flex-grow min-h-[50px]">
+                                        {projectData.theoryClassification.applied?.map(item => renderTheoryCard(item, 'applied'))}
+                                    </div>
                                 </div>
-                                <button 
-                                    onClick={() => handleAddTheory('applied')}
-                                    className="bg-orange-200 hover:bg-orange-300 text-orange-800 rounded w-6 h-6 flex items-center justify-center font-bold shadow-sm transition-colors"
-                                    title="Tambah Teori Manual"
-                                >
-                                    +
-                                </button>
                             </div>
-                            <div className="flex-grow min-h-[100px]">
-                                {projectData.theoryClassification.applied?.length > 0 ? (
-                                    projectData.theoryClassification.applied.map(item => renderTheoryCard(item, 'applied'))
-                                ) : (
-                                    <div className="text-center text-orange-400 text-xs italic py-4 border-2 border-dashed border-orange-200 rounded">Kosong</div>
-                                )}
+                        ) : (
+                            <div className="text-center py-6 mt-2 text-blue-400 border-2 border-dashed border-blue-200 rounded-lg bg-white/50">
+                                <p className="text-sm italic">Peta Struktur Teori belum dibuat.</p>
                             </div>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="text-center py-8 text-indigo-400 border-2 border-dashed border-indigo-200 rounded-lg bg-white/50">
-                        <p className="text-sm italic">Belum ada peta teori. Pilih referensi di atas lalu klik tombol klasifikasi.</p>
+                        )}
                     </div>
                 )}
             </div>
-            {/* ------------------------------------------- */}
+
+            {/* --- AREA 2: PETA KONSEP TEMATIK (SINTESIS / 2.2) --- */}
+            <div className="mb-6 border-2 border-solid border-purple-200 rounded-xl bg-purple-50 relative transition-all duration-300">
+                <span className="absolute -top-3 left-4 bg-purple-600 text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide z-10">Sintesis: Sub-Bab 2.2</span>
+                
+                {/* HEADER (BISA DIKLIK UNTUK BUKA/TUTUP) */}
+                <div 
+                    className={`p-4 pt-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 cursor-pointer transition-colors ${isMap2Open ? 'border-b border-purple-200' : 'hover:bg-purple-100 rounded-xl'}`}
+                    onClick={() => setIsMap2Open(!isMap2Open)}
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="text-purple-600">
+                            <ChevronDownIcon isOpen={isMap2Open} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-purple-900 text-lg flex items-center flex-wrap gap-2">
+                                2. Peta Konsep (Literature Review)
+                                {/* --- LABEL WAJIB JURNAL --- */}
+                                <span className="bg-green-200 text-green-800 text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold shadow-sm">
+                                    Wajib (Jurnal Q1 & Tesis)
+                                </span>
+                            </h3>
+                            <p className="text-xs text-purple-700 mt-1">Kelompokkan paper menjadi tema-tema untuk dibahas di Tinjauan Pustaka.</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 z-10 relative">
+                        {/* --- TOMBOL HAPUS PETA 2 --- */}
+                        {projectData.theoryClassification?.framework && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); handleClearMap('framework'); }}
+                                className="text-xs font-bold text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition-colors border border-red-200"
+                            >
+                                Bersihkan Peta
+                            </button>
+                        )}
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation(); // Mencegah accordion tertutup/terbuka saat tombol diklik
+                                handleClassifyTheories(selectedRefIds, 'framework');
+                            }} 
+                            className={`whitespace-nowrap font-bold py-2 px-4 rounded-lg text-xs shadow-sm flex items-center gap-2 ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
+                            disabled={isLoading || projectData.allReferences.length === 0 || !isPremium}
+                        >
+                            {isLoading ? 'Memilah...' : '✨ Susun Peta Tema (Konsep)'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* KONTEN (Disembunyikan jika isMap2Open = false) */}
+                {isMap2Open && (
+                    <div className="p-4 animate-fade-in">
+                        {projectData.theoryClassification?.framework ? (
+                            <div className="bg-white rounded-lg p-4 border border-purple-100 flex flex-col mt-2">
+                                <div className="mb-3 flex justify-between items-center border-b border-purple-100 pb-2">
+                                    <span className="font-bold text-purple-900 text-sm">TEMA PENELITIAN (SUB-BAB)</span>
+                                    <button onClick={() => handleAddTheory('framework')} className="bg-purple-100 text-purple-700 hover:bg-purple-200 rounded px-2 py-1 text-xs font-bold">+ Tambah Tema</button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 min-h-[50px]">
+                                    {projectData.theoryClassification.framework.map(item => renderTheoryCard(item, 'framework'))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-6 mt-2 text-purple-400 border-2 border-dashed border-purple-200 rounded-lg bg-white/50">
+                                <p className="text-sm italic">Peta Konsep Tematik belum dibuat.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
 
             {/* --- MODAL PILIH TEORI DARI LIBRARY --- */}
             {isAddModalOpen && (
@@ -7819,19 +7905,35 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
             return;
         }
 
-        // --- 1. EKSTRAKSI DATA TEORI DARI BAB 2 (LOGIKA BARU) ---
+        // --- 1. EKSTRAKSI DATA TEORI DARI BAB 2 (LOGIKA STRICT OMISSION) ---
         let theoryContext = "PENGGUNA BELUM MENYUSUN PETA TEORI DI BAB 2.";
+        
         if (projectData.theoryClassification) {
-            const formatT = (list) => list && list.length > 0 
-                ? list.map(t => `- ${t.concept} (${t.citation}): ${t.reason}`).join('\n')
-                : "Tidak ada.";
-            
-            theoryContext = `
-            STRUKTUR TEORI JANGKAR (DARI BAB 2):
-            1. GRAND THEORY: ${formatT(projectData.theoryClassification.grand)}
-            2. MIDDLE-RANGE: ${formatT(projectData.theoryClassification.middle)}
-            3. APPLIED/OPERASIONAL: ${formatT(projectData.theoryClassification.applied)}
-            `;
+            const tc = projectData.theoryClassification;
+            // Helper formatter yang aman
+            const formatT = (list) => (list && list.length > 0) ? list.map(t => `- ${t.concept} (Ref: ${t.citation || 'n.d.'}): ${t.reason}`).join('\n') : null;
+
+            const grandStr = formatT(tc.grand);
+            const middleStr = formatT(tc.middle);
+            const appliedStr = formatT(tc.applied);
+            const frameworkStr = formatT(tc.framework);
+
+            const hasTaksonomi = grandStr || middleStr || appliedStr;
+            const hasTema = !!frameworkStr;
+
+            let contextDataStr = "";
+
+            if (hasTaksonomi) {
+                contextDataStr += `[STRUKTUR TEORI JANGKAR / TAKSONOMI]\nGrand Theory:\n${grandStr || 'Tidak ada'}\nMiddle-Range Theory:\n${middleStr || 'Tidak ada'}\nApplied Theory:\n${appliedStr || 'Tidak ada'}\n\n`;
+            }
+
+            if (hasTema) {
+                contextDataStr += `[KERANGKA ANALITIS TEMATIK / SINTESIS]\nTema-Tema Utama yang digunakan sebagai lensa analisis:\n${frameworkStr}\n\n`;
+            }
+
+            if (contextDataStr) {
+                theoryContext = `**LANDASAN TEORI DARI BAB 2 (GUNAKAN SEBAGAI LENSA PEMBAHASAN):**\n${contextDataStr}`;
+            }
         }
 
         // Format the extracted data into a structured string for the prompt
@@ -9486,8 +9588,8 @@ Output (JSON Format):
     // --- AKHIR LOGIKA BAB I ---
 
     // --- LOGIKA BAB II: THEORY PYRAMID (Auto-Classification & Curation) ---
-// --- LOGIKA BAB II: THEORY PYRAMID (Auto-Classification & Curation) ---
-    const handleClassifyTheories = async (selectedIds) => {
+    // PERBAIKAN: Menambahkan parameter tipePeta dan percabangan skema
+    const handleClassifyTheories = async (selectedIds, tipePeta = 'framework') => {
         // Cek Premium
         if (!projectData.isPremium) {
             showInfoModal("Fitur 'Klasifikasi Teori Otomatis' khusus untuk pengguna Premium.");
@@ -9500,25 +9602,25 @@ Output (JSON Format):
         // Sumber Data
         // --- LOGIKA FILTER CERDAS (HANYA DATA BERKUALITAS) ---
         const sourceRefs = isManualMode
-    ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
-    : projectData.allReferences.filter(ref => 
-        (ref.abstract && ref.abstract.length > 50) || 
-        (ref.isiKutipan && ref.isiKutipan.length > 50)
-      ); // Otomatis mengeliminasi level LOW jika Mode Kurator Aktif
+            ? projectData.allReferences.filter(ref => selectedIds.includes(ref.id))
+            : projectData.allReferences.filter(ref => 
+                (ref.abstract && ref.abstract.length > 50) || 
+                (ref.isiKutipan && ref.isiKutipan.length > 50)
+              ); // Otomatis mengeliminasi level LOW jika Mode Kurator Aktif
 
         if (sourceRefs.length === 0) {
-            showInfoModal("Tidak ada referensi tersedia untuk diklasifikasikan.");
+            showInfoModal("Tidak ada referensi tersedia untuk diklasifikasikan. Harap pilih referensi atau tambahkan abstrak/catatan yang relevan.");
             return;
         }
 
         setIsLoading(true);
 
-        // Format data untuk AI (PERBAIKAN SINTAKS: Format aman tanpa kurung siku)
+        // Format data untuk AI (Format aman tanpa kurung siku)
         const refList = sourceRefs.map((ref) => {
             return `ID_REF: ${ref.id}\nJudul: "${ref.title}"\nPenulis: ${ref.author || "Anonim"}\nTahun: ${ref.year || "n.d."}\nAbstrak/Catatan: ${ref.abstract || ref.isiKutipan || "Tidak ada data"}`;
         }).join('\n---\n');
 
-        // --- CONTEXT INJECTION (BARU) ---
+        // --- CONTEXT INJECTION ---
         const researchContext = `
 **KONTEKS PENELITIAN PENGGUNA (TARGET):**
 - Judul: "${projectData.judulKTI}"
@@ -9526,62 +9628,71 @@ Output (JSON Format):
 `;
 
         // --- KONSTRUKSI PROMPT DINAMIS ---
-        let instructionMode = "";
-        
-        if (isManualMode) {
-            // Mode Manual: Klasifikasikan SEMUA yang dipilih user
-            instructionMode = `
-**TUGAS ANDA (MODE MANUAL):**
-Pengguna telah memilih referensi spesifik. Tugas Anda adalah mengklasifikasikan **SEMUA** referensi dalam daftar di atas ke dalam kategori yang sesuai. Jangan ada yang tertinggal.`;
-        } else {
-            // Mode Otomatis: AI jadi Kurator (Pilih yang terbaik saja)
-            instructionMode = `
-**TUGAS ANDA (MODE KURATOR CERDAS):**
-Daftar di atas adalah seluruh perpustakaan pengguna. **JANGAN GUNAKAN SEMUANYA.**
-Tugas Anda adalah **MENYELEKSI (CURATE)** hanya referensi yang paling relevan untuk membangun kerangka teori yang solid bagi Judul Penelitian di atas.
+        let instructionMode = isManualMode 
+            ? "**TUGAS ANDA (MODE MANUAL):**\nKlasifikasikan SEMUA referensi yang diberikan pengguna di bawah ini ke dalam kategori yang sesuai."
+            : "**TUGAS ANDA (MODE KURATOR):**\nSELEKSI referensi terbaik saja dari daftar di bawah ini yang paling pas untuk penelitian.";
 
-**KUOTA SELEKSI IDEAL:**
-1. **Grand Theory:** Pilih 1-2 referensi terbaik.
-2. **Middle-Range Theory:** Pilih 2-4 referensi terbaik.
-3. **Applied Theory:** Pilih 3-5 referensi terbaik.
-`;
+        // --- LOGIKA BERCABANG (TAKSONOMI VS FRAMEWORK) ---
+        let promptAturan = "";
+        let schema;
+
+        if (tipePeta === 'taksonomi') {
+            promptAturan = `**ATURAN KURASI (PETA STRUKTUR TEORI - TAKSONOMI):**
+1. **Grand Theory (Payung):** Teori induk yang abstrak dan filosofis (misal: Resource-Based View, New Public Management). Pilih 1-2 referensi terbaik.
+2. **Middle-Range Theory (Mekanisme):** Teori penghubung antar variabel/fenomena (misal: UTAUT, Public Trust Theory). Pilih 2-4 referensi terbaik.
+3. **Applied Theory (Operasional):** Indikator teknis, model pengukuran, atau regulasi teknis spesifik. Pilih 2-5 referensi terbaik.`;
+            
+            schema = {
+                type: "OBJECT",
+                properties: {
+                    grand: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, concept: {type: "STRING"}, reason: {type: "STRING"}, citation: {type: "STRING"} } } },
+                    middle: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, concept: {type: "STRING"}, reason: {type: "STRING"}, citation: {type: "STRING"} } } },
+                    applied: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, concept: {type: "STRING"}, reason: {type: "STRING"}, citation: {type: "STRING"} } } }
+                },
+                required: ["grand", "middle", "applied"]
+            };
+        } else {
+            promptAturan = `**ATURAN KURASI LOGIS (MODE JURNAL Q1 - ANALYTICAL FRAMEWORK):**
+1. **Identifikasi Konsep Inti:** Analisis referensi yang diberikan dan kelompokkan menjadi 3-5 "Konsep Utama" atau "Tema" yang akan menjadi tulang punggung (Analytical Framework) penelitian ini.
+2. **Relevansi Langsung:** Pastikan konsep-konsep ini secara langsung relevan untuk menjawab "Masalah Utama" penelitian pengguna.
+3. **Sintesis:** Jika ada beberapa paper yang membahas hal serupa, gabungkan mereka di bawah satu nama konsep yang sama.`;
+
+            schema = {
+                type: "OBJECT",
+                properties: {
+                    framework: { 
+                        type: "ARRAY", 
+                        items: { 
+                            type: "OBJECT", 
+                            properties: { 
+                                id: {type: "NUMBER"}, 
+                                concept: {type: "STRING"}, 
+                                reason: {type: "STRING"}, 
+                                citation: {type: "STRING"} 
+                            } 
+                        } 
+                    }
+                },
+                required: ["framework"]
+            };
         }
 
-        const prompt = `Anda adalah arsitek teori penelitian. 
+        const prompt = `Anda adalah arsitek teori penelitian jurnal bereputasi. 
 ${researchContext}
-
 ${instructionMode}
 
 **DATA REFERENSI YANG TERSEDIA:**
 ${refList}
 
-**ATURAN KURASI LOGIS (WAJIB DIPATUHI):**
-1. **Peran Unik (Hierarki):**
-   - **Grand Theory (Payung):** Teori induk yang sangat abstrak (misal: Resource-Based View).
-   - **Middle-Range Theory (Mekanisme):** Teori yang menjelaskan *bagaimana* variabel berhubungan (misal: TAM, UTAUT).
-   - **Applied Theory (Operasional):** Indikator teknis, regulasi, atau model pengukuran spesifik.
-2. **Anti-Redundansi:** JANGAN memilih dua referensi yang menjelaskan konsep yang sama persis dengan istilah berbeda (misal: jangan masukkan 2 paper tentang TAM). Pilih satu yang paling otoritatif atau baru.
-3. **Landing ke Gap:** Pastikan teori yang dipilih relevan untuk memecahkan "Masalah Utama" penelitian pengguna.
+${promptAturan}
 
 **ATURAN FORMAT OUTPUT:**
-1. **field 'concept':** Ekstrak **HANYA NAMA TEORI/KONSEP** (2-5 kata). Gunakan nama yang baku/standar di dunia akademis. 
-   - JIKA nama aslinya dalam Bahasa Inggris lebih umum dikenal (seperti TAM, UTAUT, TOE, ServQual, RBV), **GUNAKAN NAMA ASLINYA**. Jangan diterjemahkan paksa.
-   - JIKA konsep umum, gunakan Bahasa Indonesia.
-2. **field 'reason':** Jelaskan singkat (1 kalimat) bagaimana teori ini membantu menjawab masalah penelitian (Landing).
-3. **field 'citation':** Ambil langsung dari data input. Format: "(Penulis, Tahun)".
+1. **field 'concept':** Ekstrak/Buat **NAMA KONSEP/TEMA SINGKAT** (Maksimal 3-5 kata). Contoh: "Adopsi AI di Sektor Publik". Ini akan dijadikan judul blok.
+2. **field 'reason':** Jelaskan singkat (1-2 kalimat) MENGAPA konsep ini krusial untuk membedah masalah penelitian pengguna.
+3. **field 'citation':** Sebutkan nama penulis yang menjadi landasan konsep ini. Format: "(Penulis, Tahun; Penulis Lain, Tahun)".
 4. **DILARANG:** Jangan menuliskan ID internal.
 
-Berikan output JSON yang valid.`;
-        
-        const schema = {
-            type: "OBJECT",
-            properties: {
-                grand: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, concept: {type: "STRING"}, reason: {type: "STRING"}, citation: {type: "STRING"} } } },
-                middle: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, concept: {type: "STRING"}, reason: {type: "STRING"}, citation: {type: "STRING"} } } },
-                applied: { type: "ARRAY", items: { type: "OBJECT", properties: { id: {type: "NUMBER"}, concept: {type: "STRING"}, reason: {type: "STRING"}, citation: {type: "STRING"} } } }
-            },
-            required: ["grand", "middle", "applied"]
-        };
+Berikan output JSON yang valid sesuai skema yang diminta.`;
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
@@ -9592,23 +9703,30 @@ Berikan output JSON yang valid.`;
                 id: Date.now() + Math.random() + idx 
             })) : [];
 
-            const sanitizedResult = {
-                grand: sanitize(result.grand),
-                middle: sanitize(result.middle),
-                applied: sanitize(result.applied)
-            };
+            // Memisahkan hasil berdasarkan jenis peta yang diminta
+            let sanitizedResult = {};
+            if (tipePeta === 'taksonomi') {
+                sanitizedResult = {
+                    grand: sanitize(result.grand),
+                    middle: sanitize(result.middle),
+                    applied: sanitize(result.applied)
+                };
+            } else {
+                sanitizedResult = {
+                    framework: sanitize(result.framework)
+                };
+            }
 
+            // GABUNGKAN state lama dengan yang baru agar Peta 1 dan Peta 2 tidak saling hapus
             setProjectData(prev => ({ 
                 ...prev, 
-                theoryClassification: sanitizedResult 
+                theoryClassification: {
+                    ...(prev.theoryClassification || {}), // Ambil yang lama
+                    ...sanitizedResult // Timpa hanya area yang diupdate
+                } 
             }));
             
-            // Pesan notifikasi dinamis
-            const successMsg = isManualMode 
-                ? "Klasifikasi Manual berhasil!" 
-                : "AI berhasil mengurasi teori terbaik yang relevan dengan masalah riset Anda!";
-            showInfoModal(successMsg);
-            
+            showInfoModal(tipePeta === 'taksonomi' ? "Peta Struktur Teori berhasil dibuat!" : "Peta Konsep Tematik berhasil dibuat!");
         } catch (error) {
             showInfoModal(`Gagal mengklasifikasikan teori: ${error.message}`);
         } finally {
@@ -10084,7 +10202,7 @@ const handleGenerateFullPendahuluan = async (selectedIds = []) => {
 
     const isManualSelection = selectedIds && selectedIds.length > 0;    
 
-    // 4. PROMPT DIKTATOR (STRICT BINDING)
+    // 4. PROMPT DIKTATOR (STRICT BINDING - GAP FOCUSED)
     const prompt = `Anda adalah penulis akademik spesialis jurnal Q1. Tulis draf Bab 1: Pendahuluan.
 
 **TUGAS ANDA (MODE ${isManualSelection ? 'MANUAL' : 'KURATOR CERDAS'}):**
@@ -10098,31 +10216,27 @@ ${isManualSelection
 2. Setiap klaim atau data empiris WAJIB didukung oleh sitasi dari "Referensi Pendukung" atau "Strategi Teori" di bawah.
 3. DILARANG menulis nama penulis tanpa tahun.
 
-**TUGAS UTAMA:**
-Tulis narasi Pendahuluan secara elegan. Anda memiliki kreativitas penuh untuk poin 1.1, 1.2, 1.6, dan 1.7. Namun, untuk poin 1.3, 1.4, dan 1.5, Anda **DILARANG KERAS** melakukan parafrasa.
-
-**DATA FONDASI (WAJIB SALIN 1:1 / VERBATIM):**
-- DATA UNTUK 1.3 (POKOK MASALAH): "${projectData.faktaMasalahDraft}"
-- DATA UNTUK 1.4 (PERTANYAAN PENELITIAN): "${projectData.rumusanMasalahDraft}"
-- DATA UNTUK 1.5 (TUJUAN PENELITIAN): "${projectData.tujuanPenelitianDraft}"
+**DATA FONDASI (BAHAN BAKU PENULISAN):**
+- DESKRIPSI MASALAH DARI PENGGUNA: "${projectData.faktaMasalahDraft}"
+- PERTANYAAN PENELITIAN (VERBATIM): "${projectData.rumusanMasalahDraft}"
+- TUJUAN PENELITIAN (VERBATIM): "${projectData.tujuanPenelitianDraft}"
 
 **STRATEGI PENULISAN:**
 - Strategi Teori: ${mainTheoryContext}
 - Catatan User: ${userNotesContext}
 - Referensi Pendukung: ${kutipanString}
 
-**STRUKTUR OUTPUT WAJIB:**
+**STRUKTUR OUTPUT WAJIB (KRITIS UNTUK JURNAL Q1):**
 1.1 Latar Belakang (Fenomena + Data Empiris)
-1.2 Kesenjangan Penelitian (Research Gap)
-1.3 Rumusan Masalah (SALIN DATA 1.3 DI ATAS)
-1.4 Pertanyaan Penelitian (SALIN DATA 1.4 DI ATAS)
-1.5 Tujuan Penelitian (SALIN DATA 1.5 DI ATAS)
-1.6 Kontribusi Penelitian (Teoretis & Praktis)
-1.7 Struktur Artikel
+1.2 Kesenjangan Penelitian (Research Gap) -> **TUGAS KHUSUS:** Transmutasikan "DESKRIPSI MASALAH DARI PENGGUNA" di atas menjadi rumusan Gap yang tajam dan operasional. Identifikasi dan tegaskan secara eksplisit minimal 2 jenis gap dari literatur/konteks (misal: Literature Gap, Empirical Gap, Contextual Gap, atau Methodological Gap). 
+1.3 Rumusan Masalah -> **TUGAS KHUSUS:** Buat 1 paragraf pengantar singkat yang menegaskan kembali Gap utama yang mendasari masalah, lalu di bawahnya, SALIN VERBATIM "PERTANYAAN PENELITIAN" dalam bentuk poin/nomor.
+1.4 Tujuan Penelitian -> (SALIN VERBATIM "TUJUAN PENELITIAN" dalam bentuk poin/nomor).
+1.5 Kontribusi Penelitian (Teoretis & Praktis)
+1.6 Struktur Artikel
 
 **ATURAN TAMBAHAN:**
-- Jangan berikan salam pembuka atau komentar.
-- Gunakan Bahasa Indonesia Akademis standar tinggi.`;
+- Jangan berikan salam pembuka atau komentar di luar teks utama.
+- Gunakan Bahasa Indonesia Akademis yang padat, presisi, dan operasional.`;
 
     try {
         const result = await geminiService.run(prompt, geminiApiKeys);
@@ -10378,7 +10492,7 @@ Susun narasi akademis yang mengalir.`;
         }
     };
     
-    // UPDATE: Menerima selectedIds untuk Studi Literatur (Deductive Flow Q1)
+    // UPDATE: Menerima selectedIds untuk Studi Literatur (Deductive Flow Q1 & Strict Omission)
     const handleGenerateStudiLiteratur = async (selectedIds = []) => {
         setIsLoading(true);
         
@@ -10389,33 +10503,48 @@ Susun narasi akademis yang mengalir.`;
 ${existingContent}
 ` : "";
 
-        // --- INJEKSI PETA STRUKTUR TEORI (ALUR DEDUKTIF Q1) ---
-        let theoryMapContext = "";
-        if (projectData.theoryClassification) {
-            const formatTheories = (list) => list.map(t => `- ${t.concept} (${t.citation || "n.d."}): ${t.reason}`).join('\n');
-            
-            theoryMapContext = `
-**STRUKTUR TEORI (ALUR DEDUKTIF):**
-Anda WAJIB menulis dengan logika penurunan (deduksi), bukan sekadar daftar definisi:
+        // --- INJEKSI PETA KONDISIONAL (STRICT OMISSION MODE) ---
+        const tc = projectData.theoryClassification || {};
+        
+        // Helper formatter
+        const formatT = (list) => (list && list.length > 0) ? list.map(t => `- **${t.concept}**: ${t.reason} (Ref: ${t.citation || 'n.d.'})`).join('\n') : null;
 
-1. **Grand Theory (The Anchor):**
-${formatTheories(projectData.theoryClassification.grand)}
-*Instruksi Khusus:*
-- Jelaskan konsep inti.
-- Jelaskan **Proposisi Turunan**: Apa yang seharusnya terjadi menurut teori ini dalam konteks fenomena ${projectData.topikTema}? (Misal: Jika Resource-Based View benar, maka aset pengetahuan harus dikelola...).
+        const grandStr = formatT(tc.grand);
+        const middleStr = formatT(tc.middle);
+        const appliedStr = formatT(tc.applied);
+        const frameworkStr = formatT(tc.framework);
 
-2. **Middle-Range Theory (The Mechanism):**
-${formatTheories(projectData.theoryClassification.middle)}
-*Instruksi Khusus:*
-- Jelaskan teori ini sebagai **MEKANISME** yang menjawab "Bagaimana proposisi di atas terjadi?".
-- Jelaskan interaksi antar variabel/aktor di sini.
+        const hasTaksonomi = grandStr || middleStr || appliedStr;
+        const hasTema = !!frameworkStr;
 
-3. **Applied Theory (Operational Tools):**
-${formatTheories(projectData.theoryClassification.applied)}
-*Instruksi Khusus:*
-- Tempatkan ini sebagai **instrumen operasional** atau cara kerja teknis, bukan sebagai teori yang setara dengan Grand Theory.
-`;
+        let contextDataStr = "";
+        let subBabInstructions = `**ATURAN STRUKTUR BAB (WAJIB DIIKUTI PRESISI):**\nGunakan struktur berikut untuk menyusun Bab II Anda:\n\n**2. Tinjauan Pustaka (Literature Review)**\n*(Buat paragraf pengantar singkat)*\n\n`;
+
+        // 1. Logika Jika Peta Taksonomi Ada
+        if (hasTaksonomi) {
+            contextDataStr += `[PETA 1: STRUKTUR TEORI/TAKSONOMI]\nGrand Theory:\n${grandStr || 'Tidak ada'}\nMiddle-Range Theory:\n${middleStr || 'Tidak ada'}\nApplied Theory:\n${appliedStr || 'Tidak ada'}\n\n`;
+            subBabInstructions += `**2.1 Landasan Teori (Theoretical Foundation)**\n*(Tugas: Gunakan data [PETA 1] di atas. Jelaskan akar filosofis penelitian ini mulai dari teori induk hingga teori operasionalnya secara naratif).* \n\n`;
         }
+
+        // 2. Logika Jika Peta Tema Ada
+        if (hasTema) {
+            contextDataStr += `[PETA 2: KONSEP TEMATIK]\nTema-Tema Utama untuk direview:\n${frameworkStr}\n\n`;
+            
+            // Penomoran dinamis berdasarkan keberadaan Taksonomi
+            const startNum = hasTaksonomi ? 2 : 1; 
+            
+            subBabInstructions += `**2.${startNum} Tinjauan Literatur Tematik**\n*(Tugas: Gunakan data [PETA 2] di atas. Buatlah sub-sub-bab (2.${startNum}.1, 2.${startNum}.2, dst) untuk SETIAP Tema yang ada di Peta 2. Sintesiskan argumen literatur di dalamnya).* \n\n`;
+        }
+
+        // 3. Logika Jika Keduanya Kosong (Fallback Aman)
+        if (!hasTaksonomi && !hasTema) {
+             contextDataStr = "Pengguna belum membuat peta teori spesifik.";
+             subBabInstructions += `*(Tugas: Karena pengguna tidak memberikan panduan struktur spesifik, buatlah 2-3 sub-bab secara mandiri berdasarkan tren literatur yang disediakan).* \n\n`;
+        }
+
+        // 4. Sub-bab Penutup (Selalu Ada)
+        const finalNum = (hasTaksonomi && hasTema) ? 3 : ((hasTaksonomi || hasTema) ? 2 : "X");
+        subBabInstructions += `**2.${finalNum} Kerangka Konseptual (Conceptual Framework)**\n*(Tugas: Merupakan SINTESIS AKHIR. Rangkum pembahasan sebelumnya menjadi satu alur logika yang utuh untuk menjawab masalah penelitian. Sarankan tempat menyisipkan Gambar Kerangka Konseptual).*`;
 
         // Filter referensi
         const sourceRefs = (selectedIds && selectedIds.length > 0) 
@@ -10423,47 +10552,47 @@ ${formatTheories(projectData.theoryClassification.applied)}
             : projectData.allReferences;
 
         const kutipanString = sourceRefs
-            .filter(ref => ref.isiKutipan)
-            .map(ref => `- Dari "${ref.title}" oleh ${ref.author} (${ref.year}): "${ref.isiKutipan}"`)
-            .join('\n');
+            .filter(ref => ref.isiKutipan || (ref.abstract && ref.abstract.length > 20))
+            .map(ref => `- Dari "${ref.title}" oleh ${ref.author} (${ref.year}):\n  "${ref.isiKutipan || ref.abstract}"`)
+            .join('\n\n');
 
-        if (!kutipanString && !theoryMapContext) {
-            showInfoModal("Harap pilih referensi atau buat Peta Struktur Teori terlebih dahulu.");
+        if (!kutipanString && !hasTaksonomi && !hasTema) {
+            showInfoModal("Harap pilih referensi atau buat minimal satu Peta Teori terlebih dahulu.");
             setIsLoading(false);
             return;
         }
 
-        const prompt = `Anda adalah penulis akademik spesialis Q1. Tulis draf Bab 2: Tinjauan Pustaka.
-
-**Aturan Penulisan (Deductive Logic):**
-- **HINDARI INVENTARIS TEORI:** Jangan menulis "Teori A adalah..., Teori B adalah...".
-- **GUNAKAN ALUR DEDUKTIF:** Mulai dari payung besar (Grand) -> turun ke mekanisme (Middle) -> turun ke alat teknis (Applied).
-- **Format:** Teks biasa. Sitasi (Author, Year) wajib.
-
-**ATURAN VISUALISASI:**
-- **Gambar 2.1: Kerangka Konseptual** *[Instruksi: Diagram hubungan antar variabel]*
-- **Tabel 2.X: Perbandingan Studi Terdahulu** *[Instruksi: Matriks state of the art]*
+        // --- PENYUSUNAN PROMPT FINAL Q1 (STRICT OMISSION) ---
+        const prompt = `Anda adalah penulis akademik spesialis jurnal Q1. Tulis draf Bab 2: Tinjauan Pustaka (Literature Review).
 
 **Konteks Proyek:**
 - Judul: "${projectData.judulKTI}"
 - Rumusan Masalah: "${projectData.rumusanMasalahDraft || 'Belum ada'}"
 
 ${userNotesContext}
-${theoryMapContext}
 
-- Catatan Referensi:
+**STRUKTUR DATA (PETA TEORI):**
+${contextDataStr}
+
+**DATA LITERATUR (BAHAN BAKU SITASI):**
+Gunakan data abstrak/catatan ini untuk menyusun narasi tematik. WAJIB DISITASI!
 ${kutipanString}
 
-**Tugas Anda:**
-1.  **Buat Judul Bab:** "BAB II TINJAUAN PUSTAKA".
-2.  **Sub-bab:** Gunakan struktur Grand -> Middle -> Applied sebagai judul sub-bab.
-3.  **Pengembangan Hipotesis/Kerangka Berpikir:** Di akhir, tarik kesimpulan logis dari deduksi di atas untuk merumuskan kerangka berpikir.
+${subBabInstructions}
+
+**ATURAN GAYA PENULISAN JURNAL Q1 (CRITICAL):**
+1. **Sintesis, Bukan Inventaris:** JANGAN menulis format daftar (A mengatakan X, B mengatakan Y). Tulis secara naratif tematik.
+2. **Strict Omission:** Patuhi struktur sub-bab yang diinstruksikan. JANGAN membuat sub-bab tambahan di luar instruksi.
+3. **Kritis & Analitis:** Tunjukkan debat atau kesenjangan dalam literatur.
+4. **Sitasi APA 7th:** Format (Penulis, Tahun). DILARANG HALUSINASI REFERENSI.
+5. Gunakan Bahasa Indonesia Akademis yang padat, mengalir, dan elegan.
 `;
+
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, studiLiteraturDraft: cleanResult }));
-            showInfoModal("Draf Studi Literatur (Deduktif Q1) berhasil dibuat!");
+            showInfoModal("Draf Studi Literatur (Strict Omission Q1) berhasil dibuat!");
         } catch (error) {
             showInfoModal(`Gagal menulis Studi Literatur: ${error.message}`);
         } finally {
