@@ -10520,6 +10520,7 @@ const handleGenerateFullPendahuluan = async (selectedIds = []) => {
     // 2. Integrasi Content (Tetap Sama)
     const existingContent = projectData.pendahuluanDraft || "";
     const userNotesContext = existingContent.trim() !== "" ? `INTEGRASI VISUAL/CATATAN: ${existingContent}` : "";
+    const hasVisualGap = existingContent.trim() !== ""; // <-- LOGIKA BARU
 
     // 3. Filter Referensi
     const sourceRefs = (selectedIds && selectedIds.length > 0) 
@@ -10532,6 +10533,15 @@ const handleGenerateFullPendahuluan = async (selectedIds = []) => {
         .join('\n');
 
     const isManualSelection = selectedIds && selectedIds.length > 0;    
+
+    // --- LOGIKA BARU: PROMPT DINAMIS UNTUK RESEARCH GAP ---
+    let gapInstruction = "";
+    if (hasVisualGap) {
+        gapInstruction = `1.2 Kesenjangan Penelitian (Research Gap) -> **TUGAS KHUSUS (CRITICAL):** Anda WAJIB mengambil argumen kesenjangan HANYA dari 'Catatan User' (hasil analisis lanskap riset/visual) yang diberikan. Leburkan narasi kuadran (Motor/Emerging/Niche) tersebut menjadi paragraf akademis. JANGAN MENGARANG gap baru dari "Deskripsi Masalah".`;
+    } else {
+        gapInstruction = `1.2 Kesenjangan Penelitian (Research Gap) -> **TUGAS KHUSUS:** Transmutasikan "DESKRIPSI MASALAH DARI PENGGUNA" di atas menjadi rumusan Gap yang tajam dan operasional. Identifikasi dan tegaskan secara eksplisit minimal 2 jenis gap dari literatur/konteks (misal: Literature Gap, Empirical Gap, Contextual Gap, atau Methodological Gap).`;
+    }
+    // -----------------------------------------------------
 
     // 4. PROMPT DIKTATOR (STRICT BINDING - GAP FOCUSED)
     const prompt = `Anda adalah penulis akademik spesialis jurnal Q1. Tulis draf Bab 1: Pendahuluan.
@@ -10559,7 +10569,7 @@ ${isManualSelection
 
 **STRUKTUR OUTPUT WAJIB (KRITIS UNTUK JURNAL Q1):**
 1.1 Latar Belakang (Fenomena + Data Empiris)
-1.2 Kesenjangan Penelitian (Research Gap) -> **TUGAS KHUSUS:** Transmutasikan "DESKRIPSI MASALAH DARI PENGGUNA" di atas menjadi rumusan Gap yang tajam dan operasional. Identifikasi dan tegaskan secara eksplisit minimal 2 jenis gap dari literatur/konteks (misal: Literature Gap, Empirical Gap, Contextual Gap, atau Methodological Gap). 
+${gapInstruction}
 1.3 Rumusan Masalah -> **TUGAS KHUSUS:** Buat 1 paragraf pengantar singkat yang menegaskan kembali Gap utama yang mendasari masalah, lalu di bawahnya, SALIN VERBATIM "PERTANYAAN PENELITIAN" dalam bentuk poin/nomor.
 1.4 Tujuan Penelitian -> (SALIN VERBATIM "TUJUAN PENELITIAN" dalam bentuk poin/nomor).
 1.5 Kontribusi Penelitian (Teoretis & Praktis)
@@ -10916,7 +10926,8 @@ ${subBabInstructions}
 2. **Strict Omission:** Patuhi struktur sub-bab yang diinstruksikan. JANGAN membuat sub-bab tambahan di luar instruksi.
 3. **Kritis & Analitis:** Tunjukkan debat atau kesenjangan dalam literatur.
 4. **Sitasi APA 7th:** Format (Penulis, Tahun). DILARANG HALUSINASI REFERENSI.
-5. Gunakan Bahasa Indonesia Akademis yang padat, mengalir, dan elegan.
+5. **Integrasi Catatan Pengguna (WAJIB):** Jika ada 'CATATAN AWAL PENGGUNA' di atas, Anda WAJIB meleburkan teks tersebut secara halus ke dalam sub-bab tematik yang paling relevan. Jangan diabaikan.
+6. Gunakan Bahasa Indonesia Akademis yang padat, mengalir, dan elegan.
 `;
 
         try {
@@ -10985,7 +10996,7 @@ ${existingContent}
         const prompt = `Anda adalah seorang penulis akademis dan peneliti ahli. Tugas Anda adalah menulis draf Bab 4: Hasil dan Pembahasan yang komprehensif dan TERINTEGRASI SECARA TEORETIS.
 
 **Aturan Paling Penting:**
-1. **Integrasi Catatan Pengguna:** Jika ada "CATATAN AWAL / HASIL ANALISIS PENGGUNA", pastikan itu masuk dalam tulisan.
+1. **Integrasi Catatan Pengguna (CRITICAL):** Jika ada "CATATAN AWAL / HASIL ANALISIS PENGGUNA", Anda dilarang membuangnya. Anda WAJIB meleburkan/mensintesis teks tersebut ke dalam pembahasan.
 2. **Theoretical Linking:** Hubungkan temuan data kembali ke teori di Bab 1 & 2.
 3. **Referensi Pembanding:** Gunakan data "Referensi Pembanding" untuk mendukung argumen.
 4. **No Hallucination:** Gunakan data dari "Data Hasil Analisis".
