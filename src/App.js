@@ -5433,21 +5433,23 @@ const AnalisisVisual = ({
 // --- SUB-KOMPONEN BARU: VISUALISASI WORD CLOUD ---
 // UPDATE: Menambahkan prop onDelete
 const WordCloudVisualizer = ({ data, onDelete }) => {
-    if (!data || data.length === 0) return null;
-
-    // Mengurutkan data dan mencari nilai maksimum
-    const sortedData = [...data].sort((a, b) => b.weight - a.weight);
-    const maxWeight = Math.max(...sortedData.map(d => d.weight));
-
-    // Palet warna yang menarik
-    const colors = ["#2563eb", "#db2777", "#059669", "#ea580c", "#7c3aed", "#b91c1c", "#0284c7", "#0d9488", "#ca8a04", "#4f46e5"];
-
-    // Mengacak urutan agar terlihat seperti "awan" (tidak terurut besar ke kecil)
+    // 1. PINDAHKAN HOOK KE PALING ATAS (Aturan Mutlak React Rules of Hooks)
     const shuffledData = React.useMemo(() => {
+        if (!data || data.length === 0) return [];
+        const sortedData = [...data].sort((a, b) => b.weight - a.weight);
         return sortedData.map(value => ({ value, sort: Math.random() }))
             .sort((a, b) => a.sort - b.sort)
             .map(({ value }) => value);
     }, [data]);
+
+    // 2. EARLY RETURN SETELAH HOOK
+    if (!data || data.length === 0) return null;
+
+    // Mencari nilai maksimum frekuensi
+    const maxWeight = Math.max(...data.map(d => d.weight));
+
+    // Palet warna yang menarik
+    const colors = ["#2563eb", "#db2777", "#059669", "#ea580c", "#7c3aed", "#b91c1c", "#0284c7", "#0d9488", "#ca8a04", "#4f46e5"];
 
     return (
         <div className="bg-white p-4 rounded-lg border border-gray-300 shadow-sm mb-6 animate-fade-in">
