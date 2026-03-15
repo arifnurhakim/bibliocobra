@@ -1754,7 +1754,8 @@ const Referensi = ({
                         onClick={() => toggleMethod('method2')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method2' ? 'bg-purple-100' : 'bg-purple-50 hover:bg-purple-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 2: Cari via Semantic Scholar (Gratis)</span>
+                        {/* --- UPDATE: Hapus (Gratis) dari judul menu --- */}
+                        <span className="font-semibold text-gray-800">Metode 2: Cari via Semantic Scholar</span>
                         <ChevronDownIcon isOpen={openMethod === 'method2'} />
                     </button>
                     {openMethod === 'method2' && (
@@ -1834,15 +1835,16 @@ const Referensi = ({
                                                                 <button onClick={() => toggleAbstract(paper.paperId)} className="text-xs text-blue-600 hover:underline font-semibold">
                                                                     {expandedAbstractId === paper.paperId ? 'Sembunyikan Abstrak' : 'Tampilkan Abstrak'}
                                                                 </button>
-                                                                {/* TOMBOL REVIEW AI (LOCKED FOR FREE) */}
+                                                                {/* --- UPDATE: Hapus (Gratis) dari tombol Review AI --- */}
                                                                 <button 
                                                                     onClick={() => addReviewTask({ paper: paper, context: searchQuery })} 
-                                                                    className={`text-xs font-semibold ${!isPremium ? 'text-gray-400 cursor-not-allowed' : 'text-purple-600 hover:underline'}`}
-                                                                    disabled={!isPremium || reviewingId === paper.paperId}
-                                                                    title={!isPremium ? "Fitur Premium" : ""}
+                                                                    className="text-xs font-semibold text-purple-600 hover:underline disabled:text-gray-400 disabled:no-underline"
+                                                                    disabled={reviewingId === paper.paperId}
+                                                                    title="Analisis relevansi dengan AI"
                                                                 >
-                                                                    {!isPremium ? '🔒 Review AI (Premium)' : (reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI')}
+                                                                    {reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI'}
                                                                 </button>
+                                                                {/* -------------------------------------------------------------- */}
                                                             </div>
                                                             {expandedAbstractId === paper.paperId && (
                                                                 <p className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded-md border">
@@ -1905,7 +1907,8 @@ const Referensi = ({
                         onClick={() => toggleMethod('method4')} 
                         className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 rounded-lg ${openMethod === 'method4' ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100'}`}
                     >
-                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual, Impor RIS & Smart Paste (Gratis)</span>
+                        {/* --- UPDATE: Hapus (Gratis) dari judul menu --- */}
+                        <span className="font-semibold text-gray-800">Metode 3: Tambah Manual, Impor RIS & Smart Paste</span>
                         <ChevronDownIcon isOpen={openMethod === 'method4'} />
                     </button>
                     {openMethod === 'method4' && (
@@ -2050,14 +2053,16 @@ const Referensi = ({
                                                                 {expandedAbstractId === paper.id ? 'Tutup Abstrak' : 'Baca Abstrak'}
                                                             </button>
                                                             
+                                                            {/* --- UPDATE HOOK: BUKA TOMBOL REVIEW AI RIS UNTUK FREE USER --- */}
                                                             <button 
                                                                 onClick={() => addReviewTask({ paper: paper, context: projectData.topikTema || '' })} 
-                                                                className={`text-xs font-semibold flex items-center gap-1 ${!isPremium ? 'text-gray-400 cursor-not-allowed' : 'text-purple-600 hover:underline'}`}
-                                                                disabled={!isPremium || reviewingId === paper.id}
-                                                                title={!isPremium ? "Fitur Premium" : "Analisis relevansi dengan AI"}
+                                                                className="text-xs font-semibold flex items-center gap-1 text-purple-600 hover:underline disabled:text-gray-400 disabled:no-underline"
+                                                                disabled={reviewingId === paper.id}
+                                                                title="Analisis relevansi dengan AI"
                                                             >
                                                                 {reviewingId === paper.id ? 'Mereview...' : '✨ Review AI'}
                                                             </button>
+                                                            {/* -------------------------------------------------------------- */}
                                                         </div>
 
                                                         {/* Konten Abstrak */}
@@ -2361,27 +2366,20 @@ const Referensi = ({
                                                                 </button>
                                                                 <button 
                                                                     onClick={() => addReviewTask({ paper: paper, context: searchQuery })} 
-                                                                    className={`text-xs font-semibold ${!isPremium ? 'text-gray-400 cursor-not-allowed' : 'text-orange-600 hover:underline'}`}
-                                                                    disabled={!isPremium || reviewingId === paper.paperId}
-                                                                    title={!isPremium ? "Fitur Premium" : ""}
+                                                                    className="text-xs font-semibold text-orange-600 hover:underline disabled:text-gray-400 disabled:no-underline"
+                                                                    disabled={reviewingId === paper.paperId}
+                                                                    title="Analisis relevansi dengan AI"
                                                                 >
-                                                                    {!isPremium ? '🔒 Review AI (Premium)' : (reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI')}
+                                                                    {reviewingId === paper.paperId ? 'Mereview...' : '✨ Review AI'}
                                                                 </button>
                                                             </div>
                                                             {expandedAbstractId === paper.paperId && (
                                                                 <p className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded-md border">
-                                                                    {paper.abstract || "Abstrak tidak tersedia di metadata Scopus ini."}
+                                                                    {paper.abstract || "Abstrak tidak tersedia."}
                                                                 </p>
                                                             )}
                                                         </div>
-
-                                                        {/* Tampilan Hasil Review AI (Sama dengan Semantic Scholar) */}
-                                                        {reviewingId === paper.paperId && !aiReviews[paper.paperId] && (
-                                                            <div className="mt-3 flex items-center text-xs text-gray-500">
-                                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600 mr-2"></div>
-                                                                AI sedang mereview...
-                                                            </div>
-                                                        )}
+                                                        
                                                         {aiReviews[paper.paperId] && (
                                                             aiReviews[paper.paperId].error ? (
                                                                 <div className="mt-3 p-3 border-l-4 rounded-r-lg bg-red-50 border-red-300 text-red-800 text-xs">
@@ -2403,7 +2401,7 @@ const Referensi = ({
                                                                             <p className="font-semibold">Temuan Kunci:</p>
                                                                             <p className="italic">"{aiReviews[paper.paperId].finding}"</p>
                                                                         </div>
-                                                                            <div>
+                                                                        <div>
                                                                             <p className="font-semibold">Analisis Relevansi:</p>
                                                                             <p>{aiReviews[paper.paperId].relevansi}</p>
                                                                         </div>
@@ -3608,15 +3606,17 @@ const GeneratorHipotesis = ({ projectData, setProjectData, handleGenerateHipotes
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Generator Hipotesis</h2>
             <p className="text-gray-700 mb-4">Berdasarkan variabel yang telah Anda tentukan, AI akan membuatkan draf hipotesis alternatif (H1) dan hipotesis nol (H0) untuk setiap hubungan antar variabel.</p>
             
+            {/* --- UPDATE HOOK: BUKA TOMBOL GENERATE HIPOTESIS UNTUK FREE USER --- */}
             <button 
                 onClick={handleGenerateHipotesis} 
-                className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
-                disabled={isLoading || !isPremium}
-                title={!isPremium ? "Fitur Premium" : ""}
+                className="font-bold py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300 transition-transform active:scale-95 shadow-md"
+                disabled={isLoading}
+                title="Fitur Terbuka untuk Pengguna Gratis"
             >
-                {!isPremium ? '🔒 Hasilkan Hipotesis (Premium)' : (isLoading ? 'Memproses...' : '✨ Hasilkan Hipotesis')}
+                {isLoading ? 'Memproses...' : '✨ Hasilkan Hipotesis'}
             </button>
-            {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk menggunakan generator hipotesis otomatis.</p>}
+            {!isPremium && <p className="text-xs text-green-700 font-semibold mt-3 text-center bg-green-100 py-1.5 rounded-full">✨ Fitur Gratis: AI akan merumuskan pasangan hipotesis H1 dan H0 secara otomatis.</p>}
+            {/* ------------------------------------------------------------------- */}
 
             {isLoading && !editingHypotheses && (
                 <div className="mt-6 flex items-center justify-center">
@@ -4762,16 +4762,18 @@ const AnalisisKuantitatif = ({
             >
               {!isPremium ? '🔒 Analisis Konfirmatif (Premium)' : (isLoading ? 'Menganalisis...' : 'Analisis Konfirmatif (Uji Hipotesis)')}
             </button>
+            {/* --- UPDATE HOOK: BUKA TOMBOL EKSPLORATIF UNTUK FREE USER --- */}
             <button 
-              onClick={() => handleGenerateAnalisis(parsedData, 'eksploratif', quantitativeFocus)} // <-- PERUBAHAN
-              className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-green-600 hover:bg-green-700 text-white disabled:bg-green-300'}`}
-              disabled={isLoading || !isPremium}
-              title={!isPremium ? "Fitur Premium" : ""}
+              onClick={() => handleGenerateAnalisis(parsedData, 'eksploratif', quantitativeFocus)} 
+              className={`font-bold py-2 px-4 rounded-lg bg-green-600 hover:bg-green-700 text-white disabled:bg-green-300 shadow-md transition-transform active:scale-95`}
+              disabled={isLoading}
+              title="Fitur Terbuka untuk Pengguna Gratis"
             >
-              {!isPremium ? '🔒 Analisis Eksploratif (Premium)' : (isLoading ? 'Menganalisis...' : 'Analisis Eksploratif (Temukan Wawasan)')}
+              {isLoading ? 'Menganalisis...' : '✨ Analisis Eksploratif'}
             </button>
+            {/* ------------------------------------------------------------ */}
           </div>
-          {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk menjalankan analisis statistik otomatis dengan AI.</p>}
+          {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk menjalankan <strong>Uji Hipotesis (Konfirmatif)</strong> dan menyimpan hasilnya ke draf Bab Anda.</p>}
         </div>
       )}
 
@@ -4812,13 +4814,15 @@ const AnalisisKuantitatif = ({
           </div>
           
           <div className="mt-4 flex flex-wrap gap-2">
+            {/* --- UPDATE HOOK: KUNCI TOMBOL SIMPAN KE DRAF --- */}
             <button 
-              onClick={() => handleAddToDraft(targetDraft)} // <-- PERUBAHAN
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg"
+              onClick={() => handleAddToDraft(targetDraft)}
+              disabled={!isPremium}
+              className={`font-bold py-2 px-4 rounded-lg transition-colors ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md'}`}
             >
-              Tambahkan ke Draf yang Dipilih
+              {!isPremium ? '🔒 Tambahkan ke Draf (Premium)' : 'Tambahkan ke Draf yang Dipilih'}
             </button>
-            {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
+            {/* ------------------------------------------------ */}
             <button 
               onClick={() => setProjectData(p => ({ ...p, analisisKuantitatifHasil: '' }))}
               className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"
@@ -5038,15 +5042,17 @@ const AnalisisKualitatif = ({
             ></textarea>
           </div>
           {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
+          {/* --- UPDATE HOOK: BUKA TOMBOL ANALISIS TEMATIK UNTUK FREE USER --- */}
           <button 
             onClick={handleAnalysis} 
-            className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
-            disabled={isLoading || !isPremium}
-            title={!isPremium ? "Fitur Premium" : ""}
+            className={`font-bold py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300 shadow-md transition-transform active:scale-95`}
+            disabled={isLoading}
+            title="Fitur Terbuka untuk Pengguna Gratis"
           >
-            {!isPremium ? '🔒 Analisis Tematik (Premium)' : (isLoading ? 'Menganalisis...' : '✨ Lakukan Analisis Tematik')}
+            {isLoading ? 'Menganalisis...' : '✨ Lakukan Analisis Tematik'}
           </button>
-          {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk analisis kualitatif otomatis.</p>}
+          {/* --------------------------------------------------------------- */}
+          {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk <strong>menyimpan hasil analisis</strong> ke draf Bab Anda secara otomatis.</p>}
         </div>
       )}
       
@@ -5112,13 +5118,15 @@ const AnalisisKualitatif = ({
           </div>
           
           <div className="mt-4 flex flex-wrap gap-2">
+            {/* --- UPDATE HOOK: KUNCI TOMBOL SIMPAN KE DRAF --- */}
             <button 
-              onClick={() => handleAddToDraft(targetDraft)} // <-- PERUBAHAN
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg"
+              onClick={() => handleAddToDraft(targetDraft)} 
+              disabled={!isPremium}
+              className={`font-bold py-2 px-4 rounded-lg transition-colors ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md'}`}
             >
-              Tambahkan ke Draf yang Dipilih
+              {!isPremium ? '🔒 Tambahkan ke Draf (Premium)' : 'Tambahkan ke Draf yang Dipilih'}
             </button>
-            {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
+            {/* ------------------------------------------------ */}
             <button 
               onClick={() => {
                 setDraftSementara('');
@@ -7393,20 +7401,28 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                                                         
                             {/* --- TOMBOL BARU: PASTE FULLTEXT --- */}
                             {!isAbstract && (
+                                /* --- UPDATE HOOK: KUNCI TOMBOL PASTE FULLTEXT AI --- */
                                 <button 
                                     onClick={() => {
                                         setFulltextInput('');
                                         setFulltextAnalysis(null);
                                         setShowFulltextModal(true);
                                     }}
-                                    className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 font-semibold flex items-center gap-1"
+                                    disabled={!projectData.isPremium}
+                                    className={`text-xs px-2 py-1 rounded font-semibold flex items-center gap-1 ${!projectData.isPremium ? 'bg-gray-100 text-gray-500 cursor-not-allowed border border-gray-200' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}`}
+                                    title={!projectData.isPremium ? "Fitur Premium" : "Analisis kelayakan berdasarkan full-text"}
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                                        <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
-                                        <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3z"/>
-                                    </svg>
-                                    Paste Isi Paper (AI Check)
+                                    {!projectData.isPremium ? '🔒 Paste Isi Paper (Premium)' : (
+                                        <>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                                                <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3z"/>
+                                            </svg>
+                                            Paste Isi Paper (AI Check)
+                                        </>
+                                    )}
                                 </button>
+                                /* --------------------------------------------------- */
                             )}
                             {/* ----------------------------------- */}
                         </div>
@@ -7460,18 +7476,25 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                             Include
                         </button>
                     ) : (
+                        /* --- UPDATE HOOK: KUNCI TOMBOL INCLUDE & EKSTRAK FULLTEXT --- */
                         <button 
                             onClick={() => {
-                                // Persiapkan form kosong sesuai kolom tabel ekstraksi
                                 const blankExtraction = {};
                                 projectData.synthesisTableColumns.forEach(col => blankExtraction[col.key] = '');
                                 setIncludeModal({ isOpen: true, study: studyToScreen, extraction: blankExtraction });
                             }} 
-                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm flex items-center gap-2"
+                            disabled={!projectData.isPremium}
+                            className={`font-bold py-2 px-6 rounded-lg shadow-sm flex items-center gap-2 ${!projectData.isPremium ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                            title={!projectData.isPremium ? "Fitur Premium" : ""}
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/><path d="M4.5 10a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5z"/></svg>
-                            Include & Ekstrak
+                            {!projectData.isPremium ? '🔒 Include & Ekstrak (Premium)' : (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/><path d="M4.5 10a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5z"/></svg>
+                                    Include & Ekstrak
+                                </>
+                            )}
                         </button>
+                        /* ------------------------------------------------------------ */
                     )}
                     {/* -------------------------------------------------------- */}
 
@@ -8579,12 +8602,16 @@ Berdasarkan proses seleksi protokol PRISMA 2020, terdapat ${nCount} studi yang m
                                                 </td>
                                             ))}
                                             <td className="px-4 py-3">
+                                                {/* --- UPDATE HOOK: KUNCI TOMBOL EDIT EKSTRAKSI --- */}
                                                 <button
                                                     onClick={() => handleStartExtraction(item.refId)}
-                                                    className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-3 rounded-lg text-xs"
+                                                    disabled={!isPremium}
+                                                    className={`font-bold py-1 px-3 rounded-lg text-xs ${!isPremium ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600 text-white'}`}
+                                                    title={!isPremium ? "Fitur Premium" : "Edit Data Ekstraksi"}
                                                 >
-                                                    Edit
+                                                    {!isPremium ? '🔒 Edit' : 'Edit'}
                                                 </button>
+                                                {/* ------------------------------------------------ */}
                                             </td>
                                         </tr>
                                     );
@@ -12572,7 +12599,7 @@ try {
         if (pendekatan === 'Kuantitatif' || pendekatan === 'Metode Campuran') {
             navigation.instrumen.items.push(
                 { id: 'genVariabel', name: 'Generator Variabel' }, // Gratis
-                { id: 'genHipotesis', name: label('Generator Hipotesis', true) },
+                { id: 'genHipotesis', name: 'Generator Hipotesis' }, // <-- UPDATE HOOK: Dibuka untuk Gratis
                 { id: 'genKuesioner', name: label('Generator Kuesioner', true) }
             );
         }
