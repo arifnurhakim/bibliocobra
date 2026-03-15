@@ -2664,16 +2664,16 @@ const Pendahuluan = ({
                     setSelectedRefIds={setSelectedRefIds} 
                 />
 
-                {/* 3. Update onClick untuk mengirim selectedRefIds */}
+                {/* 3. Update onClick untuk mengirim selectedRefIds (GEMBOK DIBUKA UNTUK FREE) */}
                 <button 
                     onClick={() => handleGenerateFullPendahuluan(selectedRefIds)}
-                    className={`font-bold py-2 px-4 rounded-lg w-full ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
-                    disabled={isLoading || !isPremium}
-                    title={!isPremium ? "Fitur Premium" : ""}
+                    className="font-bold py-2 px-4 rounded-lg w-full bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300 shadow-md transition-transform active:scale-95"
+                    disabled={isLoading}
+                    title="Fitur Terbuka untuk Pengguna Gratis"
                 >
-                    {!isPremium ? '🔒 Tulis Draf Pendahuluan Lengkap (Premium)' : (isLoading ? 'Memproses...' : '✨ Tulis Draf Pendahuluan Lengkap')}
+                    {isLoading ? 'Memproses...' : '✨ Tulis Draf Pendahuluan Lengkap'}
                 </button>
-                {!isPremium && <p className="text-xs text-red-500 mt-2 text-center">Upgrade ke Premium untuk menulis Bab 1 secara otomatis.</p>}
+                {!isPremium && <p className="text-xs text-green-700 font-semibold mt-3 text-center bg-green-100 py-1.5 rounded-full">✨ Fitur Gratis: Coba kehebatan AI merakit Latar Belakang berstandar Q1 secara otomatis.</p>}
             </div>
 
             <div className="mt-6">
@@ -12520,7 +12520,8 @@ try {
                 title: "Penulisan KTI",
                 items: [
                     // MENU OUTLINE DIHAPUS SESUAI PERMINTAAN
-                    { id: 'pendahuluan', name: label('Pendahuluan', true) },
+                    // UPDATE: Gembok dihapus dari Pendahuluan agar free user bisa masuk
+                    { id: 'pendahuluan', name: 'Pendahuluan' },
                     { id: 'studiLiteratur', name: label('Studi Literatur', true) },
                     { id: 'metode', name: label('Metode Penelitian', true) },
                     { id: 'hasil', name: label('Hasil & Pembahasan', true) },
