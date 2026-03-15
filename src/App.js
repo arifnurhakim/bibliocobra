@@ -5430,8 +5430,85 @@ const AnalisisVisual = ({
 
 // ================ KOMPONEN BARU: ANALISIS GAP & NOVELTY ================
 
+// --- SUB-KOMPONEN BARU: VISUALISASI WORD CLOUD ---
+// UPDATE: Menambahkan prop onDelete
+const WordCloudVisualizer = ({ data, onDelete }) => {
+    if (!data || data.length === 0) return null;
+
+    // Mengurutkan data dan mencari nilai maksimum
+    const sortedData = [...data].sort((a, b) => b.weight - a.weight);
+    const maxWeight = Math.max(...sortedData.map(d => d.weight));
+
+    // Palet warna yang menarik
+    const colors = ["#2563eb", "#db2777", "#059669", "#ea580c", "#7c3aed", "#b91c1c", "#0284c7", "#0d9488", "#ca8a04", "#4f46e5"];
+
+    // Mengacak urutan agar terlihat seperti "awan" (tidak terurut besar ke kecil)
+    const shuffledData = React.useMemo(() => {
+        return sortedData.map(value => ({ value, sort: Math.random() }))
+            .sort((a, b) => a.sort - b.sort)
+            .map(({ value }) => value);
+    }, [data]);
+
+    return (
+        <div className="bg-white p-4 rounded-lg border border-gray-300 shadow-sm mb-6 animate-fade-in">
+            {/* UPDATE: Header dimodifikasi agar ada tombol Hapus di kanan */}
+            <div className="flex justify-between items-center mb-3">
+                <h4 className="font-bold text-gray-800 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="text-blue-600" viewBox="0 0 16 16">
+                        <path d="M4.406 3.342A5.53 5.53 0 0 1 8 2c2.69 0 4.923 2 5.166 4.579C14.758 6.804 16 8.137 16 9.773 16 11.569 14.502 13 12.687 13H3.781C1.708 13 0 11.366 0 9.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383zm.653.757c-.757.653-1.153 1.44-1.153 2.056v.448l-.445.049C2.064 6.805 1 7.952 1 9.318 1 10.785 2.23 12 3.781 12h8.906C13.98 12 15 10.988 15 9.773c0-1.216-1.02-2.228-2.313-2.228h-.5v-.5C12.188 4.825 10.328 3 8 3a4.53 4.53 0 0 0-2.941 1.1z"/>
+                    </svg>
+                    Word Cloud (Tren Topik Dominan)
+                </h4>
+                {onDelete && (
+                    <button 
+                        onClick={onDelete} 
+                        className="text-[10px] font-bold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-800 px-2 py-1 rounded transition-colors border border-red-100"
+                        title="Hapus visualisasi ini"
+                    >
+                        Hapus
+                    </button>
+                )}
+            </div>
+            {/* UPDATE OPTIMASI CSS: Menghapus gap-x dan gap-y, menambahkan overflow-hidden */}
+            <div className="flex flex-wrap justify-center items-center p-6 bg-gray-50 rounded border border-gray-100 min-h-[150px] text-center overflow-hidden">
+                {shuffledData.map((item, i) => {
+                    // Ukuran font: Diperbesar sedikit (14-50) untuk kompensasi jarak yang merapat
+                    const size = 14 + (item.weight / maxWeight) * 36;
+                    const color = colors[i % colors.length];
+                    // Opacity ditingkatkan agar saat kata berhimpitan, teks tetap terbaca
+                    const opacity = 0.7 + (item.weight / maxWeight) * 0.3; 
+                    return (
+                        <span
+                            key={i}
+                            style={{ 
+                                fontSize: `${size}px`, 
+                                color: color, 
+                                opacity: opacity, 
+                                lineHeight: '0.85',       // SANGAT RAPAT secara vertikal
+                                margin: '2px -3px',       // Margin negatif: Menarik kata agar saling menempel secara horizontal
+                                letterSpacing: '-0.03em'  // Merapatkan jarak antar huruf (kerning)
+                            }}
+                            // Menambahkan z-10 dan relative agar saat di-hover (scale-125), kata tersebut meloncat ke depan dan tidak tertimpa kata lain
+                            className="font-extrabold hover:scale-125 transition-transform duration-300 cursor-default inline-block relative z-10 hover:z-20"
+                            title={`Frekuensi/Bobot: ${item.weight}`}
+                        >
+                            {item.word}
+                        </span>
+                    );
+                })}
+            </div>
+            <div className="mt-3 pt-3 border-t w-full text-center">
+                <p className="text-[10px] text-gray-500 italic">
+                    *Semakin besar ukuran teks, semakin sering (dominan) kata tersebut dibahas dalam literatur.
+                </p>
+            </div>
+        </div>
+    );
+};
+
 // --- SUB-KOMPONEN: VISUALISASI PETA TEMATIK (SCATTER PLOT) ---
-const ThematicMapVisualizer = ({ data }) => {
+// UPDATE: Menambahkan prop onDelete
+const ThematicMapVisualizer = ({ data, onDelete }) => {
     if (!data || data.length === 0) return null;
 
     // Konfigurasi Chart
@@ -5445,8 +5522,19 @@ const ThematicMapVisualizer = ({ data }) => {
     const scaleY = (val) => size - ((val / range) * (size - 2 * padding) + padding);
 
     return (
-        <div className="bg-white p-4 rounded-lg border border-gray-300 shadow-sm mb-6 flex flex-col items-center animate-fade-in">
-            <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+        <div className="bg-white p-4 rounded-lg border border-gray-300 shadow-sm mb-6 flex flex-col items-center animate-fade-in relative">
+            {/* UPDATE: Tombol Hapus di Kanan Atas */}
+            {onDelete && (
+                <button 
+                    onClick={onDelete} 
+                    className="absolute top-4 right-4 text-[10px] font-bold bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-800 px-2 py-1 rounded transition-colors border border-red-100 z-20"
+                    title="Hapus visualisasi ini"
+                >
+                    Hapus
+                </button>
+            )}
+
+            <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2 w-full justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="text-purple-600" viewBox="0 0 16 16">
                     <path d="M1 0h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V1a1 1 0 0 1 1-1zm1 1v14h14V1H2z"/>
                     <path d="M6 3a1 1 0 0 0 0 2h4a1 1 0 0 0 0-2H6zm0 4a1 1 0 0 0 0 2h4a1 1 0 0 0 0-2H6zm0 4a1 1 0 0 0 0 2h4a1 1 0 0 0 0-2H6z"/>
@@ -5555,13 +5643,19 @@ const AnalisisGapNovelty = ({
     const [selectedRefIds, setSelectedRefIds] = useState([]);
     const [activeTab, setActiveTab] = useState('literature'); // Default: 'literature' (Data);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [isMapping, setIsMapping] = useState(false); 
+    
+    // --- UPDATE: Memecah State Loading menjadi 2 ---
+    const [isMappingThematic, setIsMappingThematic] = useState(false); 
+    const [isMappingWordCloud, setIsMappingWordCloud] = useState(false);
+    // -----------------------------------------------
+
     const [targetDraft, setTargetDraft] = useState('pendahuluanDraft');
     const [manualKeywords, setManualKeywords] = useState('');
-    // --- STATE UNTUK CSV UPLOAD ---
+    // --- STATE UNTUK CSV UPLOAD (UPDATE: Kolom Ganda) ---
     const [csvHeaders, setCsvHeaders] = useState([]);
     const [csvData, setCsvData] = useState([]);
-    const [selectedColumn, setSelectedColumn] = useState('');
+    const [selectedKeywordColumn, setSelectedKeywordColumn] = useState('');
+    const [selectedYearColumn, setSelectedYearColumn] = useState('');
     
     // PERBAIKAN UTAMA: Pastikan baris ini ada!
     const fileInputRef = useRef(null); 
@@ -5579,7 +5673,9 @@ const AnalisisGapNovelty = ({
                     if (results.meta.fields && results.meta.fields.length > 0) {
                         setCsvHeaders(results.meta.fields);
                         setCsvData(results.data);
-                        showInfoModal("File berhasil dimuat. Silakan pilih kolom yang berisi kata kunci.");
+                        setSelectedKeywordColumn('');
+                        setSelectedYearColumn('');
+                        showInfoModal("File berhasil dimuat. Silakan petakan kolom kata kunci dan tahun (opsional).");
                     } else {
                         showInfoModal("Gagal membaca header kolom CSV.");
                     }
@@ -5587,26 +5683,69 @@ const AnalisisGapNovelty = ({
                 error: (err) => showInfoModal(`Error parsing CSV: ${err.message}`)
             });
         }
+        event.target.value = null; // Fix untuk bisa re-upload file yang sama
     };
 
-    const handleColumnSelect = (column) => {
-        setSelectedColumn(column);
-        if (csvData.length > 0 && column) {
-            // Ekstrak data dari kolom yang dipilih
-            // Filter nilai kosong & gabungkan dengan baris baru
-            const extractedKeywords = csvData
-                .map(row => row[column])
-                .filter(item => item && item.trim() !== "")
-                .join('\n');
-            
-            // Masukkan ke dalam textarea manualKeywords
-            setManualKeywords(extractedKeywords);
-            
-            // Opsional: Beri notifikasi jumlah data
-            const count = csvData.length;
-            showInfoModal(`Berhasil mengekstrak ${count} baris data dari kolom "${column}" ke dalam area input.`);
-        }
+    // --- FUNGSI BARU: AGREGASI STATISTIK CSV (DATA-DRIVEN) ---
+    const handleProcessCsvData = () => {
+        if (!selectedKeywordColumn) return;
+
+        const keywordStats = {};
+
+        csvData.forEach(row => {
+            const keywordRaw = row[selectedKeywordColumn];
+            let yearRaw = selectedYearColumn ? row[selectedYearColumn] : null;
+
+            if (!keywordRaw) return;
+
+            // Parse year (Tangkap angka 4 digit)
+            let year = null;
+            if (yearRaw) {
+                const match = String(yearRaw).match(/(\d{4})/);
+                if (match) year = parseInt(match[1], 10);
+            }
+
+            // Split keywords (menangani pemisah ; atau ,)
+            const delimiter = keywordRaw.includes(';') ? ';' : ',';
+            const keywords = keywordRaw.split(delimiter).map(k => k.trim()).filter(k => k.length > 0);
+
+            keywords.forEach(kw => {
+                const kwLower = kw.toLowerCase();
+                if (!keywordStats[kwLower]) {
+                    keywordStats[kwLower] = { original: kw, count: 0, sumYear: 0, yearCount: 0 };
+                }
+                keywordStats[kwLower].count += 1;
+                if (year) {
+                    keywordStats[kwLower].sumYear += year;
+                    keywordStats[kwLower].yearCount += 1;
+                }
+            });
+        });
+
+        // Format ke string dan urutkan berdasarkan frekuensi terbanyak
+        const formattedLines = Object.values(keywordStats)
+            .sort((a, b) => b.count - a.count)
+            .map(stat => {
+                let line = stat.original;
+                const details = [];
+                if (stat.count > 0) details.push(`Freq: ${stat.count}`);
+                if (stat.yearCount > 0) {
+                    const avgYear = (stat.sumYear / stat.yearCount).toFixed(1);
+                    details.push(`AvgYear: ${avgYear}`);
+                }
+                if (details.length > 0) {
+                    line += ` (${details.join(', ')})`;
+                }
+                return line;
+            });
+
+        // Ambil Top 150 agar token AI tidak meledak (cukup untuk analisis komprehensif)
+        const topKeywords = formattedLines.slice(0, 150);
+        setManualKeywords(topKeywords.join('\n'));
+        
+        showInfoModal(`Berhasil mengekstrak dan menghitung statistik untuk ${topKeywords.length} kata kunci teratas.`);
     };
+    // ---------------------------------------------------------
 
     // Helper: Pilih Semua / Hapus Semua
     const handleSelectAll = (select) => {
@@ -5618,6 +5757,37 @@ const AnalisisGapNovelty = ({
         }
     };
 
+    // --- FUNGSI BARU: HAPUS VISUALISASI SPESIFIK ---
+    const handleDeleteWordCloud = () => {
+        setProjectData(p => {
+            if (!p.thematicMapData || Array.isArray(p.thematicMapData)) return p;
+            const newData = { ...p.thematicMapData };
+            delete newData.wordcloud;
+            // Jika clusters juga kosong, reset keseluruhan map menjadi null
+            if (!newData.clusters) {
+                return { ...p, thematicMapData: null };
+            }
+            return { ...p, thematicMapData: newData };
+        });
+    };
+
+    const handleDeleteThematicMap = () => {
+        setProjectData(p => {
+            if (!p.thematicMapData) return p;
+            if (Array.isArray(p.thematicMapData)) {
+                return { ...p, thematicMapData: null }; // Backward compatibility
+            }
+            const newData = { ...p.thematicMapData };
+            delete newData.clusters;
+            // Jika wordcloud juga kosong, reset keseluruhan map menjadi null
+            if (!newData.wordcloud) {
+                return { ...p, thematicMapData: null };
+            }
+            return { ...p, thematicMapData: newData };
+        });
+    };
+    // ----------------------------------------------
+
     const handleCheckboxChange = (id) => {
         setSelectedRefIds(prev => {
             if (prev.includes(id)) {
@@ -5628,60 +5798,73 @@ const AnalisisGapNovelty = ({
         });
     };
 
-    // --- LOGIKA AI PETA TEMATIK (LANGKAH 3 SELESAI) ---
-    const handleGenerateThematicMap = async () => {
+    // --- FUNGSI BARU 1: GENERATE PETA TEMATIK SAJA ---
+    const handleGenerateThematicMapOnly = async () => {
         const hasKeywords = manualKeywords && manualKeywords.trim() !== "";
 
-        // 1. VALIDASI DINAMIS BERDASARKAN TAB
         if (activeTab === 'literature' && selectedRefIds.length < 5) {
             showInfoModal(`Mode Literatur membutuhkan minimal 5 referensi agar klaster yang dihasilkan valid. Saat ini hanya ${selectedRefIds.length} terpilih.`);
             return;
         }
-        
         if (activeTab === 'keyword' && !hasKeywords) {
             showInfoModal("Silakan masukkan daftar kata kunci/topik terlebih dahulu pada kolom yang tersedia.");
             return;
         }
 
-        setIsMapping(true);
-        setProjectData(p => ({ ...p, thematicMapData: null })); // Reset peta lama
+        setIsMappingThematic(true);
 
-        // 2. PERSIAPAN DATA INPUT (FLEKSIBEL)
         const selectedRefs = projectData.allReferences.filter(ref => selectedRefIds.includes(ref.id));
-        
-        // Jika Mode Kata Kunci (refs kosong), kirim teks dummy agar prompt tidak error
         let refsInput = selectedRefs.length > 0 
             ? selectedRefs.map((ref, i) => {
                 let content = ref.abstract && ref.abstract.length > 20 ? ref.abstract.substring(0, 500) : (ref.isiKutipan || "Tidak ada data ringkasan.");
                 return `[${i+1}] "${ref.title}" (${ref.year}). Ringkasan: ${content}`;
             }).join('\n')
-            : "TIDAK ADA REFERENSI (MODE KONSEP - GUNAKAN PENGETAHUAN GLOBAL).";
+            : "TIDAK ADA REFERENSI (MODE KONSEP - GUNAKAN PENGETAHUAN GLOBAL/STATISTIK).";
 
-        // 3. INSTRUKSI KHUSUS
         let keywordContext = "";
         if (manualKeywords && manualKeywords.trim() !== "") {
             keywordContext = `\nDAFTAR KATA KUNCI PRIORITAS (User Input):\n${manualKeywords}\n\n`;
         }
 
-        // --- UPDATE: TIME INJECTION & ATURAN DISTRIBUSI ---
         const currentYear = new Date().getFullYear();
-        
-        const groundingInstruction = (activeTab === 'keyword') 
-            ? `KONTEKS WAKTU: SAAT INI ADALAH TAHUN ${currentYear}.
-            
-            Karena ini Mode Konsep, gunakan pengetahuan global Anda.
-            
-            **ATURAN DISTRIBUSI KUADRAN (SANGAT KETAT):**
-            AI sering bias menaruh semua di "Motor Themes". HINDARI ITU. Lakukan diferensiasi tajam:
-            1. **Emerging Themes (Kiri-Bawah):** WAJIB digunakan untuk topik yang *Trending/Hype* dalam 1-2 tahun terakhir tetapi belum mapan secara metodologis. (High Centrality potential, Low Density).
-            2. **Motor Themes (Kanan-Atas):** HANYA untuk topik yang sudah MATANG, STABIL, dan menjadi standar baku selama >5-10 tahun.
-            3. **Niche Themes (Kiri-Atas):** Topik yang sangat spesifik, teknis, atau marginal.
-            
-            Tugas Anda adalah menyebarkan topik-topik input ke dalam kuadran yang berbeda, jangan menumpuk di satu tempat.`
-            : "Gunakan daftar literatur yang disediakan di bawah ini sebagai sumber data utama pemetaan (Inductive Clustering).";
-        // --------------------------------------------------
+        // Deteksi apakah data input memiliki metadata statistik hasil olahan CSV
+        const hasStatisticalData = manualKeywords.includes('AvgYear:') || manualKeywords.includes('Freq:');
 
-        // 4. Prompt Strategis
+        let groundingInstruction = "";
+        if (activeTab === 'keyword') {
+            if (hasStatisticalData) {
+                // --- PROMPT DATA-DRIVEN (KUANTITATIF MURNI) ---
+                groundingInstruction = `KONTEKS WAKTU: SAAT INI ADALAH TAHUN ${currentYear}.
+        
+        **PENTING: DATA STATISTIK TERSEDIA (DATA-DRIVEN MAPPING)!**
+        Anda diberikan daftar kata kunci yang telah dihitung Frekuensinya (Freq) dan Rata-rata Tahun Publikasi (AvgYear) secara matematis.
+        JANGAN MENEBAK menggunakan pengetahuan global. Gunakan data statistik ini SECARA KETAT untuk menentukan kuadran (X/Y) dan Volume:
+        
+        1. **Emerging Themes (Kiri-Bawah):** WAJIB untuk klaster yang anggotanya memiliki 'AvgYear' paling baru (mendekati atau sama dengan ${currentYear}), meskipun 'Freq' rata-rata masih rendah. (X: 1-5, Y: 1-5).
+        2. **Motor Themes (Kanan-Atas):** WAJIB untuk klaster dengan 'Freq' TERTINGGI secara akumulatif, dan 'AvgYear' yang matang (misal 2-5 tahun terakhir). (X: 6-10, Y: 6-10).
+        3. **Niche Themes (Kiri-Atas):** Klaster dengan 'Freq' relatif rendah namun 'AvgYear' cukup stabil/tua. (X: 1-5, Y: 6-10).
+        4. **Basic Themes (Kanan-Bawah):** Klaster fundamental dengan 'Freq' sangat tinggi namun 'AvgYear' cenderung lebih tua (misal > 5 tahun lalu). (X: 6-10, Y: 1-5).
+        
+        Atur properti "volume" sebanding dengan angka 'Freq' dari data input.`;
+            } else {
+                // --- PROMPT KUALITATIF (TEBAKAN SEMANTIK) ---
+                groundingInstruction = `KONTEKS WAKTU: SAAT INI ADALAH TAHUN ${currentYear}.
+        
+        Karena ini Mode Konsep tanpa statistik matematis, gunakan pengetahuan global Anda.
+        
+        **ATURAN DISTRIBUSI KUADRAN (SANGAT KETAT):**
+        AI sering bias menaruh semua di "Motor Themes". HINDARI ITU. Lakukan diferensiasi tajam:
+        1. **Emerging Themes (Kiri-Bawah):** WAJIB digunakan untuk topik yang *Trending/Hype* dalam 1-2 tahun terakhir tetapi belum mapan secara metodologis.
+        2. **Motor Themes (Kanan-Atas):** HANYA untuk topik yang sudah MATANG, STABIL, dan menjadi standar baku selama >5-10 tahun.
+        3. **Niche Themes (Kiri-Atas):** Topik yang sangat spesifik, teknis, atau marginal.
+        4. **Basic Themes (Kanan-Bawah):** Topik umum.
+        
+        Tugas Anda adalah menyebarkan topik-topik input ke dalam kuadran yang berbeda, jangan menumpuk di satu tempat.`;
+            }
+        } else {
+            groundingInstruction = "Gunakan daftar literatur yang disediakan di bawah ini sebagai sumber data utama pemetaan (Inductive Clustering).";
+        }
+
         const prompt = `Anda adalah ahli Bibliometrik (Science Mapping). Tugas Anda adalah membuat "Thematic Map" (Peta Tematik) dari data berikut.
 
 ${keywordContext}
@@ -5690,44 +5873,126 @@ ${groundingInstruction}
 DATA INPUT:
 ${refsInput}
 
-INSTRUKSI ANALISIS:
-1. Kelompokkan menjadi 5-10 'Tema Utama' (Cluster).
+INSTRUKSI ANALISIS (THEMATIC MAP):
+1. **Klaster:** Kelompokkan data menjadi 5-10 'Tema Utama' (Cluster).
 2. Untuk setiap tema, berikan nilai skor (Skala 1-10) untuk dua dimensi:
    - **X (Centrality):** Seberapa penting/relevan tema ini? (1=Periferal, 10=Sentral).
    - **Y (Density):** Seberapa matang/berkembang tema ini? (1=Emerging/Baru, 10=Mature/Jenuh).
-3. Hitung "Volume" (Ukuran Bubble): Estimasi popularitas (1-10).
-4. **Isi Klaster (Keywords):** Sebutkan 3-5 istilah atau kata kunci spesifik yang menjadi anggota klaster ini.
+3. Hitung "Volume" (Ukuran Bubble): Estimasi popularitas/jumlah (1-10).
+4. Sebutkan 3-5 istilah atau kata kunci spesifik yang menjadi anggota klaster tersebut.
 
-Berikan jawaban HANYA dalam format JSON Array.`;
+Berikan jawaban HANYA dalam format JSON Object yang berisi properti 'clusters'.`;
 
         const schema = {
-    type: "ARRAY",
-    items: {
-        type: "OBJECT",
-        properties: {
-            theme: { type: "STRING", description: "Nama tema singkat (max 3 kata)." },
-            x: { type: "NUMBER", description: "Nilai Centrality (1-10)." },
-            y: { type: "NUMBER", description: "Nilai Density (1-10)." },
-            volume: { type: "NUMBER", description: "Estimasi jumlah paper/volume (1-10)." },
-            // TAMBAHAN PENTING: Minta array keywords
-            keywords: { 
-                type: "ARRAY", 
-                items: { type: "STRING" }, 
-                description: "Daftar 3-5 kata kunci anggota klaster." 
-            }
-        },
-        required: ["theme", "x", "y", "volume", "keywords"] // Tambahkan keywords ke required
-    }
-};
+            type: "OBJECT",
+            properties: {
+                clusters: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            theme: { type: "STRING", description: "Nama tema singkat (max 3 kata)." },
+                            x: { type: "NUMBER", description: "Nilai Centrality (1-10)." },
+                            y: { type: "NUMBER", description: "Nilai Density (1-10)." },
+                            volume: { type: "NUMBER", description: "Estimasi volume (1-10)." },
+                            keywords: { type: "ARRAY", items: { type: "STRING" }, description: "3-5 kata kunci anggota klaster." }
+                        },
+                        required: ["theme", "x", "y", "volume", "keywords"]
+                    }
+                }
+            },
+            required: ["clusters"]
+        };
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
-            setProjectData(p => ({ ...p, thematicMapData: result }));
-            showInfoModal("Peta Tematik berhasil dipetakan!");
+            // Simpan HANYA clusters, pertahankan wordcloud jika ada
+            setProjectData(p => ({ 
+                ...p, 
+                thematicMapData: { 
+                    ...(p.thematicMapData || {}), 
+                    clusters: result.clusters 
+                } 
+            }));
+            showInfoModal("Peta Tematik (Scatter Plot) berhasil dipetakan!");
         } catch (error) {
-            showInfoModal(`Gagal membuat peta: ${error.message}`);
+            showInfoModal(`Gagal membuat Peta Tematik: ${error.message}`);
         } finally {
-            setIsMapping(false);
+            setIsMappingThematic(false);
+        }
+    };
+
+    // --- FUNGSI BARU 2: GENERATE WORD CLOUD SAJA ---
+    const handleGenerateWordCloudOnly = async () => {
+        const hasKeywords = manualKeywords && manualKeywords.trim() !== "";
+
+        if (activeTab === 'literature' && selectedRefIds.length === 0) {
+            showInfoModal("Mode Literatur membutuhkan minimal 1 referensi untuk membuat Word Cloud.");
+            return;
+        }
+        if (activeTab === 'keyword' && !hasKeywords) {
+            showInfoModal("Silakan masukkan daftar kata kunci/topik terlebih dahulu pada kolom yang tersedia.");
+            return;
+        }
+
+        setIsMappingWordCloud(true);
+
+        const selectedRefs = projectData.allReferences.filter(ref => selectedRefIds.includes(ref.id));
+        let refsInput = selectedRefs.length > 0 
+            ? selectedRefs.map((ref, i) => `[${i+1}] "${ref.title}". Ringkasan: ${ref.abstract ? ref.abstract.substring(0,300) : (ref.isiKutipan || "")}`).join('\n')
+            : "TIDAK ADA REFERENSI (MODE KONSEP).";
+
+        let keywordContext = manualKeywords && manualKeywords.trim() !== "" 
+            ? `\nDAFTAR KATA KUNCI PRIORITAS (User Input):\n${manualKeywords}\n\n` 
+            : "";
+
+        const prompt = `Anda adalah ahli Bibliometrik. Tugas Anda adalah membuat "Word Cloud" (Frekuensi Kata Kunci) dari data berikut.
+
+${keywordContext}
+
+DATA INPUT:
+${refsInput}
+
+INSTRUKSI ANALISIS (WORD CLOUD):
+1. Ekstrak 25-40 kata kunci tunggal atau frasa pendek (maks 2 kata) yang PALING SERING MUNCUL dan paling representatif dari keseluruhan data input.
+2. Berikan bobot frekuensi (skala 1-100) untuk setiap kata. Kata yang paling mendominasi harus diberi skor mendekati 100.
+3. **PENTING:** Jika data input menyertakan keterangan statistik seperti "(Freq: X)", WAJIB gunakan proporsi angka X tersebut sebagai basis utama untuk menentukan bobot secara akurat.
+
+Berikan jawaban HANYA dalam format JSON Object yang berisi properti 'wordcloud'.`;
+
+        const schema = {
+            type: "OBJECT",
+            properties: {
+                wordcloud: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            word: { type: "STRING", description: "Kata/frasa (maks 2 kata)." },
+                            weight: { type: "NUMBER", description: "Bobot frekuensi (1-100)." }
+                        },
+                        required: ["word", "weight"]
+                    }
+                }
+            },
+            required: ["wordcloud"]
+        };
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            // Simpan HANYA wordcloud, pertahankan clusters jika ada
+            setProjectData(p => ({ 
+                ...p, 
+                thematicMapData: { 
+                    ...(p.thematicMapData || {}), 
+                    wordcloud: result.wordcloud 
+                } 
+            }));
+            showInfoModal("Word Cloud berhasil dihasilkan!");
+        } catch (error) {
+            showInfoModal(`Gagal membuat Word Cloud: ${error.message}`);
+        } finally {
+            setIsMappingWordCloud(false);
         }
     };
 
@@ -5792,18 +6057,18 @@ Berikan jawaban HANYA dalam format JSON Array.`;
             ? "2. **DILARANG HALUSINASI REFERENSI:** Karena ini Mode Konsep (tanpa input literatur riil), JANGAN PERNAH membuat sitasi fiktif seperti '(Smith, 2023)'. Gunakan frasa umum seperti 'Literatur terkini menunjukkan...', 'Secara teoritis...', atau 'Tren global mengindikasikan...'."
             : "2. **SITASI APA 7th MURNI:** Wajib menggunakan data dari 'DATA LITERATUR (PENDUKUNG)' di bawah. Gunakan format (Author, Year). Dilarang mengarang referensi yang tidak ada di input.";
 
-        // 2. Siapkan Prompt (Updated: Strict APA & Clean Output)
+        // 2. Siapkan Prompt (Updated: Menyesuaikan jika visual tidak lengkap)
         const prompt = `Anda adalah ahli riset strategis. Tugas Anda adalah menyusun narasi "Gap & Novelty" yang **SINGKAT, PADAT, dan TO-THE-POINT**.
 
-**FOKUS UTAMA:** Gunakan interpretasi dari **Peta Tematik Strategis** (Visual) sebagai landasan utama argumen.
+**FOKUS UTAMA:** Gunakan interpretasi dari Visualisasi Data yang TERSEDIA (Word Cloud dan/atau Peta Tematik) sebagai landasan utama argumen.
 
 **KONTEKS PENELITIAN:**
 - Judul: "${projectData.judulKTI}"
 - Tujuan: "${projectData.tujuanPenelitianDraft || 'Belum ditentukan'}"
 
-**DATA PETA TEMATIK (VISUAL):**
+**DATA VISUAL (TERSEDIA DI MEMORI):**
 ${thematicMapContext}
-*(Panduan Interpretasi: Tema di 'Motor Themes' = Jenuh/Matang. Tema di 'Emerging/Declining' atau 'Niche' = Celah/Peluang Riset).*
+*(Panduan Interpretasi Peta Tematik: 'clusters' menunjukkan pemetaan strategis: Tema di 'Motor Themes' (X>5, Y>5) = Jenuh/Matang. Tema di 'Emerging/Declining' (X<5, Y<5) atau 'Niche' (X<5, Y>5) = Celah/Peluang Riset).*
 
 **DATA LITERATUR (PENDUKUNG):**
 ${refsDataString}
@@ -5814,7 +6079,7 @@ ${citationInstruction}
 3.  **BERSIH DARI META-TEKS:** Jangan sertakan hitungan kata (word count), label "Hasil:", atau komentar penutup di akhir teks.
 
 **ALUR NARASI:**
-1.  **Analisis Visual Langsung:** Langsung jelaskan posisi tema pada kuadran. Contoh: "Berdasarkan pemetaan tematik, topik [A] berada di kuadran Motor Themes yang mengindikasikan saturasi riset, sedangkan aspek [C] masih berada di kuadran Emerging/Niche..."
+1.  **Analisis Visual (Word Cloud & Peta):** Mulai dengan menyoroti tren utama dari visual yang tersedia. Contoh: "Berdasarkan pemetaan literatur, topik [A] berada di kuadran Motor Themes yang mengindikasikan saturasi. Sebaliknya, aspek [C] masih berada di kuadran Emerging/Niche..."
 2.  **Gap & Novelty:** Sambungkan temuan visual tersebut dengan judul penelitian pengguna. Nyatakan tegas bahwa penelitian ini mengisi celah pada tema yang masih *Emerging* atau *Niche* tersebut.
 3.  **Format:** Maksimal 2 paragraf. Langsung ke substansi.`;
 
@@ -5925,7 +6190,7 @@ ${citationInstruction}
                 
                 {/* --- BAGIAN BARU: UPLOAD CSV --- */}
                 <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-4">
-                    <div className="flex flex-col sm:flex-row gap-4 items-center">
+                    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                         <input 
                             type="file" 
                             accept=".csv"
@@ -5935,31 +6200,54 @@ ${citationInstruction}
                         />
                         <button 
                             onClick={() => fileInputRef.current.click()}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-lg flex items-center gap-2 whitespace-nowrap"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-4 rounded-lg flex items-center gap-2 whitespace-nowrap shadow-sm transition-transform active:scale-95 flex-shrink-0"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
                             Upload CSV (Scopus/WoS)
                         </button>
 
-                        {/* Dropdown Pemilih Kolom (Muncul setelah upload) */}
-                        {csvHeaders.length > 0 && (
-                            <div className="flex-1 w-full">
-                                <select 
-                                    value={selectedColumn}
-                                    onChange={(e) => handleColumnSelect(e.target.value)}
-                                    className="w-full text-xs border-indigo-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 bg-white"
+                        {/* Dropdown Pemilih Kolom & Tombol Proses (Muncul setelah upload) */}
+                        {csvHeaders.length > 0 ? (
+                            <div className="flex-1 w-full bg-white p-3 border border-indigo-200 rounded-lg shadow-sm">
+                                <p className="text-[10px] font-bold text-indigo-800 mb-2 uppercase tracking-wide">Petakan Kolom Data:</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                                    <select 
+                                        value={selectedKeywordColumn}
+                                        onChange={(e) => setSelectedKeywordColumn(e.target.value)}
+                                        className="w-full text-xs border border-indigo-300 rounded p-1.5 focus:ring-2 focus:ring-indigo-500 bg-white"
+                                    >
+                                        <option value="">-- 1. Kolom Kata Kunci (Wajib) --</option>
+                                        {csvHeaders.map(header => (
+                                            <option key={header} value={header}>{header}</option>
+                                        ))}
+                                    </select>
+
+                                    <select 
+                                        value={selectedYearColumn}
+                                        onChange={(e) => setSelectedYearColumn(e.target.value)}
+                                        className="w-full text-xs border border-indigo-300 rounded p-1.5 focus:ring-2 focus:ring-indigo-500 bg-white"
+                                    >
+                                        <option value="">-- 2. Kolom Tahun (Opsional) --</option>
+                                        {csvHeaders.map(header => (
+                                            <option key={header} value={header}>{header}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <button
+                                    onClick={handleProcessCsvData}
+                                    disabled={!selectedKeywordColumn}
+                                    className="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex justify-center items-center gap-1"
                                 >
-                                    <option value="">-- Pilih Kolom Kata Kunci (Misal: Author Keywords) --</option>
-                                    {csvHeaders.map(header => (
-                                        <option key={header} value={header}>{header}</option>
-                                    ))}
-                                </select>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM4.5 7.5a.5.5 0 0 0 0 1h5.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H4.5z"/></svg>
+                                    Hitung Statistik & Masukkan ke Editor
+                                </button>
                             </div>
+                        ) : (
+                            <p className="text-[10px] text-indigo-800 flex-1 leading-tight border-l-2 border-indigo-400 pl-2">
+                                *Tips: Upload file CSV hasil ekspor dari Scopus/WoS. Aplikasi akan otomatis menghitung frekuensi dan rata-rata tahun kata kunci untuk pemetaan Data-Driven murni.
+                            </p>
                         )}
                     </div>
-                    <p className="text-[10px] text-indigo-800 mt-2">
-                        *Tips: Upload file CSV ekspor dari Scopus/WoS, lalu pilih kolom "Author Keywords" atau "Index Keywords" untuk otomatis mengisi kotak di bawah.
-                    </p>
                 </div>
                 {/* -------------------------------- */}
 
@@ -5976,27 +6264,54 @@ ${citationInstruction}
             </div>
         )}
 
-        {/* Tombol Aksi Dinamis (Sesuai Gambar Desain) */}
-        <div className="flex justify-end mb-8 border-b pb-8">
+        {/* --- UPDATE: Tombol Aksi Dipisah (Independent Actions) --- */}
+        <div className="flex flex-wrap justify-end gap-3 mb-8 border-b pb-8">
             <button 
-                onClick={handleGenerateThematicMap}
-                disabled={isMapping || !isPremium || (activeTab === 'literature' && selectedRefIds.length === 0) || (activeTab === 'keyword' && !manualKeywords.trim())}
-                className={`font-bold py-2.5 px-6 rounded-xl shadow-lg flex items-center gap-2 text-sm transition-all transform hover:-translate-y-1 active:scale-95 ${
+                onClick={handleGenerateWordCloudOnly}
+                disabled={isMappingWordCloud || !isPremium || (activeTab === 'literature' && selectedRefIds.length === 0) || (activeTab === 'keyword' && !manualKeywords.trim())}
+                className={`font-bold py-2 px-5 rounded-lg shadow flex items-center gap-2 text-sm transition-all transform hover:-translate-y-0.5 active:scale-95 ${
+                    !isPremium ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-pink-600 hover:bg-pink-700 text-white'
+                }`}
+            >
+                {isMappingWordCloud ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : '☁️'}
+                {isMappingWordCloud ? 'Mengekstrak Kata...' : 'Buat Word Cloud'}
+            </button>
+            
+            <button 
+                onClick={handleGenerateThematicMapOnly}
+                disabled={isMappingThematic || !isPremium || (activeTab === 'literature' && selectedRefIds.length === 0) || (activeTab === 'keyword' && !manualKeywords.trim())}
+                className={`font-bold py-2 px-5 rounded-lg shadow flex items-center gap-2 text-sm transition-all transform hover:-translate-y-0.5 active:scale-95 ${
                     !isPremium ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'
                 }`}
             >
-                {isMapping ? (
+                {isMappingThematic ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg>
-                )}
-                {activeTab === 'literature' ? 'Buat Peta dari Literatur' : 'Buat Peta dari Kata Kunci'}
+                ) : '🗺️'}
+                {isMappingThematic ? 'Memetakan Kuadran...' : 'Buat Peta Tematik'}
             </button>
         </div>
+        {/* -------------------------------------------------------- */}
 
                 {/* Render Visualizer jika data ada */}
                 {projectData.thematicMapData && (
-                    <ThematicMapVisualizer data={projectData.thematicMapData} />
+                    <div className="flex flex-col gap-2">
+                        {/* Dukungan Kompatibilitas Mundur & Render Word Cloud */}
+                        {!Array.isArray(projectData.thematicMapData) && projectData.thematicMapData.wordcloud && (
+                            <WordCloudVisualizer 
+                                data={projectData.thematicMapData.wordcloud} 
+                                onDelete={handleDeleteWordCloud} 
+                            />
+                        )}
+                        {/* Render Scatter Plot (Mendukung data array lama atau data objek baru) */}
+                        {(Array.isArray(projectData.thematicMapData) || projectData.thematicMapData.clusters) && (
+                            <ThematicMapVisualizer 
+                                data={Array.isArray(projectData.thematicMapData) ? projectData.thematicMapData : projectData.thematicMapData.clusters} 
+                                onDelete={handleDeleteThematicMap}
+                            />
+                        )}
+                    </div>
                 )}
 
             {/* BAGIAN 2: TOMBOL AKSI UTAMA (NARASI) */}
@@ -8559,6 +8874,20 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
             ),
             color: "bg-green-50 border-green-200",
             premiumOnly: true // Kunci untuk Free
+        },
+        {
+            name: "Cobralysis",
+            description: "Menganalisa target jurnal yang paling tepat untuk naskah KTI Anda.",
+            url: "https://cobralysis.vercel.app/",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" className="text-blue-600" viewBox="0 0 16 16">
+                    <path fillRule="evenodd" d="M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0z"/>
+                    <path d="M3 0h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-1h1v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v1H1V2a2 2 0 0 1 2-2z"/>
+                    <path d="M1 5v-.5a.5.5 0 0 1 1 0V5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0v.5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0v.5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1z"/>
+                </svg>
+            ),
+            color: "bg-blue-50 border-blue-200",
+            premiumOnly: true
         }
     ];
 
