@@ -104,6 +104,12 @@ const initialProjectData = {
     hasilPembahasanDraft: '',
     kesimpulanDraft: '',
     
+    // --- TAMBAHAN BARU: Data Abstrak & Kata Kunci (Grand Finale) ---
+    abstrakDraftID: '',
+    abstrakDraftEN: '',
+    kataKunciFinal: '',
+    // -------------------------------------------------------------
+    
     // Status Akun (Sistem Lisensi)
     isPremium: false, // Default terkunci
 };
@@ -8670,6 +8676,134 @@ Berdasarkan proses seleksi protokol PRISMA 2020, terdapat ${nCount} studi yang m
     );
 };
 
+// ================ KOMPONEN BARU: ABSTRAK & KATA KUNCI (MAHKOTA) ================
+const Abstrak = ({ projectData, setProjectData, handleGenerateAbstrak, handleTranslateAbstrak, isLoading, handleCopyToClipboard }) => {
+    const prerequisites = [
+        { key: 'pendahuluanDraft', name: 'Bab 1: Pendahuluan' },
+        { key: 'metodeDraft', name: 'Bab 3: Metode Penelitian' },
+        { key: 'hasilPembahasanDraft', name: 'Bab 4: Hasil & Pembahasan' },
+        { key: 'kesimpulanDraft', name: 'Bab 5: Kesimpulan' },
+    ];
+
+    const isReady = prerequisites.every(p => projectData[p.key] && projectData[p.key].trim() !== '');
+    const isPremium = projectData.isPremium;
+
+    // Hitung kata
+    const countWords = (text) => text ? text.trim().split(/\s+/).length : 0;
+    const wordCountID = countWords(projectData.abstrakDraftID);
+    const wordCountEN = countWords(projectData.abstrakDraftEN);
+
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Abstrak & Kata Kunci (Grand Finale)</h2>
+            
+            {/* DAFTAR PERIKSA */}
+            <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg shadow-sm">
+                <h3 className="text-lg font-semibold text-indigo-800 mb-3 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/></svg>
+                    Syarat Pembuatan Abstrak
+                </h3>
+                <p className="text-sm text-gray-700 mb-4">Abstrak (IMRAD) hanya dapat dihasilkan jika seluruh bab utama penelitian Anda telah selesai disusun.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
+                    {prerequisites.map(p => {
+                        const hasContent = projectData[p.key] && projectData[p.key].trim() !== '';
+                        return (
+                            <div key={p.key} className="flex items-center text-sm bg-white p-2 rounded border border-indigo-100">
+                                <span className={`mr-3 ${hasContent ? 'text-green-500' : 'text-gray-300'}`}>
+                                    {hasContent ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
+                                    )}
+                                </span>
+                                <span className={hasContent ? 'text-gray-800 font-semibold' : 'text-gray-500'}>{p.name}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+                
+                <button 
+                    onClick={handleGenerateAbstrak} 
+                    className={`font-bold py-3 px-4 rounded-lg w-full shadow-md transition-transform active:scale-95 ${(!isReady || !isPremium) ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+                    disabled={isLoading || !isReady || !isPremium}
+                >
+                    {!isPremium ? '🔒 Hasilkan Abstrak Otomatis (Premium)' : (isLoading ? 'Merangkum 4 Bab...' : '✨ Hasilkan Abstrak & Kata Kunci')}
+                </button>
+                {!isReady && <p className="text-xs text-red-600 mt-2 text-center">Harap selesaikan 4 bab prasyarat di atas untuk membuka tombol ini.</p>}
+            </div>
+
+            {/* HASIL ABSTRAK INDONESIA */}
+            {projectData.abstrakDraftID && (
+                <div className="mt-8 space-y-6 animate-fade-in">
+                    <div>
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Abstrak (Bahasa Indonesia)</h3>
+                            <div className="flex gap-2 items-center">
+                                <span className={`text-xs font-bold px-2 py-1 rounded ${wordCountID >= 150 && wordCountID <= 250 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                    {wordCountID} Kata
+                                </span>
+                                <button onClick={() => handleCopyToClipboard(projectData.abstrakDraftID)} className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1">
+                                    Salin
+                                </button>
+                            </div>
+                        </div>
+                        <textarea
+                            value={projectData.abstrakDraftID}
+                            onChange={(e) => setProjectData(p => ({ ...p, abstrakDraftID: e.target.value }))}
+                            className="shadow-sm border border-gray-300 rounded-lg w-full py-3 px-4 text-gray-700 leading-relaxed text-sm text-justify focus:ring-2 focus:ring-indigo-500 outline-none"
+                            rows="8"
+                        ></textarea>
+                    </div>
+
+                    {/* KATA KUNCI */}
+                    <div>
+                        <label className="block text-gray-800 text-sm font-bold mb-2">Kata Kunci (Keywords):</label>
+                        <input 
+                            type="text" 
+                            value={projectData.kataKunciFinal} 
+                            onChange={(e) => setProjectData(p => ({ ...p, kataKunciFinal: e.target.value }))} 
+                            className="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 font-semibold" 
+                        />
+                    </div>
+
+                    {/* TOMBOL TRANSLATE Q1 */}
+                    <div className="pt-4 border-t border-dashed border-gray-300">
+                        <button 
+                            onClick={handleTranslateAbstrak} 
+                            className={`font-bold py-2 px-6 rounded-lg shadow-sm flex items-center justify-center gap-2 w-full md:w-auto ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white transition-colors'}`}
+                            disabled={isLoading || !isPremium}
+                        >
+                            {!isPremium ? '🔒 Terjemahkan ke Inggris (Premium)' : (isLoading ? 'Menerjemahkan...' : '🇬🇧 Terjemahkan ke Academic English (Standar Q1)')}
+                        </button>
+                    </div>
+
+                    {/* HASIL ABSTRAK INGGRIS */}
+                    {projectData.abstrakDraftEN && (
+                        <div className="pt-4 animate-fade-in">
+                            <div className="flex justify-between items-center mb-2">
+                                <h3 className="text-lg font-bold text-gray-800">Abstract (English)</h3>
+                                <div className="flex gap-2 items-center">
+                                    <span className={`text-xs font-bold px-2 py-1 rounded ${wordCountEN >= 150 && wordCountEN <= 250 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                        {wordCountEN} Words
+                                    </span>
+                                    <button onClick={() => handleCopyToClipboard(projectData.abstrakDraftEN)} className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1">
+                                        Salin
+                                    </button>
+                                </div>
+                            </div>
+                            <textarea
+                                value={projectData.abstrakDraftEN}
+                                onChange={(e) => setProjectData(p => ({ ...p, abstrakDraftEN: e.target.value }))}
+                                className="shadow-sm border border-gray-300 rounded-lg w-full py-3 px-4 text-gray-700 leading-relaxed text-sm text-justify focus:ring-2 focus:ring-emerald-500 outline-none bg-emerald-50"
+                                rows="8"
+                            ></textarea>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
 
 // --- Komponen untuk Donasi ---
 const Donasi = ({ handleCopyToClipboard }) => {
@@ -11120,6 +11254,97 @@ Pastikan ada alur yang logis.`;
             setIsLoading(false);
         }
     };
+
+    // ============================================================================
+    // LOGIKA ABSTRAK & KATA KUNCI
+    // ============================================================================
+    const handleGenerateAbstrak = async () => {
+        setIsLoading(true);
+        const context = `
+[BAB 1 - PENDAHULUAN/TUJUAN]
+${projectData.pendahuluanDraft.substring(0, 1500)}
+
+[BAB 3 - METODE]
+${projectData.metodeDraft.substring(0, 1500)}
+
+[BAB 4 - HASIL & PEMBAHASAN]
+${projectData.hasilPembahasanDraft.substring(0, 2000)}
+
+[BAB 5 - KESIMPULAN]
+${projectData.kesimpulanDraft.substring(0, 1000)}
+`;
+
+        // --- UPDATE: PENAMBALAN VARIABEL (CONTEXT & JANGKAR JUDUL) ---
+        const prompt = `Anda adalah Editor in Chief Jurnal Q1 terkemuka. Tugas Anda adalah mensintesis naskah KTI menjadi sebuah ABSTRAK yang sempurna dan elegan.
+
+**KONTEKS WAJIB (JANGKAR UTAMA):**
+- Judul Penelitian: "${projectData.judulKTI}"
+- Topik: "${projectData.topikTema}"
+PENTING: Abstrak yang Anda buat WAJIB membahas topik di atas. DILARANG KERAS mengarang subjek atau objek penelitian lain (seperti pendidikan/mahasiswa jika tidak relevan).
+
+**DATA DRAF NASKAH (BAHAN SINTESIS):**
+${context}
+
+**ATURAN MUTLAK (STRICT RULES):**
+1. **Struktur IMRAD:** Harus memuat Introduction/Tujuan (1-2 kalimat), Methods (1-2 kalimat), Results (2-3 kalimat temuan utama), And Discussion/Conclusion (1-2 kalimat dampak/saran).
+2. **Panjang Karakter:** WAJIB di antara 150 hingga 250 kata.
+3. **Format:** SATU PARAGRAF UTUH. Jangan gunakan indentasi, jangan gunakan sub-judul (seperti "Tujuan:", "Metode:").
+4. **Sitasi:** DILARANG KERAS memasukkan nama penulis atau tahun sitasi ke dalam Abstrak (Contoh: Menurut Smith (2020)... -> HAPUS!).
+5. **Kata Kunci:** Ekstrak 3-5 kata kunci paling krusial, urutkan secara alfabetis, pisahkan dengan koma.
+
+Berikan respons Anda HANYA dalam format JSON berikut.`;
+        // --- AKHIR UPDATE ---
+
+        const schema = {
+            type: "OBJECT",
+            properties: {
+                abstrak: { type: "STRING", description: "Teks abstrak 1 paragraf utuh (150-250 kata)." },
+                kata_kunci: { type: "STRING", description: "3-5 kata kunci, dipisahkan koma." }
+            },
+            required: ["abstrak", "kata_kunci"]
+        };
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            setProjectData(p => ({ 
+                ...p, 
+                abstrakDraftID: result.abstrak,
+                kataKunciFinal: result.kata_kunci
+            }));
+            showInfoModal("Abstrak berstandar IMRAD berhasil dirangkum dari 4 Bab Anda!");
+        } catch(error) {
+            showInfoModal(`Gagal membuat abstrak: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleTranslateAbstrak = async () => {
+        setIsLoading(true);
+        const prompt = `Anda adalah seorang Proofreader Akademik *Native English Speaker* dari jurnal Elsevier/Springer.
+Tugas Anda adalah menerjemahkan Abstrak dan Kata Kunci berikut ke dalam Bahasa Inggris Akademik level tinggi (Q1 Academic English).
+
+**ATURAN TERJEMAHAN:**
+1. Gunakan *passive voice* di mana hal itu lazim dalam sains (misal: "This study aims..." atau "Data were analyzed...").
+2. Gunakan kosakata akademik yang presisi (misal: gunakan "utilize" alih-alih "use", "demonstrate" alih-alih "show").
+3. Pertahankan struktur satu paragraf utuh.
+
+**TEKS ASLI:**
+${projectData.abstrakDraftID}
+
+Berikan terjemahannya (hanya teks bahasa Inggrisnya saja, tanpa komentar apa pun).`;
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKeys);
+            const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "").trim();
+            setProjectData(p => ({ ...p, abstrakDraftEN: cleanResult }));
+            showInfoModal("Abstrak berhasil diterjemahkan ke standar Academic English!");
+        } catch(error) {
+            showInfoModal(`Gagal menerjemahkan abstrak: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
     
     // --- HANDLER BARU UNTUK SEMANTIC SCHOLAR ---
     const handleSearchSemanticScholar = async (query) => {
@@ -12192,6 +12417,8 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                 }} />;
             case 'kesimpulan':
                  return <Kesimpulan {...{ projectData, setProjectData, handleGenerateKesimpulan, isLoading, handleCopyToClipboard, handleModifyText }} />;
+            case 'abstrak': // <-- TAMBAHKAN BARIS INI DAN DI BAWAHNYA
+                 return <Abstrak {...{ projectData, setProjectData, handleGenerateAbstrak, handleTranslateAbstrak, isLoading, handleCopyToClipboard }} />;
             case 'dashboard':
                 return <DashboardProyek {...{ projectData, setCurrentSection }} />;
             case 'tutorial':
@@ -12553,6 +12780,7 @@ try {
                     { id: 'metode', name: label('Metode Penelitian', true) },
                     { id: 'hasil', name: label('Hasil & Pembahasan', true) },
                     { id: 'kesimpulan', name: label('Kesimpulan', true) },
+                    { id: 'abstrak', name: label('Abstrak & Kata Kunci', true) },
                 ]
             },
             proyek: {
