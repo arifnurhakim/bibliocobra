@@ -1197,9 +1197,17 @@ const IdeKTI = ({
     ideKtiMode,
     handleGenerateMirrorReflection,
     handleValidateMirrorReflection,
+    handleGenerateFakta, // <-- TAMBAHAN PROP BARU
+    handleGenerateRumusan, // <-- TAMBAHAN PROP BARU
+    setCurrentSection // <-- TAMBAHAN PROP NAVIGASI BARU
 }) => {
     // Helper status premium
     const isPremium = projectData.isPremium;
+
+    // --- DETEKSI METODE SLR DINAMIS ---
+    const lowerMetode = (projectData.metode || '').toLowerCase();
+    const isSLRMode = ['slr', 'systematic', 'literature', 'literatur', 'bibliometric', 'bibliometrik'].some(kw => lowerMetode.includes(kw));
+    // ----------------------------------
 
     // Jika proyek sudah punya judul, tampilkan ringkasan dan tombol edit
     if (projectData.judulKTI && !editingIdea && !ideKtiMode) {
@@ -1253,19 +1261,70 @@ const IdeKTI = ({
                             <option value="Metode Campuran">Metode Campuran</option>
                         </select>
                     </div>
+
+                    {/* --- METODE SPESIFIK DIPINDAH KE SINI (Atas Fakta/Masalah) --- */}
+                    <div className="md:col-span-2">
+                        <label className="block text-gray-700 text-sm font-bold mb-2">Metode Spesifik:</label>
+                        <input 
+                            type="text" 
+                            name="metode" 
+                            value={projectData.metode} 
+                            onChange={handleInputChange} 
+                            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" 
+                            placeholder="Contoh: Bibliometrik, SLR, Studi Kasus, Regresi Linear"
+                        />
+                    </div>
+                    {/* ----------------------------------------------------------- */}
                     
                     {/* --- PERUBAHAN DIMULAI DI SINI --- */}
                     {/* --- KODE BARU MIRROR REFLECTION --- */}
                     <div className="md:col-span-2">
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Fakta/Pokok Masalah:</label>
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="block text-gray-700 text-sm font-bold">Fakta/Pokok Masalah:</label>
+                            {/* --- TOMBOL AUTO-FAKTA BARU --- */}
+                            <button 
+                                onClick={(e) => { e.preventDefault(); handleGenerateFakta(); }}
+                                disabled={isLoading || !projectData.topikTema || !isPremium}
+                                className={`text-xs font-bold py-1 px-3 rounded-lg flex items-center gap-1 transition-colors shadow-sm ${!isPremium ? 'bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border border-indigo-200'}`}
+                                title={!isPremium ? "Fitur Premium" : "Cari fakta empiris di internet dengan AI"}
+                            >
+                                {isLoading && ideKtiMode === 'fakta' ? (
+                                    <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                    <span>{!isPremium ? '🔒' : '✨'}</span>
+                                )}
+                                {!isPremium ? 'Auto-Fakta (Premium)' : (isLoading && ideKtiMode === 'fakta' ? 'Mencari Web...' : 'Auto-Fakta (Web)')}
+                            </button>
+                            {/* ------------------------------ */}
+                        </div>
                         <textarea name="faktaMasalahDraft" value={projectData.faktaMasalahDraft} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Jelaskan masalah utama atau fenomena yang ingin Anda teliti." rows="4"></textarea>
+                        {!isPremium && <p className="text-[10px] text-red-500 italic mt-1">Upgrade ke Premium untuk mencari fakta/data statistik otomatis dari internet.</p>}
                     </div>
 
                     {/* AREA MIRROR REFLECTION (LOGIKA BAB I) - UPDATE PREMIUM CHECK */}
                     <div className="md:col-span-2 bg-indigo-50 p-4 rounded-lg border border-indigo-200 animate-fade-in">
                         <div className="flex items-center justify-between mb-2">
-                            <label className="block text-indigo-900 text-sm font-bold">Rumusan Masalah (Pertanyaan):</label>
-                            <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-1 rounded font-bold uppercase tracking-wide">Basis Logika</span>
+                            {/* --- PERUBAHAN DIMULAI DI SINI --- */}
+                            <div className="flex items-center gap-2">
+                                <label className="block text-indigo-900 text-sm font-bold">Rumusan Masalah (Pertanyaan):</label>
+                                {/* --- TOMBOL AUTO-RUMUSAN BARU --- */}
+                                <button 
+                                    onClick={(e) => { e.preventDefault(); handleGenerateRumusan(); }}
+                                    disabled={isLoading || !projectData.faktaMasalahDraft || !projectData.pendekatan || !isPremium}
+                                    className={`text-[10px] font-bold py-1 px-2 rounded-lg flex items-center gap-1 transition-colors shadow-sm ${!isPremium ? 'bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300' : 'bg-white border border-indigo-300 text-indigo-700 hover:bg-indigo-100'}`}
+                                    title={!isPremium ? "Fitur Premium" : "Rumuskan pertanyaan penelitian dengan AI"}
+                                >
+                                    {isLoading && ideKtiMode === 'rumusan' ? (
+                                        <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                        <span>{!isPremium ? '🔒' : '✨'}</span>
+                                    )}
+                                    {!isPremium ? 'Auto (Premium)' : (isLoading && ideKtiMode === 'rumusan' ? 'Merumuskan...' : 'Auto-Rumusan AI')}
+                                </button>
+                                {/* ------------------------------ */}
+                            </div>
+                            <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-1 rounded font-bold uppercase tracking-wide hidden sm:inline-block">Basis Logika</span>
+                            {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
                         </div>
                         <textarea 
                             name="rumusanMasalahDraft" 
@@ -1276,6 +1335,24 @@ const IdeKTI = ({
                             rows="4"
                         ></textarea>
 
+                        {/* --- INFO BOX KHUSUS SLR (DINAMIS) --- */}
+                        {isSLRMode && (
+                            <div className="mb-3 p-3 bg-teal-50 border border-teal-200 rounded-lg flex items-start gap-2 animate-fade-in">
+                                <span className="text-teal-600 mt-0.5">💡</span>
+                                <div>
+                                    <p className="text-xs font-bold text-teal-800">Khusus Riset SLR:</p>
+                                    <p className="text-xs text-teal-700 mb-2">Jangan gunakan generator di atas. Rumusan Masalah untuk riset literatur wajib diturunkan dari kerangka PICOS.</p>
+                                    <button 
+                                        onClick={(e) => { e.preventDefault(); setCurrentSection('genLogKueri'); }}
+                                        className="bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg shadow-sm transition-colors flex items-center gap-1"
+                                    >
+                                        🚀 Buat RQ via Asisten PICOS (Pindah Menu)
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        {/* --------------------------- */}
+
                         {/* VISUAL CONNECTOR & CONTROLS */}
                         <div className="flex flex-col items-center justify-center my-3 space-y-3">
                             <div className="flex items-center gap-2 text-indigo-500 font-bold text-xs uppercase tracking-wider bg-white px-3 py-1 rounded-full border border-indigo-100 shadow-sm">
@@ -1283,21 +1360,33 @@ const IdeKTI = ({
                             </div>
                             <div className="flex gap-2 w-full">
                                 <button 
-                                    onClick={handleGenerateMirrorReflection}
-                                    disabled={isLoading || !isPremium}
-                                    className={`flex-1 font-bold py-2 px-4 rounded-lg text-xs flex items-center justify-center gap-2 transition-colors shadow-sm ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
-                                    title={!isPremium ? "Fitur Premium" : ""}
-                                >
-                                    <span>{!isPremium ? '🔒' : '🔄'}</span> {!isPremium ? 'Selaraskan (Premium)' : 'Selaraskan Otomatis (AI)'}
-                                </button>
+    onClick={handleGenerateMirrorReflection}
+    disabled={isLoading || !isPremium}
+    className={`flex-1 font-bold py-2 px-4 rounded-lg text-xs flex items-center justify-center gap-2 transition-colors shadow-sm ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+    title={!isPremium ? "Fitur Premium" : ""}
+>
+    {/* Logika Loading Baru */}
+    {isLoading && ideKtiMode !== 'ai' ? ( // Cek agar tidak bentrok dengan loading pencarian ide
+        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+    ) : (
+        <span>{!isPremium ? '🔒' : '🔄'}</span>
+    )}
+    {!isPremium ? 'Selaraskan (Premium)' : (isLoading && ideKtiMode !== 'ai' ? 'Menyinkronkan...' : 'Selaraskan Otomatis (AI)')}
+</button>
                                 <button 
-                                    onClick={handleValidateMirrorReflection}
-                                    disabled={isLoading || !isPremium}
-                                    className={`flex-1 font-bold py-2 px-4 rounded-lg text-xs flex items-center justify-center gap-2 transition-colors shadow-sm ${!isPremium ? 'bg-gray-300 text-gray-500 cursor-not-allowed border border-gray-300' : 'bg-white border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50'}`}
-                                    title={!isPremium ? "Fitur Premium" : ""}
-                                >
-                                    <span>{!isPremium ? '🔒' : '🔍'}</span> {!isPremium ? 'Validasi (Premium)' : 'Cek Validasi Logika'}
-                                </button>
+    onClick={handleValidateMirrorReflection}
+    disabled={isLoading || !isPremium}
+    className={`flex-1 font-bold py-2 px-4 rounded-lg text-xs flex items-center justify-center gap-2 transition-colors shadow-sm ${!isPremium ? 'bg-gray-300 text-gray-500 cursor-not-allowed border border-gray-300' : 'bg-white border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50'}`}
+    title={!isPremium ? "Fitur Premium" : ""}
+>
+    {/* Logika Loading Baru */}
+    {isLoading && ideKtiMode !== 'ai' ? (
+        <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+    ) : (
+        <span>{!isPremium ? '🔒' : '🔍'}</span>
+    )}
+    {!isPremium ? 'Validasi (Premium)' : (isLoading && ideKtiMode !== 'ai' ? 'Menganalisis...' : 'Cek Validasi Logika')}
+</button>
                             </div>
                             {!isPremium && <p className="text-[10px] text-red-500 italic">Upgrade ke Premium untuk membuka fitur logika otomatis.</p>}
                         </div>
@@ -1316,22 +1405,25 @@ const IdeKTI = ({
                     </div>
                     {/* --- AKHIR KODE BARU --- */}
 
-                    <div className="md:col-span-2">
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Metode Spesifik:</label>
-                        <input type="text" name="metode" value={projectData.metode} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Bibliometrik, SLR, Studi Kasus"/>
+                    {/* GRUP PARAMETER TEKNIS BAB 3 DIPINDAH KE BAWAH */}
+                    <div className="md:col-span-2 mt-4 pt-4 border-t border-dashed border-gray-300">
+                        <h4 className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">Parameter Teknis Dapur Riset (Bab 3 - Opsional)</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-gray-700 text-xs font-bold mb-2">Periode:</label>
+                                <input type="text" name="periode" value={projectData.periode} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 text-sm" placeholder="Contoh: 2020-2024"/>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-xs font-bold mb-2">Basis Data:</label>
+                                <input type="text" name="basisData" value={projectData.basisData} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 text-sm" placeholder="Contoh: Scopus, WoS"/>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-xs font-bold mb-2">Tools Analisis:</label>
+                                <input type="text" name="tools" value={projectData.tools} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 text-sm" placeholder="Contoh: VOSviewer, SPSS"/>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Periode:</label>
-                        <input type="text" name="periode" value={projectData.periode} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: 2020-2024"/>
-                    </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Basis Data:</label>
-                        <input type="text" name="basisData" value={projectData.basisData} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Scopus, Web of Science"/>
-                    </div>
-                    <div className="md:col-span-2">
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Tools:</label>
-                        <input type="text" name="tools" value={projectData.tools} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Vosviewer, R (bibliometrix)"/>
-                    </div>
+
                 </div>
             </div>
 
@@ -9040,7 +9132,7 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
         },
         {
             name: "Cobralysis",
-            description: "Menganalisa target jurnal yang paling tepat untuk naskah KTI Anda.",
+            description: "Reviewer tajam untuk memvalidasi naskah sesuai standar publikasi jurnal.",
             url: "https://cobralysis.vercel.app/",
             icon: (
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" className="text-blue-600" viewBox="0 0 16 16">
@@ -9050,6 +9142,18 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
                 </svg>
             ),
             color: "bg-blue-50 border-blue-200",
+            premiumOnly: true
+        },
+        {
+            name: "Cobra Pemburu",
+            description: "Pemburu jurnal ilmiah Sinta dan Scopus relevan dengan KTI Anda.",
+            url: "https://cobra-pemburu.netlify.app/",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" className="text-purple-600" viewBox="0 0 16 16">
+                    <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                </svg>
+            ),
+            color: "bg-purple-50 border-purple-200",
             premiumOnly: true
         }
     ];
@@ -9271,6 +9375,7 @@ Abstract: `;
     const [generatedApaReferences, setGeneratedApaReferences] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [modalMessage, setModalMessage] = useState('');
+    const [modalAction, setModalAction] = useState(null);
     const [showSearchPromptModal, setShowSearchPromptModal] = useState(false);
     
     // --- UPDATE STATE: Multi-Keys ---
@@ -9809,8 +9914,9 @@ const setGeminiApiKey = (val) => {
     };
 
     
-    const showInfoModal = React.useCallback((message) => {
+    const showInfoModal = React.useCallback((message, action = null) => {
         setModalMessage(message);
+        setModalAction(action);
         setShowModal(true);
     }, []);
 
@@ -9846,11 +9952,12 @@ const setGeminiApiKey = (val) => {
         
         const jenisKarya = projectData.jenisKaryaTulis === 'Lainnya' ? projectData.jenisKaryaTulisLainnya : projectData.jenisKaryaTulis;
         
+        // --- PERUBAHAN: PROMPT KLARIFIKASI DIPERBAIKI AGAR LEBIH AKADEMIS ---
         const prompt = `Anda adalah seorang rekan diskusi penelitian yang ramah dan membantu. Tugas Anda adalah membantu pengguna memperjelas ide penelitian mereka dengan mengajukan 3 pertanyaan klarifikasi yang sederhana, praktis, dan personal. Hindari jargon akademis yang rumit.
 
 Pertanyaan harus fokus pada:
 1.  **Konteks/Industri Spesifik:** Tanyakan area spesifik yang diminati pengguna. (Contoh: "Dari topik '${projectData.topikTema}', adakah industri atau konteks tertentu yang paling menarik bagi Anda? (misal: perbankan, startup, pendidikan)")
-2.  **Masalah Praktis:** Tanyakan masalah praktis atau tantangan terkait topik yang ingin diselesaikan atau diberikan kontribusi solusinya melalui penelitian ini.
+2.  **Fokus/Fenomena Spesifik:** Tanyakan fenomena unik, kasus spesifik, atau masalah di lapangan yang memicu ketertarikan pengguna pada topik ini. Hindari bertanya soal 'memecahkan masalah', arahkan ke 'apa yang ingin diamati/dianalisis'. (Contoh: "Fenomena spesifik atau kasus apa yang paling menarik perhatian Anda untuk meneliti topik ini?")
 3.  **Audiens/Pembaca:** Tanyakan siapa yang akan membaca hasil penelitian ini. (Contoh: "Siapakah pembaca utama yang Anda tuju untuk karya tulis ini? (misal: akademisi, manajer, pembuat kebijakan)")
 
 Konteks dari Pengguna:
@@ -9858,6 +9965,7 @@ Konteks dari Pengguna:
 - Jenis Karya Tulis: "${jenisKarya}"
 
 Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
+        // ---------------------------------------------------------------------
         
         const schema = {
             type: "OBJECT",
@@ -9956,8 +10064,106 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
 
     // --- AKHIR ALUR KERJA IDE KTI BARU ---
 
-    // --- LOGIKA BAB I: MIRROR REFLECTION (Auto-Generate & Validate) ---
+    // --- LOGIKA BAB I: FAKTA MASALAH & MIRROR REFLECTION ---
     
+    // 0. Generator Otomatis Fakta (Grounding Web)
+    const handleGenerateFakta = async () => {
+        if (!projectData.isPremium) {
+            showInfoModal("Fitur 'Auto-Fakta' khusus untuk pengguna Premium.");
+            return;
+        }
+
+        if (!projectData.topikTema || projectData.topikTema.trim() === '') {
+            showInfoModal("Harap isi 'Topik atau Tema' terlebih dahulu agar AI tahu apa yang harus dicari.");
+            return;
+        }
+
+        setIsLoading(true);
+        setIdeKtiMode('fakta');
+
+        // --- PERUBAHAN TAHAP 1: PROMPT SUMBER STATISTIK ---
+        const prompt = `Anda adalah peneliti level Q1. Cari FAKTA EMPIRIS, DATA STATISTIK TERBARU, atau FENOMENA NYATA mengenai masalah dalam topik: "${projectData.topikTema}". Rangkum dan susun menjadi 2-3 kalimat lugas yang secara tegas menunjukkan adanya 'Masalah' (kesenjangan antara harapan dan kenyataan). 
+        
+ATURAN MUTLAK:
+1. JIKA Anda menyajikan angka statistik, persentase, atau peringkat, Anda WAJIB menyebutkan nama lembaga, institusi, atau laporan resmi yang merilisnya di dalam kalimat tersebut (Contoh: "Menurut laporan Oxford Insights 2024..." atau "Berdasarkan data BPS 2023..."). DILARANG memberikan angka tanpa sumber yang jelas.
+2. Jangan bertele-tele dan jangan menggunakan bahasa hiperbolis.`;
+        // ---------------------------------------------------
+
+        try {
+            // EKSEKUSI DENGAN GOOGLE SEARCH GROUNDING
+            const result = await geminiService.run(prompt, geminiApiKeys, { useGrounding: true });
+            
+            // Bersihkan format markdown jika ada
+            const cleanResult = result.replace(/[*_]/g, "").trim();
+            
+            setProjectData(prev => ({ 
+                ...prev, 
+                faktaMasalahDraft: cleanResult 
+            }));
+            
+            showInfoModal("Fakta/Pokok Masalah berhasil dirumuskan berdasarkan penelusuran web terbaru!");
+        } catch (error) {
+            showInfoModal(`Gagal mencari fakta: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+            setIdeKtiMode(null);
+        }
+    };
+
+    // 0.5 Generator Otomatis Rumusan Masalah (Auto-RQ)
+    const handleGenerateRumusan = async () => {
+        if (!projectData.isPremium) {
+            showInfoModal("Fitur 'Auto-Rumusan' khusus untuk pengguna Premium.");
+            return;
+        }
+
+        if (!projectData.faktaMasalahDraft || projectData.faktaMasalahDraft.trim() === '') {
+            showInfoModal("Harap isi 'Fakta/Pokok Masalah' terlebih dahulu agar AI memiliki dasar masalah yang jelas.");
+            return;
+        }
+
+        if (!projectData.pendekatan) {
+            showInfoModal("Harap pilih 'Pendekatan Penelitian' (Kuantitatif/Kualitatif/Campuran) terlebih dahulu.");
+            return;
+        }
+
+        setIsLoading(true);
+        setIdeKtiMode('rumusan');
+
+        // --- PERUBAHAN TAHAP 2: PROMPT RINGKAS & ANTI-DOUBLE BARRELED ---
+        const prompt = `Anda adalah pakar metodologi penelitian level Q1. Berdasarkan [Fakta/Pokok Masalah] berikut, rumuskan 2-3 Pertanyaan Penelitian (Research Questions) yang tajam dan spesifik.
+
+Fakta Masalah: "${projectData.faktaMasalahDraft}"
+Pendekatan Riset: "${projectData.pendekatan}"
+Metode Spesifik: "${projectData.metode || 'Belum ditentukan'}"
+
+ATURAN MUTLAK:
+1. Sesuaikan gaya dan kata tanya dengan Pendekatan dan Metode Spesifik (Misal: Kuantitatif mencari 'Pengaruh', Kualitatif mencari 'Proses/Makna', Bibliometrik mencari 'Tren/Struktur').
+2. **RINGKAS & FOKUS (CRITICAL):** Pertanyaan WAJIB sangat ringkas dan langsung ke sasaran (maksimal 15-20 kata per pertanyaan). 
+3. **ANTI-DOUBLE BARRELED:** DILARANG menanyakan terlalu banyak hal/variabel dalam satu kalimat. Jangan memasukkan seluruh paragraf latar belakang atau alasan ke dalam kalimat tanya.
+4. Berikan output LANGSUNG dalam bentuk daftar bernomor (1, 2, 3).
+5. DILARANG KERAS memberikan kalimat pengantar atau penutup.`;
+        // ------------------------------------------------------------------
+
+        try {
+            const result = await geminiService.run(prompt, geminiApiKeys);
+            // Bersihkan format markdown jika ada
+            const cleanResult = result.replace(/[*_]/g, "").trim();
+            
+            setProjectData(prev => ({ 
+                ...prev, 
+                rumusanMasalahDraft: cleanResult 
+            }));
+            
+            showInfoModal("Rumusan Masalah (Research Questions) berhasil diformulasikan oleh AI!");
+        } catch (error) {
+            showInfoModal(`Gagal membuat rumusan masalah: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+            setIdeKtiMode(null);
+        }
+    };
+
     // 1. Generator Otomatis: Mengubah Masalah menjadi Tujuan (1:1)
     const handleGenerateMirrorReflection = async () => {
         // Cek Premium
@@ -10011,7 +10217,7 @@ ${context}`;
         }
     };
 
-    // 2. Validator Logika: Mengecek Konsistensi Tanpa Mengubah Teks (Updated: With Suggestions)
+        // 2. Validator Logika: Mengecek Konsistensi Tanpa Mengubah Teks (Updated: With Auto-Fix)
     const handleValidateMirrorReflection = async () => {
         // Cek Premium
         if (!projectData.isPremium) {
@@ -10037,13 +10243,14 @@ ${projectData.tujuanPenelitianDraft}
 Lakukan pengecekan ketat:
 1. **Jumlah Poin:** Apakah jumlah poin pertanyaan sama persis dengan jumlah poin tujuan?
 2. **Konsistensi Substansi:** Apakah Tujuan benar-benar menjawab Pertanyaan?
-3. **Ketepatan Kata Kerja:** Apakah kata kerja operasional yang digunakan sudah pas dengan level masalahnya?
+3. **Ketepatan Kata Kerja:** Apakah kata kerja operasional yang digunakan sudah pas dengan level masalahnya? (Misal: "Untuk menganalisis..." bukan sekadar "Untuk mengetahui...").
 
 Output (JSON Format):
 {
   "status": "VALID" | "WARNING",
   "message": "Penjelasan singkat mengenai status validasi.",
-  "saran": "Berikan saran perbaikan yang KONKRET dan JELAS (apa yang harus diubah/ditambahkan) agar menjadi VALID. (Wajib diisi jika status WARNING, kosongkan jika VALID)"
+  "saran": "Berikan saran perbaikan yang KONKRET dan JELAS (apa yang harus diubah/ditambahkan) agar menjadi VALID.",
+  "tujuan_revisi": "JIKA status WARNING, tulis ulang KESELURUHAN teks Tujuan Penelitian menjadi versi yang benar, operasional, dan valid berstandar Q1. Berikan format teks biasa dengan penomoran. Jika VALID, kosongkan field ini."
 }
 `;
         
@@ -10052,7 +10259,8 @@ Output (JSON Format):
             properties: {
                 status: { type: "STRING", enum: ["VALID", "WARNING"] },
                 message: { type: "STRING" },
-                saran: { type: "STRING" }
+                saran: { type: "STRING" },
+                tujuan_revisi: { type: "STRING" }
             },
             required: ["status", "message"]
         };
@@ -10064,12 +10272,28 @@ Output (JSON Format):
             let title = result.status === 'VALID' ? 'LOGIKA VALID' : 'PERINGATAN LOGIKA';
             
             let alertMsg = `${icon} ${title}\n\nAnalisis: ${result.message}`;
+            let actionBtn = null;
             
-            if (result.status === 'WARNING' && result.saran) {
-                alertMsg += `\n\n💡 SARAN PERBAIKAN:\n${result.saran}`;
+            if (result.status === 'WARNING') {
+                if (result.saran) alertMsg += `\n\n💡 SARAN PERBAIKAN:\n${result.saran}`;
+                
+                // Jika AI menyediakan teks revisi, buat tombol aksi
+                if (result.tujuan_revisi) {
+                    actionBtn = {
+                        label: "✨ Terapkan Saran Perbaikan",
+                        onClick: () => {
+                            setProjectData(prev => ({
+                                ...prev,
+                                tujuanPenelitianDraft: result.tujuan_revisi
+                            }));
+                            showInfoModal("Tujuan Penelitian berhasil diperbarui berdasarkan saran AI!");
+                        }
+                    };
+                }
             }
             
-            showInfoModal(alertMsg);
+            // Panggil modal dengan tombol aksi opsional
+            showInfoModal(alertMsg, actionBtn);
 
         } catch (error) {
             showInfoModal(`Gagal memvalidasi logika: ${error.message}`);
@@ -11821,20 +12045,26 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
 
         let prompt;
         if (type === 'rq') {
+            // --- PERUBAHAN DIMULAI DI SINI: PROMPT DIPERKETAT ---
             prompt = `Anda adalah pakar metodologi SLR. Berdasarkan kerangka PICOS di bawah, formulasikan 3 Research Questions (RQ) yang saling melengkapi untuk paper internasional:
-            1. RQ1 (Descriptive): Fokus pada pemetaan tren/metode yang digunakan terkait ${picos.intervention}.
-            2. RQ2 (Substantive): Fokus pada dampak/hasil (${picos.outcome}) pada ${picos.population}.
-            3. RQ3 (Future Gap): Fokus pada celah penelitian yang belum terselesaikan.
+            1. Descriptive: Fokus pada pemetaan tren/metode yang digunakan terkait ${picos.intervention}.
+            2. Substantive: Fokus pada dampak/hasil (${picos.outcome}) pada ${picos.population}.
+            3. Future Gap: Fokus pada celah penelitian yang belum terselesaikan.
 
             Data PICOS:
             - P: ${picos.population} | I: ${picos.intervention} | C: ${picos.comparison || 'N/A'} | O: ${picos.outcome} | S: ${picos.studyDesign || 'N/A'}
     
-            Hasilkan dalam bentuk poin-poin tanpa kalimat pengantar.`;
+            ATURAN FORMAT MUTLAK:
+            1. Hasilkan HANYA daftar bernomor (1, 2, 3). 
+            2. DILARANG menggunakan bullet points (*).
+            3. DILARANG menggunakan cetak tebal (**).
+            4. DILARANG menuliskan label/meta-teks seperti 'RQ1 (Descriptive):' di awal kalimat. 
+            5. Langsung tuliskan pertanyaan penelitiannya secara bersih dan formal tanpa kalimat pengantar.`;
              try {
                 const result = await geminiService.run(prompt, geminiApiKeys);
-                // --- PERUBAHAN DI SINI: Simpan hasil ke projectData ---
-                const newRQ = `- ${result}`;
-                setProjectData(p => ({ ...p, rumusanMasalahDraft: (p.rumusanMasalahDraft ? p.rumusanMasalahDraft + '\n' : '') + newRQ }));
+                // --- PERUBAHAN DI SINI: Bersihkan format & jangan tambahkan strip (-) ---
+                const cleanResult = result.replace(/[*_]/g, "").trim();
+                setProjectData(p => ({ ...p, rumusanMasalahDraft: (p.rumusanMasalahDraft ? p.rumusanMasalahDraft + '\n\n' : '') + cleanResult }));
                 showInfoModal(`Pertanyaan Penelitian berhasil dibuat dan ditambahkan ke kotak di bawah!`);
                 // --- AKHIR PERUBAHAN ---
             } catch (error) {
@@ -12296,9 +12526,11 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     handleStartEditing, 
                     handleSaveIdea, 
                     ideKtiMode,
-                    // --- TAMBAHAN BARU DI SINI ---
                     handleGenerateMirrorReflection,
-                    handleValidateMirrorReflection
+                    handleValidateMirrorReflection,
+                    handleGenerateFakta, // <-- LEWATKAN FUNGSI KE KOMPONEN
+                    handleGenerateRumusan, // <-- LEWATKAN FUNGSI KE KOMPONEN
+                    setCurrentSection // <-- LEWATKAN FUNGSI NAVIGASI
                 }} />;
             case 'referensi':
                 // PERBAIKAN: Tambahkan setProjectData ke dalam objek props yang dikirim
