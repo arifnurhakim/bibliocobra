@@ -13160,14 +13160,46 @@ try {
                     </div>
                 )}
 
+                {/* --- PERBAIKAN: UI MODAL DIPERBARUI UNTUK MERENDER modalAction --- */}
                 {showModal && (
-                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
-                        <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
-                            <p className="text-gray-700 mb-6">{modalMessage}</p>
-                            <button onClick={() => setShowModal(false)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Tutup</button>
+                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-[100] p-4">
+                        <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full animate-fade-in flex flex-col max-h-[90vh]">
+                            <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" className="text-blue-600" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/></svg>
+                                Informasi Sistem
+                            </h3>
+                            
+                            <div className="text-gray-700 mb-6 whitespace-pre-wrap text-sm overflow-y-auto custom-scrollbar pr-2">
+                                {modalMessage}
+                            </div>
+                            
+                            <div className="flex justify-end gap-2 mt-auto border-t pt-4">
+                                <button 
+                                    onClick={() => { setShowModal(false); setModalAction(null); }} 
+                                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors"
+                                >
+                                    Tutup
+                                </button>
+                                
+                                {/* Tombol Dinamis akan dirender di sini jika ada modalAction */}
+                                {modalAction && (
+                                    <button 
+                                        onClick={() => { 
+                                            modalAction.onClick(); 
+                                            setShowModal(false); 
+                                            setModalAction(null); 
+                                        }} 
+                                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform active:scale-95 flex items-center gap-1"
+                                    >
+                                        {modalAction.label}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
+                {/* --------------------------------------------------------------- */}
+
                 {isImportConfirmOpen && (
                      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
                         <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full flex flex-col">
