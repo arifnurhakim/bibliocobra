@@ -45,13 +45,17 @@ const initialProjectData = {
     aiGeneratedQueries: null,
     searchLog: [],
     
-    picos: {
+    // --- TAHAP 1: RESTRUKTURISASI STATE (MULTI-FRAMEWORK) ---
+    selectedFramework: 'PICOS', // Default awal untuk backward compatibility
+    frameworkData: {
         population: '',
         intervention: '',
         comparison: '',
         outcome: '',
         studyDesign: ''
     },
+    // picos: { ... } <-- STATE LAMA DIHAPUS (DIGANTI DENGAN DI ATAS)
+    // --------------------------------------------------------
 
     // State baru untuk PRISMA
     prismaState: {
@@ -108,6 +112,7 @@ const initialProjectData = {
     abstrakDraftID: '',
     abstrakDraftEN: '',
     kataKunciFinal: '',
+    kataKunciFinalEN: '',
     // -------------------------------------------------------------
     
     // Status Akun (Sistem Lisensi)
@@ -1247,6 +1252,27 @@ const IdeKTI = ({
             <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 mb-6">
                 <h3 className="text-lg font-semibold mb-4 text-gray-800">1. Lengkapi Detail & Fondasi Penelitian</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    {/* --- TAMBAHAN BARU TAHAP 1: MODE PENULISAN (TARGET OUTPUT) --- */}
+                    <div className="md:col-span-2 mb-2">
+                        <label className="block text-indigo-900 text-sm font-bold mb-2 flex items-center gap-2">
+                            🎯 Target Publikasi / Output (Wajib):
+                        </label>
+                        <select 
+                            name="modePenulisan" 
+                            value={projectData.modePenulisan || 'tesis'} 
+                            onChange={handleInputChange} 
+                            className="shadow-sm appearance-none border-2 border-indigo-200 rounded-lg w-full py-2.5 px-3 text-indigo-900 bg-indigo-50 font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                        >
+                            <option value="tesis">📚 Tesis / Skripsi / Laporan Akademik (Format BAB 1-5)</option>
+                            <option value="jurnal">📰 Artikel Jurnal Ilmiah (Format IMRaD Berstandar Q1 Tanpa BAB)</option>
+                        </select>
+                        <p className="text-xs text-indigo-600 mt-1.5 italic font-medium">
+                            *Pilih "Artikel Jurnal" agar AI otomatis menghilangkan atribut "BAB" dan menyesuaikan kedalaman paragraf untuk publikasi jurnal internasional.
+                        </p>
+                    </div>
+                    {/* ------------------------------------------------------------- */}
+
                     <div className="md:col-span-2">
                         <label className="block text-gray-700 text-sm font-bold mb-2">Topik atau Tema:</label>
                         <textarea name="topikTema" value={projectData.topikTema} onChange={handleInputChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: Menganalisis dampak budaya inovasi digital terhadap kinerja organisasi di sektor perbankan" rows="3"></textarea>
@@ -4117,10 +4143,9 @@ const GeneratorLogKueri = ({
     handleDeleteLog,
     includeIndonesianQuery,
     setIncludeIndonesianQuery,
-    // Props baru untuk PICOS
     handleGenerateQueriesFromPicos,
-    geminiApiKeys, // UPDATE: Changed from geminiApiKey to geminiApiKeys
-    handleInputChange, // Tambahkan prop ini
+    geminiApiKeys,
+    handleInputChange,
     setCurrentSection
 }) => {
     // State management
@@ -4134,16 +4159,61 @@ const GeneratorLogKueri = ({
     const today = new Date().toISOString().slice(0, 10);
     const isPremium = projectData.isPremium;
 
-    // State baru untuk PICOS
-   
+    // State loading untuk AI
     const [isPicosLoading, setIsPicosLoading] = useState(false);
 
-    const handlePicosChange = (e) => {
+    // --- TAHAP 2: KONFIGURASI MORPHING UI ---
+    const frameworkConfigs = {
+        PICOS: [
+            { key: 'population', label: 'P: Population / Problem', desc: 'Siapa subjek/populasi yang diteliti atau apa masalah utamanya?', placeholder: 'Contoh: siswa, mahasiswa' },
+            { key: 'intervention', label: 'I: Intervention / Exposure', desc: 'Apa tindakan, perlakuan, atau variabel bebas yang diberikan/diamati?', placeholder: 'Contoh: pembelajaran berbasis AI' },
+            { key: 'comparison', label: 'C: Comparison', desc: 'Apa pembandingnya? (Sering dikosongkan jika penelitian deskriptif atau tidak ada kelompok kontrol).', placeholder: 'Contoh: pembelajaran tradisional' },
+            { key: 'outcome', label: 'O: Outcome', desc: 'Apa hasil yang diukur, dampak, atau variabel terikatnya?', placeholder: 'Contoh: performa siswa, motivasi' },
+            { key: 'studyDesign', label: 'S: Study Design', desc: 'Jenis desain penelitian apa yang digunakan? (Contoh: Eksperimen, Kualitatif, SLR).', placeholder: 'Contoh: penelitian empiris, kuantitatif' }
+        ],
+        PCC: [
+            { key: 'population', label: 'P: Population', desc: 'Siapa partisipan atau subjek penelitiannya?', placeholder: 'Contoh: perawat, masyarakat umum' },
+            { key: 'concept', label: 'C: Concept', desc: 'Apa konsep inti, fenomena, atau isu yang diteliti?', placeholder: 'Contoh: beban kerja, adopsi teknologi' },
+            { key: 'context', label: 'C: Context', desc: 'Di mana konteks penelitian ini? (Geografis, budaya, lingkungan tertentu).', placeholder: 'Contoh: rumah sakit, sektor publik di Indonesia' }
+        ],
+        SPIDER: [
+            { key: 'sample', label: 'S: Sample', desc: 'Siapa sampel penelitiannya?', placeholder: 'Contoh: mahasiswa tahun pertama' },
+            { key: 'phenomenon', label: 'PI: Phenomenon of Interest', desc: 'Apa fenomena, perilaku, atau pengalaman yang diamati?', placeholder: 'Contoh: pengalaman belajar daring' },
+            { key: 'design', label: 'D: Design', desc: 'Metode/desain penelitian apa yang digunakan?', placeholder: 'Contoh: fenomenologi, studi kasus' },
+            { key: 'evaluation', label: 'E: Evaluation', desc: 'Apa hasil yang dievaluasi? (Pandangan, sikap, persepsi).', placeholder: 'Contoh: tingkat kepuasan, persepsi' },
+            { key: 'researchType', label: 'R: Research Type', desc: 'Tipe riset? (Kualitatif, Kuantitatif, Mixed).', placeholder: 'Contoh: kualitatif, wawancara mendalam' }
+        ]
+    };
+
+    const activeFramework = projectData.selectedFramework || 'PICOS';
+    const fieldsToRender = frameworkConfigs[activeFramework];
+
+    const handleFrameworkChange = (e) => {
+        setProjectData(prev => ({
+            ...prev,
+            selectedFramework: e.target.value,
+            frameworkData: {} // Reset data saat ganti kerangka agar bersih
+        }));
+    };
+
+    const isFrameworkDataValid = () => {
+        const requiredKeys = {
+            PICOS: ['population', 'intervention', 'outcome'],
+            PCC: ['population', 'concept', 'context'],
+            SPIDER: ['sample', 'phenomenon', 'evaluation']
+        };
+        const reqs = requiredKeys[activeFramework] || [];
+        return reqs.every(key => projectData.frameworkData?.[key] && projectData.frameworkData[key].trim() !== '');
+    };
+    // ----------------------------------------
+
+    // --- TAHAP 1: UPDATE HANDLER MENGGUNAKAN STATE DINAMIS (frameworkData) ---
+    const handleFrameworkDataChange = (e) => {
         const { name, value } = e.target;
         setProjectData(prev => ({
             ...prev,
-            picos: {
-                ...prev.picos,
+            frameworkData: {
+                ...prev.frameworkData,
                 [name]: value
             }
         }));
@@ -4156,46 +4226,69 @@ const GeneratorLogKueri = ({
             return;
         }
 
-        setIsPicosLoading(true); // Mulai proses loading
+        setIsPicosLoading(true); 
 
         const context = projectData.topikTema || projectData.judulKTI;
+        const activeFw = projectData.selectedFramework || 'PICOS';
 
-        // UPDATE: Instruksi bahasa diubah ke Indonesian (Bahasa Indonesia)
-        const prompt = `You are an expert research assistant. Based on the following research topic, break it down into the PICOS components (Population/Problem, Intervention, Comparison, Outcome, Study Design). Provide concise and relevant answers in Indonesian (Bahasa Indonesia).
+        let prompt = "";
+        let schema = {};
 
-Research Topic: "${context}"
-
-Provide the answer ONLY in a strict JSON format. If a component is not relevant (e.g., Comparison), leave the string empty.`;
-
-        // Skema ini 'memaksa' AI untuk memberikan output JSON yang kita inginkan
-        const schema = {
-            type: "OBJECT",
-            properties: {
-                population: { type: "STRING" },
-                intervention: { type: "STRING" },
-                comparison: { type: "STRING" },
-                outcome: { type: "STRING" },
-                studyDesign: { type: "STRING" }
-            },
-            required: ["population", "intervention", "comparison", "outcome", "studyDesign"]
-        };
+        // --- TAHAP 3: ADAPTASI PROMPT AUTO-FILL ---
+        if (activeFw === 'PICOS') {
+            prompt = `Anda adalah asisten riset ahli. Berdasarkan topik penelitian berikut, pecah menjadi komponen PICOS (Population/Problem, Intervention, Comparison, Outcome, Study Design). Jawab dengan padat dalam Bahasa Indonesia.
+Topik: "${context}"
+Berikan jawaban HANYA dalam format JSON. Jika ada yang tidak relevan (misal Comparison), kosongkan string-nya.`;
+            schema = {
+                type: "OBJECT",
+                properties: {
+                    population: { type: "STRING" }, intervention: { type: "STRING" }, comparison: { type: "STRING" },
+                    outcome: { type: "STRING" }, studyDesign: { type: "STRING" }
+                },
+                required: ["population", "intervention", "comparison", "outcome", "studyDesign"]
+            };
+        } else if (activeFw === 'PCC') {
+            prompt = `Anda adalah pakar Scoping Review JBI. Berdasarkan topik penelitian berikut, ekstrak menjadi komponen kerangka PCC (Population, Concept, Context). Jawab dengan padat dalam Bahasa Indonesia. DILARANG mencari intervensi, fokus pada pemetaan literatur.
+Topik: "${context}"
+Berikan jawaban HANYA dalam format JSON.`;
+            schema = {
+                type: "OBJECT",
+                properties: {
+                    population: { type: "STRING", description: "Partisipan atau subjek" },
+                    concept: { type: "STRING", description: "Konsep utama/fenomena yang dipetakan" },
+                    context: { type: "STRING", description: "Konteks geografis/budaya/situasional" }
+                },
+                required: ["population", "concept", "context"]
+            };
+        } else if (activeFw === 'SPIDER') {
+            prompt = `Anda adalah pakar Riset Kualitatif. Berdasarkan topik penelitian berikut, pecah menjadi komponen SPIDER (Sample, Phenomenon of Interest, Design, Evaluation, Research Type). Jawab dengan padat dalam Bahasa Indonesia.
+Topik: "${context}"
+Berikan jawaban HANYA dalam format JSON.`;
+            schema = {
+                type: "OBJECT",
+                properties: {
+                    sample: { type: "STRING" }, phenomenon: { type: "STRING" }, design: { type: "STRING" },
+                    evaluation: { type: "STRING" }, researchType: { type: "STRING" }
+                },
+                required: ["sample", "phenomenon", "design", "evaluation", "researchType"]
+            };
+        }
 
         try {
-            // Panggil service AI dengan prompt dan skema
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema }); // UPDATE: Use geminiApiKeys
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema }); 
             
-            // Isi hasil dari AI ke dalam state picos utama
+            // Isi hasil dari AI ke dalam state frameworkData utama
             setProjectData(p => ({
                 ...p,
-                picos: result
+                frameworkData: result
             }));
             
-            showInfoModal("PICOS berhasil diisi oleh AI! Silakan tinjau dan sesuaikan.");
+            showInfoModal(`Data kerangka ${activeFw} berhasil diisi oleh AI! Silakan tinjau.`);
 
         } catch (error) {
-            showInfoModal(`Gagal mengisi PICOS dengan AI: ${error.message}`);
+            showInfoModal(`Gagal mengisi data dengan AI: ${error.message}`);
         } finally {
-            setIsPicosLoading(false); // Selesaikan proses loading
+            setIsPicosLoading(false); 
         }
     };
 
@@ -4449,12 +4542,27 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
             </div>
             {/* --- PENEMPATAN LINK COBRASAURUS BERAKHIR DI SINI --- */}
             
-            {/* BAGIAN BARU: Asisten Pertanyaan Penelitian (PICOS) */}
-            <div className="p-4 border-2 border-dashed border-teal-300 rounded-lg bg-teal-50 mb-8">
-                <h3 className="text-lg font-semibold mb-3 text-teal-800">Asisten Pertanyaan Penelitian (PICOS)</h3>
-                <p className="text-sm text-teal-700 mb-4">Definisikan lingkup SLR Anda menggunakan kerangka PICOS untuk menghasilkan Pertanyaan Penelitian (RQ) dan kueri pencarian yang lebih akurat.</p>
+            {/* BAGIAN BARU: Asisten Pertanyaan Penelitian (Multi-Framework) */}
+            <div className="p-4 border-2 border-dashed border-teal-300 rounded-lg bg-teal-50 mb-8 transition-all duration-300">
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
+                    <div>
+                        <h3 className="text-lg font-semibold text-teal-800">Asisten Pertanyaan Penelitian</h3>
+                        <p className="text-sm text-teal-700">Pilih kerangka yang paling sesuai dengan pendekatan metodologi Anda.</p>
+                    </div>
+                    {/* TAHAP 2: DROPDOWN SELECTOR */}
+                    <div className="mt-3 md:mt-0">
+                        <select
+                            value={activeFramework}
+                            onChange={handleFrameworkChange}
+                            className="shadow-sm border-2 border-teal-300 rounded-lg py-2 px-3 text-teal-900 bg-white font-bold focus:ring-2 focus:ring-teal-500 outline-none cursor-pointer"
+                        >
+                            <option value="PICOS">PICOS (Eksakta / Intervensi)</option>
+                            <option value="PCC">PCC (Scoping / Konseptual)</option>
+                            <option value="SPIDER">SPIDER (Kualitatif / Mixed)</option>
+                        </select>
+                    </div>
+                </div>
                 
-                {/* --- KODE BARU DIMULAI DI SINI --- */}
                 <div className="mb-6">
                     <button
                         onClick={handleAiFillPicos}
@@ -4465,39 +4573,28 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                         {!isPremium ? '🔒 Isi Otomatis dengan AI (Premium)' : (isPicosLoading ? 'Memproses...' : '✨ Isi Otomatis dengan AI')}
                     </button>
                 </div>
-                {/* --- KODE BARU BERAKHIR DI SINI --- */}
 
                 <div className="space-y-4">
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-1">P: Population / Problem</label>
-                        <p className="text-xs text-gray-500 mb-2">Siapa subjek/populasi yang diteliti atau apa masalah utamanya? (Contoh: Mahasiswa, UMKM, Pasien Diabetes).</p>
-                        <textarea name="population" value={projectData.picos.population} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: siswa, mahasiswa" rows="2"></textarea>
-                    </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-1">I: Intervention / Exposure</label>
-                        <p className="text-xs text-gray-500 mb-2">Apa tindakan, perlakuan, atau variabel bebas yang diberikan/diamati?</p>
-                        <textarea name="intervention" value={projectData.picos.intervention} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: pembelajaran berbasis AI" rows="2"></textarea>
-                    </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-1">C: Comparison</label>
-                        <p className="text-xs text-gray-500 mb-2">Apa pembandingnya? (Sering dikosongkan jika penelitian deskriptif atau tidak ada kelompok kontrol).</p>
-                        <textarea name="comparison" value={projectData.picos.comparison} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: pembelajaran tradisional" rows="2"></textarea>
-                    </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-1">O: Outcome</label>
-                        <p className="text-xs text-gray-500 mb-2">Apa hasil yang diukur, dampak, atau variabel terikatnya?</p>
-                        <textarea name="outcome" value={projectData.picos.outcome} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: performa siswa, motivasi" rows="2"></textarea>
-                    </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-1">S: Study Design</label>
-                        <p className="text-xs text-gray-500 mb-2">Jenis desain penelitian apa yang digunakan? (Contoh: Eksperimen, Kualitatif, SLR).</p>
-                        <textarea name="studyDesign" value={projectData.picos.studyDesign} onChange={handlePicosChange} className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="Contoh: penelitian empiris, kuantitatif" rows="2"></textarea>
-                    </div>
+                    {/* TAHAP 2: RENDER DINAMIS MORPHING UI */}
+                    {fieldsToRender.map(field => (
+                        <div key={field.key} className="animate-fade-in">
+                            <label className="block text-gray-700 text-sm font-bold mb-1">{field.label}</label>
+                            <p className="text-xs text-gray-500 mb-2">{field.desc}</p>
+                            <textarea 
+                                name={field.key} 
+                                value={projectData.frameworkData?.[field.key] || ''} 
+                                onChange={handleFrameworkDataChange} 
+                                className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 focus:ring-2 focus:ring-teal-500 transition-colors" 
+                                placeholder={field.placeholder} 
+                                rows="2"
+                            ></textarea>
+                        </div>
+                    ))}
                 </div>
                  <button 
-                    onClick={() => handleGenerateQueriesFromPicos(projectData.picos, 'rq')}
+                    onClick={() => handleGenerateQueriesFromPicos(projectData.frameworkData, 'rq')}
                     className={`mt-4 font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-teal-600 hover:bg-teal-700 text-white disabled:bg-teal-300'}`}
-                    disabled={isLoading || !projectData.picos.population || !projectData.picos.intervention || !projectData.picos.outcome || !isPremium}
+                    disabled={isLoading || !isFrameworkDataValid() || !isPremium}
                     title={!isPremium ? "Fitur Premium" : ""}
                 >
                     {!isPremium ? '🔒 Formulasikan RQ (Premium)' : (isLoading ? 'Memproses...' : 'Formulasikan Pertanyaan Penelitian')}
@@ -4575,13 +4672,13 @@ Provide the answer ONLY in a strict JSON format. If a component is not relevant 
                     {!isPremium ? '🔒 Hasilkan Kueri (Premium)' : (isLoading ? 'Memproses...' : '✨ Hasilkan Kueri (dari Judul)')}
                 </button>
                  <button 
-                    onClick={() => handleGenerateQueriesFromPicos(projectData.picos, 'query')}
+                    onClick={() => handleGenerateQueriesFromPicos(projectData.frameworkData, 'query')}
                     className={`ml-4 font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-green-600 hover:bg-green-700 text-white disabled:bg-green-300'}`}
-                    disabled={isLoading || !projectData.picos.population || !projectData.picos.intervention || !projectData.picos.outcome || !isPremium}
-                    aria-label="Hasilkan kueri dari PICOS"
+                    disabled={isLoading || !isFrameworkDataValid() || !isPremium}
+                    aria-label="Hasilkan kueri dari Kerangka Pilihan"
                     title={!isPremium ? "Fitur Premium" : ""}
                 >
-                    {!isPremium ? '🔒 Hasilkan Kueri (Premium)' : (isLoading ? 'Memproses...' : '✨ Hasilkan Kueri (dari PICOS)')}
+                    {!isPremium ? '🔒 Hasilkan Kueri (Premium)' : (isLoading ? 'Memproses...' : '✨ Hasilkan Kueri (dari Kerangka Pilihan)')}
                 </button>
                 {!isPremium && <p className="text-xs text-red-500 mt-2">Mode Gratis: Silakan gunakan Log Kueri di bawah untuk mencatat kueri manual Anda.</p>}
             </div>
@@ -4974,25 +5071,24 @@ const AnalisisKualitatif = ({
 }) => {
   const [fileName, setFileName] = useState('');
   const [fileContent, setFileContent] = useState('');
-  const [draftSementara, setDraftSementara] = useState('');
-  const [targetDraft, setTargetDraft] = useState('analisisKualitatifDraft'); // <-- BARU
-  const [qualitativeFocus, setQualitativeFocus] = useState(''); // <-- BARU
-  const [showPromoModal, setShowPromoModal] = useState(false); // <-- STATE BARU UNTUK POP-UP PROMO
+  const [targetDraft, setTargetDraft] = useState('analisisKualitatifDraft');
+  const [qualitativeFocus, setQualitativeFocus] = useState('');
+  const [showPromoModal, setShowPromoModal] = useState(false);
   const fileInputRef = useRef(null);
   const isPremium = projectData.isPremium;
 
+  const isSLR = projectData.metode && (
+      projectData.metode.toLowerCase().includes('slr') ||
+      projectData.metode.toLowerCase().includes('systematic literature review') ||
+      projectData.metode.toLowerCase().includes('bibliometric')
+  );
+
   const handleFileChange = (event) => {
     const file = event.target.files[0];
-    if (file && file.name.endsWith('.txt')) {
+    if (file && file.type === 'text/plain') {
+      setFileName(file.name);
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target.result;
-        setFileContent(text);
-        setFileName(file.name);
-      };
-      reader.onerror = () => {
-        showInfoModal("Gagal membaca file.");
-      };
+      reader.onload = (e) => setFileContent(e.target.result);
       reader.readAsText(file);
     } else {
       showInfoModal("Harap pilih file dengan format .txt");
@@ -5000,114 +5096,71 @@ const AnalisisKualitatif = ({
     event.target.value = null;
   };
 
-  const triggerFileSelect = () => {
-    fileInputRef.current.click();
-  };
-  
-  // Hasilkan narasi dari hasil analisis tematik
-  useEffect(() => {
-    if (projectData.analisisKualitatifHasil) {
-      const narrative = projectData.analisisKualitatifHasil.map(theme => 
-        `### ${theme.tema}\n\n${theme.deskripsi}\n\n**Kutipan Pendukung:**\n${theme.kutipan_pendukung.map(q => `- "${q}"`).join('\n')}`
-      ).join('\n\n---\n\n');
-      
-      setDraftSementara(narrative);
-    }
-  }, [projectData.analisisKualitatifHasil]);
-  
-  const handleAnalysis = () => {
-    if (!fileContent) {
-      showInfoModal("Tidak ada konten untuk dianalisis. Unggah file .txt terlebih dahulu.");
-      return;
-    }
-    handleGenerateAnalisisKualitatif(fileContent, qualitativeFocus); // <-- PERUBAHAN
-  };
-
-  // Tambahkan ke draf gabungan
-  const handleAddToDraft = (targetDraftKey) => { // <-- PERUBAHAN
-    if (!draftSementara) {
-      showInfoModal("Tidak ada draf untuk ditambahkan.");
-      return;
-    }
-
-    const separator = `\n\n---\n[Analisis untuk: ${fileName || 'Dokumen Tanpa Nama'} - ${new Date().toLocaleDateString()}]\n---\n`;
-    const newContent = separator + draftSementara;
-
-    setProjectData(p => { // <-- PERUBAHAN LOGIKA
-      // Dapatkan konten draf lama dari target yang dipilih
-      const oldDraftContent = p[targetDraftKey] || '';
-      return {
-          ...p,
-          [targetDraftKey]: oldDraftContent + newContent, // <-- Update draf yang ditargetkan
-          analisisKualitatifHasil: null
-      };
-    });
-
-    // Reset state
-    setFileName('');
-    setFileContent('');
-    setDraftSementara('');
-    setTargetDraft('analisisKualitatifDraft'); // <-- BARU
-    setQualitativeFocus(''); // <-- BARU
-    
-    showInfoModal("Hasil analisis berhasil ditambahkan ke draf gabungan!");
-  };
-
-  // Bersihkan draf gabungan
   const handleClearDraft = () => {
     setProjectData(p => ({ ...p, analisisKualitatifDraft: '' }));
   };
 
+  const handleAddToDraft = () => {
+    if (!projectData.analisisKualitatifHasil) return;
+    const separator = `\n\n---\n[Analisis untuk: ${fileName || 'Dokumen Tanpa Nama'} - ${new Date().toLocaleDateString()}]\n---\n`;
+    
+    let parsedResult = projectData.analisisKualitatifHasil;
+    let formattedText = "";
+    
+    if (Array.isArray(parsedResult)) {
+        formattedText = parsedResult.map((item, i) => {
+            return `Tema ${i+1}: ${item.tema}\nDeskripsi: ${item.deskripsi}\nKutipan Pendukung:\n${item.kutipan_pendukung.map(k => `"${k}"`).join('\n')}`;
+        }).join('\n\n');
+    } else {
+        formattedText = typeof parsedResult === 'string' ? parsedResult : JSON.stringify(parsedResult);
+    }
+
+    const newContent = separator + formattedText;
+
+    setProjectData(p => ({
+        ...p,
+        [targetDraft]: (p[targetDraft] || '') + newContent,
+        analisisKualitatifHasil: null
+    }));
+
+    setFileName('');
+    setFileContent('');
+    setQualitativeFocus('');
+    setTargetDraft('analisisKualitatifDraft');
+    showInfoModal("Hasil analisis berhasil ditambahkan ke draf yang dipilih!");
+  };
+
   return (
     <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-      <h2 className="text-2xl font-bold mb-4 text-gray-800">Analisis Data Kualitatif (Dokumen)</h2>
+      <h2 className="text-2xl font-bold mb-4 text-gray-800">Analisis Data Kualitatif & Sintesis Konsensus</h2>
 
-      {/* KETERANGAN AUDIOCOBRA DENGAN POP-UP */}
-      <p className="text-gray-700 mb-6">
-          Gunakan aplikasi <button onClick={() => setShowPromoModal(true)} className="text-blue-600 hover:underline font-bold focus:outline-none">Audiocobra</button>, jika anda memiliki rekaman wawancara dan ingin dikonversi menjadi teks.
+      <p className="text-gray-700 mb-6 text-sm">
+          {isSLR && <span className="font-semibold text-teal-700 block mb-2">💡 Jika Anda datang dari modul PRISMA untuk menyintesis hasil konsensus JBI Checklist, silakan unggah file .txt Anda di bawah ini.</span>}
+          Modul ini digunakan untuk menganalisis dokumen teks (.txt), seperti catatan konsensus ahli, transkrip wawancara, atau dokumen kualitatif lainnya. Jika data kualitatif Anda berupa rekaman audio lisan, gunakan aplikasi add-on <button onClick={() => setShowPromoModal(true)} className="text-blue-600 hover:underline font-bold focus:outline-none">Audiocobra</button> untuk mengonversinya menjadi teks terlebih dahulu.
       </p>
 
-      {/* MODAL POP-UP AUDIOCOBRA */}
       {showPromoModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center animate-fade-in border border-indigo-100">
-                <div className="mb-4 inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-100 text-indigo-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
-                </div>
-                <h3 className="text-lg font-bold mb-2 text-gray-800">Audiocobra (Add-on Premium)</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                    Aplikasi transkripsi audio ke teks ini merupakan fitur suplemen berbayar terpisah. Silakan hubungi admin untuk mendapatkan akses lisensi.
-                </p>
-                <div className="flex flex-col gap-2">
-                    <a 
-                        href={`https://wa.me/6285123048010?text=${encodeURIComponent("Halo Admin, saya tertarik membeli akses Audiocobra.")}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm transition-colors"
-                        onClick={() => setShowPromoModal(false)}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592z"/>
-                        </svg>
-                        Dapatkan Akses via WhatsApp
-                    </a>
-                    <button 
-                        onClick={() => setShowPromoModal(false)} 
-                        className="text-gray-500 hover:text-gray-700 font-semibold py-2 text-sm"
-                    >
-                        Tutup
-                    </button>
-                </div>
-            </div>
-        </div>
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
+              <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full flex flex-col text-center">
+                  <div className="text-4xl mb-4">🎤</div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">Gunakan Audiocobra</h3>
+                  <p className="text-sm text-gray-600 mb-6">
+                      Audiocobra adalah aplikasi ekosistem kami yang dirancang khusus untuk mentranskripsi wawancara audio menjadi teks dengan presisi tinggi menggunakan AI.
+                  </p>
+                  <div className="flex gap-2 justify-center">
+                      <button onClick={() => setShowPromoModal(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Tutup</button>
+                      <a href="https://audiocobra.vercel.app/" target="_blank" rel="noopener noreferrer" onClick={() => setShowPromoModal(false)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+                          Buka Audiocobra ↗
+                      </a>
+                  </div>
+              </div>
+          </div>
       )}
 
       <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".txt" />
       
       <div className="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg">
-        <button onClick={triggerFileSelect} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">
+        <button onClick={() => fileInputRef.current.click()} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">
           Pilih File .txt
         </button>
         {fileName && <p className="text-sm text-gray-600 mt-2">File terpilih: {fileName}</p>}
@@ -5115,88 +5168,71 @@ const AnalisisKualitatif = ({
 
       {fileContent && (
         <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2 text-gray-800">Pratinjau Teks</h3>
-          <textarea
-            value={fileContent}
-            readOnly
-            className="shadow-inner border rounded-lg w-full p-3 text-sm text-gray-700 bg-gray-100 h-40"
-          ></textarea>
+          <h3 className="text-lg font-semibold mb-2 text-gray-800">Pratinjau Isi File</h3>
+          <div className="p-4 bg-gray-50 border rounded-lg max-h-40 overflow-y-auto">
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{fileContent}</p>
+          </div>
         </div>
       )}
-      
+
       {fileContent && (
         <div className="mt-6 pt-6 border-t border-gray-200">
-          {/* --- PERUBAHAN DIMULAI DI SINI --- */}
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-bold mb-2">
               Fokus Analisis Spesifik (Opsional):
             </label>
             <textarea 
-            value={qualitativeFocus}
-            onChange={(e) => setQualitativeFocus(e.target.value)}
-            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
-            placeholder="Contoh: Fokus pada tema 'tantangan implementasi', atau 'pandangan manajer senior'"
-            rows="3"
+              value={qualitativeFocus}
+              onChange={(e) => setQualitativeFocus(e.target.value)}
+              className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700"
+              placeholder="Contoh: Fokus pada komentar tentang 'tantangan implementasi' atau 'validitas metode'."
+              rows="3"
             ></textarea>
           </div>
-          {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
-          {/* --- UPDATE HOOK: BUKA TOMBOL ANALISIS TEMATIK UNTUK FREE USER --- */}
+
           <button 
-            onClick={handleAnalysis} 
-            className={`font-bold py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300 shadow-md transition-transform active:scale-95`}
-            disabled={isLoading}
-            title="Fitur Terbuka untuk Pengguna Gratis"
+            onClick={() => handleGenerateAnalisisKualitatif(fileContent, qualitativeFocus)} 
+            className={`font-bold py-2 px-4 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-300'}`}
+            disabled={isLoading || !isPremium}
+            title={!isPremium ? "Fitur Premium" : ""}
           >
-            {isLoading ? 'Menganalisis...' : '✨ Lakukan Analisis Tematik'}
+            {!isPremium ? '🔒 Analisis Teks (Premium)' : (isLoading ? 'Menganalisis...' : '✨ Analisis Teks dengan AI')}
           </button>
-          {/* --------------------------------------------------------------- */}
-          {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk <strong>menyimpan hasil analisis</strong> ke draf Bab Anda secara otomatis.</p>}
+          {!isPremium && <p className="text-xs text-red-500 mt-2">Upgrade ke Premium untuk analisis kualitatif otomatis.</p>}
         </div>
       )}
-      
+
       {isLoading && !projectData.analisisKualitatifHasil && (
         <div className="mt-6 flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="ml-3 text-gray-600">AI sedang melakukan analisis tematik...</p>
+          <p className="ml-3 text-gray-600">AI sedang mengekstraksi tema dari teks...</p>
         </div>
       )}
 
       {projectData.analisisKualitatifHasil && (
         <div className="mt-8">
-          <h3 className="text-xl font-bold mb-4 text-gray-800">Hasil Analisis Tematik AI</h3>
-          <div className="space-y-6">
-            {projectData.analisisKualitatifHasil.map((theme, index) => (
-              <div key={index} className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h4 className="text-lg font-semibold text-blue-800 mb-2">{theme.tema}</h4>
-                <p className="text-gray-700 mb-3">{theme.deskripsi}</p>
-                <div>
-                  <h5 className="text-sm font-bold text-gray-600 mb-2">Kutipan Pendukung Representatif:</h5>
-                  <div className="space-y-2">
-                    {theme.kutipan_pendukung.map((quote, qIndex) => (
-                      <blockquote key={qIndex} className="border-l-4 border-blue-300 pl-4 text-sm italic text-gray-600">
-                        "{quote}"
-                      </blockquote>
-                    ))}
+          <h3 className="text-xl font-bold mb-4 text-gray-800">Hasil Analisis Tematik (Sementara)</h3>
+          <div className="space-y-4">
+            {Array.isArray(projectData.analisisKualitatifHasil) ? (
+                projectData.analisisKualitatifHasil.map((item, index) => (
+                  <div key={index} className="p-4 border rounded-lg bg-gray-50">
+                    <h4 className="font-bold text-gray-800 text-lg mb-2">Tema {index + 1}: {item.tema}</h4>
+                    <p className="text-sm text-gray-700 mb-3">{item.deskripsi}</p>
+                    <div>
+                        <h5 className="font-semibold text-gray-700 text-sm mb-1">Kutipan Pendukung:</h5>
+                        <ul className="list-disc list-inside text-sm text-gray-600 italic space-y-1">
+                            {item.kutipan_pendukung.map((kutipan, i) => (
+                                <li key={i}>"{kutipan}"</li>
+                            ))}
+                        </ul>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                ))
+            ) : (
+                <p className="text-gray-700">{JSON.stringify(projectData.analisisKualitatifHasil)}</p>
+            )}
           </div>
-        </div>
-      )}
-
-      {(projectData.analisisKualitatifHasil || draftSementara) && (
-        <div className="mt-8">
-          <h3 className="text-xl font-bold mb-4 text-gray-800">Draf Narasi Sementara</h3>
-          <textarea
-            value={draftSementara}
-            onChange={(e) => setDraftSementara(e.target.value)}
-            className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-            rows="15"
-            placeholder="Susun narasi temuan Anda di sini..."
-          ></textarea>
           
-          {/* --- PERUBAHAN DIMULAI DI SINI --- */}
           <div className="mt-4">
             <label className="block text-gray-700 text-sm font-bold mb-2">
               Tambahkan ke Draf Bab:
@@ -5214,22 +5250,16 @@ const AnalisisKualitatif = ({
               <option value="kesimpulanDraft">Kesimpulan</option>
             </select>
           </div>
-          
-          <div className="mt-4 flex flex-wrap gap-2">
-            {/* --- UPDATE HOOK: KUNCI TOMBOL SIMPAN KE DRAF --- */}
+
+          <div className="flex flex-wrap gap-2">
             <button 
-              onClick={() => handleAddToDraft(targetDraft)} 
-              disabled={!isPremium}
-              className={`font-bold py-2 px-4 rounded-lg transition-colors ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md'}`}
+              onClick={handleAddToDraft}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg"
             >
-              {!isPremium ? '🔒 Tambahkan ke Draf (Premium)' : 'Tambahkan ke Draf yang Dipilih'}
+              Tambahkan ke Draf yang Dipilih
             </button>
-            {/* ------------------------------------------------ */}
             <button 
-              onClick={() => {
-                setDraftSementara('');
-                setProjectData(p => ({ ...p, analisisKualitatifHasil: null }));
-              }}
+              onClick={() => setProjectData(p => ({ ...p, analisisKualitatifHasil: null }))}
               className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"
             >
               Abaikan Hasil
@@ -5237,8 +5267,7 @@ const AnalisisKualitatif = ({
           </div>
         </div>
       )}
-      
-      {/* DRAF GABUNGAN */}
+
       <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-300">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-bold text-gray-800">Draf Gabungan Analisis Kualitatif</h3>
@@ -5258,49 +5287,40 @@ const AnalisisKualitatif = ({
           </div>
         </div>
         
+        <p className="text-sm text-gray-600 mb-2">
+          Semua hasil analisis tematik yang Anda simpan akan terkumpul di sini.
+        </p>
         <textarea
           value={projectData.analisisKualitatifDraft || ''}
           onChange={(e) => setProjectData(p => ({ ...p, analisisKualitatifDraft: e.target.value }))}
           className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
           rows="15"
-          placeholder="Hasil analisis yang ditambahkan akan muncul di sini..."
+          placeholder="Hasil analisis yang disimpan akan muncul di sini..."
         ></textarea>
       </div>
     </div>
   );
 };
 
-// ================ MODUL ANALISIS VISUAL (GAMBAR)================
-const AnalisisVisual = ({ 
-  projectData, 
-  setProjectData, 
-  handleGenerateAnalisisVisual, 
-  isLoading, 
-  showInfoModal,
-  handleCopyToClipboard // Wajib ditambahkan dari parent
-}) => {
+// ================ ANALISIS VISUAL (GAMBAR) ================
+const AnalisisVisual = ({ projectData, setProjectData, handleGenerateAnalisisVisual, isLoading, showInfoModal, handleCopyToClipboard }) => {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
-  const [fileName, setFileName] = useState(''); // Tambahkan state untuk nama file
+  const [fileName, setFileName] = useState('');
   const [analysisFocus, setAnalysisFocus] = useState('');
-  const [targetDraft, setTargetDraft] = useState('analisisVisualDraft'); // <-- State baru untuk dropdown
+  const [targetDraft, setTargetDraft] = useState('analisisVisualDraft');
   const fileInputRef = useRef(null);
   const isPremium = projectData.isPremium;
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file && (file.type === 'image/png' || file.type === 'image/jpeg')) {
-      setFileName(file.name); // Simpan nama file
-      
+      setFileName(file.name);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
-        // Menyimpan file dan data base64
         const base64Data = reader.result.split(',')[1];
-        setImageFile({
-          mimeType: file.type,
-          data: base64Data
-        });
+        setImageFile({ mimeType: file.type, data: base64Data });
       };
       reader.onerror = () => showInfoModal("Gagal membaca file gambar.");
       reader.readAsDataURL(file);
@@ -5310,60 +5330,44 @@ const AnalisisVisual = ({
     event.target.value = null;
   };
 
-  const triggerFileSelect = () => {
-    fileInputRef.current.click();
-  };
+  const triggerFileSelect = () => fileInputRef.current.click();
 
   const handleAnalysis = () => {
     if (!imageFile) {
-      showInfoModal("Unggah file gambar terlebih dahulu.");
+      showInfoModal("Silakan unggah gambar terlebih dahulu.");
       return;
     }
     handleGenerateAnalisisVisual(imageFile, analysisFocus);
   };
 
-  // Fungsi untuk menyimpan analisis ke draf gabungan
-  const handleSaveAnalysis = (targetDraftKey) => { // <-- Terima target draft
-    if (!projectData.deskripsiVisualisasi || !projectData.interpretasiData) {
-      showInfoModal("Tidak ada hasil analisis untuk disimpan.");
-      return;
-    }
+  const handleSaveAnalysis = (targetDraftKey) => {
+    const separator = `\n\n---\n[Analisis Visual: ${fileName} - ${new Date().toLocaleDateString()}]\n---\n`;
+    const contentToSave = `**Deskripsi Visual:**\n${projectData.deskripsiVisualisasi}\n\n**Interpretasi Data:**\n${projectData.interpretasiData}`;
+    const newContent = separator + contentToSave;
 
-    // Format konten dengan separator dan metadata
-    const separator = `\n\n---\n[Analisis Visual: ${fileName || 'Gambar Tanpa Nama'} - ${new Date().toLocaleDateString()}]\n---\n`;
-    const kontenVisual = `**Deskripsi Gambar:**\n${projectData.deskripsiVisualisasi}\n\n**Interpretasi & Analisis:**\n${projectData.interpretasiData}`;
-    const newContent = separator + kontenVisual;
-
-    // Tambahkan ke draf gabungan dan reset state
     setProjectData(p => {
-      // Dapatkan konten draf lama dari target yang dipilih
       const oldDraftContent = p[targetDraftKey] || '';
       return {
-          ...p,
-          [targetDraftKey]: oldDraftContent + newContent, // <-- Update draf yang ditargetkan secara dinamis
-          // Reset hasil sementara
-          deskripsiVisualisasi: '',
-          interpretasiData: ''
+        ...p,
+        [targetDraftKey]: oldDraftContent + newContent,
+        deskripsiVisualisasi: '',
+        interpretasiData: ''
       };
     });
 
-    // Reset state gambar
     setImageFile(null);
     setImagePreview('');
     setFileName('');
     setAnalysisFocus('');
-    setTargetDraft('analisisVisualDraft'); // <-- Reset dropdown ke default
-    
-    showInfoModal("Hasil analisis berhasil ditambahkan ke draf yang dipilih!"); // <-- Update pesan
+    setTargetDraft('analisisVisualDraft');
+    showInfoModal("Hasil analisis berhasil ditambahkan ke draf yang dipilih!");
   };
 
-  // Fungsi untuk membersihkan draf gabungan
   const handleClearVisualDraft = () => {
     setProjectData(p => ({ ...p, analisisVisualDraft: '' }));
     showInfoModal("Draf gabungan telah dibersihkan!");
   };
 
-  // Fungsi untuk me-reset analisis saat ini
   const handleResetCurrent = () => {
     setImageFile(null);
     setImagePreview('');
@@ -5461,7 +5465,6 @@ const AnalisisVisual = ({
               ></textarea>
             </div>
             
-            {/* --- PERUBAHAN DIMULAI DI SINI --- */}
             <div className="mt-4">
               <label className="block text-gray-700 text-sm font-bold mb-2">
                 Tambahkan ke Draf Bab:
@@ -5482,12 +5485,11 @@ const AnalisisVisual = ({
 
             <div className="flex flex-wrap gap-2">
               <button 
-                onClick={() => handleSaveAnalysis(targetDraft)} // <-- Kirim target draft
+                onClick={() => handleSaveAnalysis(targetDraft)} 
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg"
               >
                 Tambahkan ke Draf yang Dipilih
               </button>
-              {/* --- PERUBAHAN BERAKHIR DI SINI --- */}
               <button 
                 onClick={handleResetCurrent}
                 className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"
@@ -7459,6 +7461,26 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                         Ekspor {remainingToScreen} Data (.txt)
                     </button>
                 </div>
+                {!isAbstract && (
+                 <div className="mb-6 p-4 bg-teal-50 border border-teal-200 rounded-lg animate-fade-in">
+                     <h3 className="text-lg font-bold text-teal-800 flex items-center gap-2 mb-2">
+                         💡 Validasi Kualitas JBI (Langkah Wajib Q1)
+                     </h3>
+                     <p className="text-sm text-teal-700 leading-relaxed mb-3">
+                         Selama Anda melakukan screening teks lengkap (Full-Text) di bawah ini, nilai juga risiko bias setiap artikel bersama 1 pakar independen lainnya menggunakan <strong>JBI/CASP Checklist</strong>.
+                         <br/><br/>
+                         <em>Langkah selanjutnya:</em> Setelah Anda berdua mencapai konsensus (kesepakatan) di luar aplikasi, simpan catatan tersebut dalam format <code>.txt</code>, lalu bawa ke menu <strong>Analisis Data Kualitatif & Sintesis Konsensus</strong> untuk diubah oleh AI menjadi argumen validitas untuk Bab Pembahasan/Metode.
+                     </p>
+                     <a 
+                         href="https://jbi.global/critical-appraisal-tools" 
+                         target="_blank" 
+                         rel="noopener noreferrer"
+                         className="inline-flex items-center text-teal-600 hover:text-teal-800 text-xs font-bold underline"
+                     >
+                         Unduh Format JBI Checklist Resmi ↗
+                     </a>
+                 </div>
+             )}
                 <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
                 <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${(screened / total) * 100}%` }}></div>
                 </div>
@@ -8387,37 +8409,56 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
             return entryString;
         }).join('\n---\n');
 
-        // --- 3. PROMPT TERINTEGRASI Q1 (REVISI TOTAL) ---
-       const prompt = `Anda adalah Reviewer Jurnal Q1. Tulis naskah akademik untuk BAB 4 (HASIL & PEMBAHASAN).
+        // --- TAHAP 5 DIMULAI: LOGIKA BERCABANG (SINTESIS SLR) ---
+        const mode = projectData.modePenulisan || 'tesis';
+        const isJurnalMode = mode === 'jurnal';
+        const nCount = projectData.extractedData.length;
+
+        const volumeInstruction = isJurnalMode
+            ? "**VOLUME MATRIKS (CRITICAL):** Targetkan panjang tulisan sekitar 2.000 - 3.200 kata (setara 14.000 - 22.000 karakter). Ini adalah gabungan dari Results (8.000-12.000 karakter) dan Discussion (6.000-10.000 karakter). Kedalaman sintesis, komparasi temuan, dan argumen kritis di bagian Discussion adalah prioritas mutlak standar Q1. Discussion harus sangat analitis dan tidak boleh hanya mengulang-ulang hasil."
+            : "";
+
+        let structureInstruction = "";
+        let separator = "";
+        
+        if (isJurnalMode) {
+            structureInstruction = `**STRUKTUR OUTPUT WAJIB (FORMAT ARTIKEL JURNAL):**
+1. **4.1 Results / Review Findings:** Lakukan sintesis temuan berdasarkan RQ (Research Question). DILARANG membuat daftar rangkuman per paper. Tulis secara tematik dan berbasis bukti.
+2. **4.2 Discussion:** Hubungkan temuan dari Results dengan landasan teori di atas, tunjukkan komparasi dengan studi sebelumnya (preseden), dan jelaskan implikasinya.
+
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 4". Gunakan penomoran sub-bab sederhana (4.1, 4.2).`;
+            
+            separator = `\n\n=== 4.1 STUDY CHARACTERISTICS ===\nBerdasarkan proses seleksi protokol PRISMA 2020, terdapat ${nCount} studi yang memenuhi kriteria inklusi dan dianalisis dalam tinjauan ini. Karakteristik ringkas dari setiap studi disajikan pada [Tabel 1].\n\n[INTRUKSI: Sisipkan Tabel 1 dari hasil Ekspor CSV di sini]\n\n=== 4.1 RESULTS & 4.2 DISCUSSION ===\n\n`;
+        } else {
+            structureInstruction = `**STRUKTUR OUTPUT WAJIB (FORMAT TESIS/LAPORAN):**
+BAB 4 HASIL DAN PEMBAHASAN
+4.2 Hasil Sintesis Literatur: Sintesis temuan berdasarkan RQ (Research Question).
+4.3 Pembahasan (Discussion): Hubungkan temuan dengan landasan teori di Bab 2.`;
+
+            separator = `\n\n=== 4.1 GAMBARAN UMUM STUDI ===\nBerdasarkan proses seleksi protokol PRISMA 2020, terdapat ${nCount} studi yang memenuhi kriteria inklusi dan dianalisis dalam tinjauan ini. Karakteristik ringkas dari setiap studi disajikan pada [Tabel 1].\n\n[INTRUKSI: Sisipkan Tabel 1 dari hasil Ekspor CSV di sini]\n\n=== 4.2 & 4.3 HASIL DAN PEMBAHASAN TERINTEGRASI ===\n\n`;
+        }
+
+        const prompt = `Anda adalah Reviewer Jurnal Q1. Tulis naskah akademik untuk bagian Hasil & Pembahasan.
 
 **ATURAN KETAT (CRITICAL):**
-1. DILARANG memberikan kata pengantar atau salam. Langsung mulai dari teks bab.
+1. DILARANG memberikan kata pengantar atau salam. Langsung mulai dari teks.
 2. Gunakan penomoran sub-bab yang presisi.
 
-**STRUKTUR OUTPUT WAJIB:**
-- 4.2 Hasil Sintesis Literatur: Sintesis temuan berdasarkan RQ (Research Question).
-- 4.3 Pembahasan (Discussion): Hubungkan temuan dengan landasan teori di Bab 2.
+${volumeInstruction}
+
+${structureInstruction}
 
 DATA INPUT:
 RQ: ${projectData.rumusanMasalahDraft}
 TABEL: ${dataForPrompt}
 TEORI: ${theoryContext}
 
-Gunakan Bahasa Indonesia Akademis yang tajam.`;
+Gunakan Bahasa Indonesia Akademis yang tajam dan analitis.`;
+        // --- TAHAP 5 BERAKHIR (SINTESIS SLR) ---
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys); // UPDATE: geminiApiKeys
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
-            const nCount = projectData.extractedData.length;
-
-            // Separator dengan label yang lebih profesional
-            const separator = `\n\n=== 4.1 GAMBARAN UMUM STUDI ===
-Berdasarkan proses seleksi protokol PRISMA 2020, terdapat ${nCount} studi yang memenuhi kriteria inklusi dan dianalisis dalam tinjauan ini. Karakteristik ringkas dari setiap studi disajikan pada [Tabel 1].
-
-[INTRUKSI: Sisipkan Tabel 1 dari hasil Ekspor CSV di sini]
-
-=== 4.2 & 4.3 HASIL DAN PEMBAHASAN TERINTEGRASI ===
-\n`;
 
             const newHasilTotal = (projectData.hasilPembahasanDraft || '') + separator + cleanResult;
 
@@ -8769,133 +8810,7 @@ Berdasarkan proses seleksi protokol PRISMA 2020, terdapat ${nCount} studi yang m
 };
 
 // ================ KOMPONEN BARU: ABSTRAK & KATA KUNCI (MAHKOTA) ================
-const Abstrak = ({ projectData, setProjectData, handleGenerateAbstrak, handleTranslateAbstrak, isLoading, handleCopyToClipboard }) => {
-    const prerequisites = [
-        { key: 'pendahuluanDraft', name: 'Bab 1: Pendahuluan' },
-        { key: 'metodeDraft', name: 'Bab 3: Metode Penelitian' },
-        { key: 'hasilPembahasanDraft', name: 'Bab 4: Hasil & Pembahasan' },
-        { key: 'kesimpulanDraft', name: 'Bab 5: Kesimpulan' },
-    ];
 
-    const isReady = prerequisites.every(p => projectData[p.key] && projectData[p.key].trim() !== '');
-    const isPremium = projectData.isPremium;
-
-    // Hitung kata
-    const countWords = (text) => text ? text.trim().split(/\s+/).length : 0;
-    const wordCountID = countWords(projectData.abstrakDraftID);
-    const wordCountEN = countWords(projectData.abstrakDraftEN);
-
-    return (
-        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Abstrak & Kata Kunci (Grand Finale)</h2>
-            
-            {/* DAFTAR PERIKSA */}
-            <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg shadow-sm">
-                <h3 className="text-lg font-semibold text-indigo-800 mb-3 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"/></svg>
-                    Syarat Pembuatan Abstrak
-                </h3>
-                <p className="text-sm text-gray-700 mb-4">Abstrak (IMRAD) hanya dapat dihasilkan jika seluruh bab utama penelitian Anda telah selesai disusun.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
-                    {prerequisites.map(p => {
-                        const hasContent = projectData[p.key] && projectData[p.key].trim() !== '';
-                        return (
-                            <div key={p.key} className="flex items-center text-sm bg-white p-2 rounded border border-indigo-100">
-                                <span className={`mr-3 ${hasContent ? 'text-green-500' : 'text-gray-300'}`}>
-                                    {hasContent ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
-                                    )}
-                                </span>
-                                <span className={hasContent ? 'text-gray-800 font-semibold' : 'text-gray-500'}>{p.name}</span>
-                            </div>
-                        );
-                    })}
-                </div>
-                
-                <button 
-                    onClick={handleGenerateAbstrak} 
-                    className={`font-bold py-3 px-4 rounded-lg w-full shadow-md transition-transform active:scale-95 ${(!isReady || !isPremium) ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
-                    disabled={isLoading || !isReady || !isPremium}
-                >
-                    {!isPremium ? '🔒 Hasilkan Abstrak Otomatis (Premium)' : (isLoading ? 'Merangkum 4 Bab...' : '✨ Hasilkan Abstrak & Kata Kunci')}
-                </button>
-                {!isReady && <p className="text-xs text-red-600 mt-2 text-center">Harap selesaikan 4 bab prasyarat di atas untuk membuka tombol ini.</p>}
-            </div>
-
-            {/* HASIL ABSTRAK INDONESIA */}
-            {projectData.abstrakDraftID && (
-                <div className="mt-8 space-y-6 animate-fade-in">
-                    <div>
-                        <div className="flex justify-between items-center mb-2">
-                            <h3 className="text-lg font-bold text-gray-800">Abstrak (Bahasa Indonesia)</h3>
-                            <div className="flex gap-2 items-center">
-                                <span className={`text-xs font-bold px-2 py-1 rounded ${wordCountID >= 150 && wordCountID <= 250 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                    {wordCountID} Kata
-                                </span>
-                                <button onClick={() => handleCopyToClipboard(projectData.abstrakDraftID)} className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1">
-                                    Salin
-                                </button>
-                            </div>
-                        </div>
-                        <textarea
-                            value={projectData.abstrakDraftID}
-                            onChange={(e) => setProjectData(p => ({ ...p, abstrakDraftID: e.target.value }))}
-                            className="shadow-sm border border-gray-300 rounded-lg w-full py-3 px-4 text-gray-700 leading-relaxed text-sm text-justify focus:ring-2 focus:ring-indigo-500 outline-none"
-                            rows="8"
-                        ></textarea>
-                    </div>
-
-                    {/* KATA KUNCI */}
-                    <div>
-                        <label className="block text-gray-800 text-sm font-bold mb-2">Kata Kunci (Keywords):</label>
-                        <input 
-                            type="text" 
-                            value={projectData.kataKunciFinal} 
-                            onChange={(e) => setProjectData(p => ({ ...p, kataKunciFinal: e.target.value }))} 
-                            className="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 font-semibold" 
-                        />
-                    </div>
-
-                    {/* TOMBOL TRANSLATE Q1 */}
-                    <div className="pt-4 border-t border-dashed border-gray-300">
-                        <button 
-                            onClick={handleTranslateAbstrak} 
-                            className={`font-bold py-2 px-6 rounded-lg shadow-sm flex items-center justify-center gap-2 w-full md:w-auto ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white transition-colors'}`}
-                            disabled={isLoading || !isPremium}
-                        >
-                            {!isPremium ? '🔒 Terjemahkan ke Inggris (Premium)' : (isLoading ? 'Menerjemahkan...' : '🇬🇧 Terjemahkan ke Academic English (Standar Q1)')}
-                        </button>
-                    </div>
-
-                    {/* HASIL ABSTRAK INGGRIS */}
-                    {projectData.abstrakDraftEN && (
-                        <div className="pt-4 animate-fade-in">
-                            <div className="flex justify-between items-center mb-2">
-                                <h3 className="text-lg font-bold text-gray-800">Abstract (English)</h3>
-                                <div className="flex gap-2 items-center">
-                                    <span className={`text-xs font-bold px-2 py-1 rounded ${wordCountEN >= 150 && wordCountEN <= 250 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                        {wordCountEN} Words
-                                    </span>
-                                    <button onClick={() => handleCopyToClipboard(projectData.abstrakDraftEN)} className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1">
-                                        Salin
-                                    </button>
-                                </div>
-                            </div>
-                            <textarea
-                                value={projectData.abstrakDraftEN}
-                                onChange={(e) => setProjectData(p => ({ ...p, abstrakDraftEN: e.target.value }))}
-                                className="shadow-sm border border-gray-300 rounded-lg w-full py-3 px-4 text-gray-700 leading-relaxed text-sm text-justify focus:ring-2 focus:ring-emerald-500 outline-none bg-emerald-50"
-                                rows="8"
-                            ></textarea>
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-};
 
 // --- Komponen untuk Donasi ---
 const Donasi = ({ handleCopyToClipboard }) => {
@@ -8991,7 +8906,7 @@ const Tutorial = () => {
                                 Pelajari cara memaksimalkan fitur Bibliocobra. Akses koleksi video tutorial, dokumentasi langkah demi langkah, dan tips penggunaan.
                             </p>
                             <a 
-                                href="https://drive.google.com/drive/u/0/folders/1MXW0fxlWC7uZbA5iINLrTq5P7ENnsJU0"
+                                href="https://drive.google.com/drive/folders/114Viymg5niz0-qOF1YdzxMHScUAUqdC_?usp=sharing"
                                 target="_blank" 
                                 rel="noopener noreferrer" 
                                 className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-md hover:bg-blue-700 transition-colors shadow-sm group"
@@ -10919,17 +10834,48 @@ const handleGenerateFullPendahuluan = async (selectedIds = []) => {
 
     const isManualSelection = selectedIds && selectedIds.length > 0;    
 
-    // --- LOGIKA BARU: PROMPT DINAMIS UNTUK RESEARCH GAP ---
-    let gapInstruction = "";
+    // --- TAHAP 2 DIMULAI: LOGIKA BERCABANG (BIFURCATION LOGIC) ---
+    const mode = projectData.modePenulisan || 'tesis';
+    const isJurnalMode = mode === 'jurnal';
+
+    let gapTask = "";
     if (hasVisualGap) {
-        gapInstruction = `1.2 Kesenjangan Penelitian (Research Gap) -> **TUGAS KHUSUS (CRITICAL):** Anda WAJIB mengambil argumen kesenjangan HANYA dari 'Catatan User' (hasil analisis lanskap riset/visual) yang diberikan. Leburkan narasi kuadran (Motor/Emerging/Niche) tersebut menjadi paragraf akademis. JANGAN MENGARANG gap baru dari "Deskripsi Masalah".`;
+        gapTask = "Anda WAJIB mengambil argumen kesenjangan HANYA dari 'Catatan User' (hasil analisis lanskap riset/visual) yang diberikan. Leburkan narasi kuadran (Motor/Emerging/Niche) tersebut menjadi paragraf akademis. JANGAN MENGARANG gap baru dari 'Deskripsi Masalah'.";
     } else {
-        gapInstruction = `1.2 Kesenjangan Penelitian (Research Gap) -> **TUGAS KHUSUS:** Transmutasikan "DESKRIPSI MASALAH DARI PENGGUNA" di atas menjadi rumusan Gap yang tajam dan operasional. Identifikasi dan tegaskan secara eksplisit minimal 2 jenis gap dari literatur/konteks (misal: Literature Gap, Empirical Gap, Contextual Gap, atau Methodological Gap).`;
+        gapTask = "Transmutasikan 'DESKRIPSI MASALAH DARI PENGGUNA' di atas menjadi rumusan Gap yang tajam dan operasional. Identifikasi dan tegaskan secara eksplisit minimal 2 jenis gap dari literatur/konteks (misal: Literature Gap, Empirical Gap, Contextual Gap, atau Methodological Gap).";
     }
-    // -----------------------------------------------------
+
+    const volumeInstruction = isJurnalMode
+        ? "**VOLUME MATRIKS (CRITICAL):** Targetkan panjang tulisan sekitar 800 - 1.200 kata (setara 5.000 - 8.000 karakter). Uraikan latar belakang dan gap dengan sangat mendalam dan komprehensif ala jurnal Q1."
+        : "";
+
+    const rolePersona = isJurnalMode
+        ? "Anda adalah penulis akademik spesialis jurnal internasional Q1. Tulis bagian Pendahuluan (Introduction) untuk artikel jurnal."
+        : "Anda adalah penulis akademik spesialis jurnal Q1. Tulis draf Bab 1: Pendahuluan untuk laporan akademis/tesis.";
+
+    let structureInstruction = "";
+    if (isJurnalMode) {
+        structureInstruction = `**STRUKTUR OUTPUT WAJIB (FORMAT ARTIKEL JURNAL):**
+1. Pendahuluan (Latar Belakang & Fenomena)
+2. Kesenjangan Penelitian (Research Gap) -> **TUGAS KHUSUS:** ${gapTask}
+3. Rumusan Masalah -> **TUGAS KHUSUS:** Buat 1 paragraf pengantar singkat, lalu di bawahnya, SALIN VERBATIM "PERTANYAAN PENELITIAN" dalam bentuk poin bernomor (1, 2, 3).
+4. Tujuan & Kontribusi Penelitian -> (Gabungkan SALINAN VERBATIM "TUJUAN PENELITIAN" dan urgensi kontribusi teoretis/praktis dalam format poin/narasi).
+
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 1" atau menyertakan sub-bab "Struktur Artikel". Gunakan penomoran numerik standar (1, 2, 3, 4) BUKAN (1.1, 1.2).`;
+    } else {
+        structureInstruction = `**STRUKTUR OUTPUT WAJIB (FORMAT TESIS/LAPORAN):**
+BAB 1 PENDAHULUAN
+1.1 Latar Belakang (Fenomena + Data Empiris)
+1.2 Kesenjangan Penelitian (Research Gap) -> **TUGAS KHUSUS:** ${gapTask}
+1.3 Rumusan Masalah -> **TUGAS KHUSUS:** Buat 1 paragraf pengantar singkat yang menegaskan kembali Gap utama yang mendasari masalah, lalu di bawahnya, SALIN VERBATIM "PERTANYAAN PENELITIAN" dalam bentuk poin/nomor.
+1.4 Tujuan Penelitian -> (SALIN VERBATIM "TUJUAN PENELITIAN" dalam bentuk poin/nomor).
+1.5 Kontribusi Penelitian (Teoretis & Praktis)
+1.6 Struktur Artikel`;
+    }
+    // --- TAHAP 2 BERAKHIR ---
 
     // 4. PROMPT DIKTATOR (STRICT BINDING - GAP FOCUSED)
-    const prompt = `Anda adalah penulis akademik spesialis jurnal Q1. Tulis draf Bab 1: Pendahuluan.
+    const prompt = `${rolePersona}
 
 **TUGAS ANDA (MODE ${isManualSelection ? 'MANUAL' : 'KURATOR CERDAS'}):**
 ${isManualSelection 
@@ -10952,13 +10898,9 @@ ${isManualSelection
 - Catatan User: ${userNotesContext}
 - Referensi Pendukung: ${kutipanString}
 
-**STRUKTUR OUTPUT WAJIB (KRITIS UNTUK JURNAL Q1):**
-1.1 Latar Belakang (Fenomena + Data Empiris)
-${gapInstruction}
-1.3 Rumusan Masalah -> **TUGAS KHUSUS:** Buat 1 paragraf pengantar singkat yang menegaskan kembali Gap utama yang mendasari masalah, lalu di bawahnya, SALIN VERBATIM "PERTANYAAN PENELITIAN" dalam bentuk poin/nomor.
-1.4 Tujuan Penelitian -> (SALIN VERBATIM "TUJUAN PENELITIAN" dalam bentuk poin/nomor).
-1.5 Kontribusi Penelitian (Teoretis & Praktis)
-1.6 Struktur Artikel
+${volumeInstruction}
+
+${structureInstruction}
 
 **ATURAN TAMBAHAN:**
 - Jangan berikan salam pembuka atau komentar di luar teks utama.
@@ -11165,10 +11107,29 @@ ${kutipanMetodologiString || "Tidak ada referensi terpilih."}
 ---
 `;
 
+        // --- TAHAP 4: LOGIKA BERCABANG (BIFURCATION LOGIC) UNTUK METODE ---
+        const mode = projectData.modePenulisan || 'tesis';
+        const isJurnalMode = mode === 'jurnal';
+
+        const volumeInstruction = isJurnalMode
+            ? "**VOLUME MATRIKS (CRITICAL):** Targetkan panjang tulisan sekitar 900 - 1.300 kata (setara 5.500 - 8.500 karakter). Uraikan metodologi dengan sangat transparan agar riset dapat direplikasi oleh peneliti lain (standar jurnal Q1)."
+            : "";
+
+        const rolePersona = isJurnalMode
+            ? "Anda adalah penulis akademik spesialis metodologi jurnal internasional Q1."
+            : "Anda adalah ahli metodologi penelitian.";
+
         if (isSLR) {
             let structureInstructions = "";
             if (isBibliometricOnly) {
-                structureInstructions = `
+                structureInstructions = isJurnalMode ? `
+**Struktur Bagian Methods (Bibliometrik - Format Jurnal):**
+1.  **Judul Utama:** "3. Methods" (Tanpa kata BAB).
+2.  **3.1 Research Design:** Jelaskan penggunaan pendekatan analisis Bibliometrik. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
+3.  **3.2 Data Source & Search Strategy:** Tampilkan String Kueri (Verbatim), Database, dan Tanggal.
+4.  **3.3 Data Analysis:** Jelaskan Tools dan teknik analisis. Pastikan setiap penjelasan alat didukung oleh sitasi ke referensi pengguna yang juga menggunakan alat/metode serupa.
+
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 3" atau hierarki penomoran rumit (cukup 3.1, 3.2, dst).` : `
 **Struktur Bab Metode Bibliometrik:**
 1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
 2.  **3.1 Desain Penelitian:** Jelaskan penggunaan pendekatan analisis Bibliometrik. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
@@ -11176,7 +11137,16 @@ ${kutipanMetodologiString || "Tidak ada referensi terpilih."}
 4.  **3.3 Analisis Data:** Jelaskan Tools dan teknik analisis. Pastikan setiap penjelasan alat didukung oleh sitasi ke referensi pengguna yang juga menggunakan alat/metode serupa.
 `;
             } else {
-                structureInstructions = `
+                structureInstructions = isJurnalMode ? `
+**Struktur Bagian Methods (SLR - Format Jurnal Q1):**
+1.  **Judul Utama:** "3. Methods" (Tanpa kata BAB).
+2.  **3.1 Data Sources & Search Strategy:** Jelaskan penggunaan pedoman SLR/PRISMA, daftar Database yang digunakan, String Kueri (Verbatim), dan waktu penelusuran. Hubungkan dengan "LANDASAN OPERASIONAL" jika relevan.
+3.  **3.2 Inclusion and Exclusion Criteria:** Definisikan secara eksplisit dan rinci kriteria inklusi dan eksklusi yang digunakan dalam seleksi.
+4.  **3.3 Screening Process (PRISMA):** Uraikan proses penyaringan studi langkah demi langkah, WAJIB menggunakan angka-angka dari kerangka PRISMA yang diberikan.
+5.  **3.4 Quality Appraisal (Risk of Bias):** Jelaskan metode dan kriteria yang digunakan untuk menilai kualitas dan risiko bias artikel yang diinklusi (Rujuk pada kolom ekstraksi data).
+6.  **3.5 Data Extraction & Synthesis:** Sebutkan variabel/kolom data yang diekstraksi dan jelaskan teknik sintesis data atau analisis tematiknya dengan sitasi pendukung.
+
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 3" atau hierarki penomoran rumit (cukup 3.1, 3.2, dst). Transparansi metode adalah harga mati.` : `
 **Struktur Bab Metode SLR:**
 1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
 2.  **3.1 Desain Penelitian:** Jelaskan penggunaan SLR/PRISMA. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
@@ -11187,7 +11157,8 @@ ${kutipanMetodologiString || "Tidak ada referensi terpilih."}
 `;
             }
 
-            prompt = `Anda adalah ahli metodologi SLR/Bibliometrik. Tulis draf Bab 3 berdasarkan data berikut.
+            prompt = `${rolePersona} Tulis bagian Metode berdasarkan data berikut.
+${volumeInstruction}
 ${citationInstruction}
 ${promptBase}
 ${structureInstructions}
@@ -11195,14 +11166,25 @@ Susun narasi akademis yang mengalir.`;
         
         } else {
              // PROMPT UMUM (NON-SLR)
-            prompt = `Anda adalah penulis akademik. Tulis draf Bab 3: Metode Penelitian.
-${citationInstruction}
-${promptBase}
+             const structureInstructions = isJurnalMode ? `
+**Struktur Bagian Methods (Format Jurnal):**
+1.  **Judul Utama:** "3. Methods" (Tanpa kata BAB).
+2.  **3.1 Research Design:** Jelaskan desain penelitian. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
+3.  **3.2 Data Collection / Procedure:** Jelaskan langkah kerja.
+4.  **3.3 Data Analysis:** Jelaskan cara data diolah dengan dukungan referensi.
+
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 3" atau hierarki penomoran rumit (cukup 3.1, 3.2, dst).` : `
 **Struktur Bab:**
 1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
 2.  **3.1 Desain Penelitian:** Jelaskan desain penelitian. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
 3.  **3.2 Prosedur/Pengumpulan Data:** Jelaskan langkah kerja.
 4.  **3.3 Analisis Data:** Jelaskan cara data diolah dengan dukungan referensi.
+`;
+            prompt = `${rolePersona} Tulis bagian Metode berdasarkan data berikut.
+${volumeInstruction}
+${citationInstruction}
+${promptBase}
+${structureInstructions}
 Susun narasi akademis yang mengalir.`;
         }
 
@@ -11244,33 +11226,62 @@ ${existingContent}
         const hasTema = !!frameworkStr;
 
         let contextDataStr = "";
-        let subBabInstructions = `**ATURAN STRUKTUR BAB (WAJIB DIIKUTI PRESISI):**\nGunakan struktur berikut untuk menyusun Bab II Anda:\n\n**2. Tinjauan Pustaka (Literature Review)**\n*(Buat paragraf pengantar singkat)*\n\n`;
-
-        // 1. Logika Jika Peta Taksonomi Ada
+        
         if (hasTaksonomi) {
             contextDataStr += `[PETA 1: STRUKTUR TEORI/TAKSONOMI]\nGrand Theory:\n${grandStr || 'Tidak ada'}\nMiddle-Range Theory:\n${middleStr || 'Tidak ada'}\nApplied Theory:\n${appliedStr || 'Tidak ada'}\n\n`;
-            subBabInstructions += `**2.1 Landasan Teori (Theoretical Foundation)**\n*(Tugas: Gunakan data [PETA 1] di atas. Jelaskan akar filosofis penelitian ini mulai dari teori induk hingga teori operasionalnya secara naratif).* \n\n`;
         }
-
-        // 2. Logika Jika Peta Tema Ada
+        
         if (hasTema) {
             contextDataStr += `[PETA 2: KONSEP TEMATIK]\nTema-Tema Utama untuk direview:\n${frameworkStr}\n\n`;
-            
-            // Penomoran dinamis berdasarkan keberadaan Taksonomi
-            const startNum = hasTaksonomi ? 2 : 1; 
-            
-            subBabInstructions += `**2.${startNum} Tinjauan Literatur Tematik**\n*(Tugas: Gunakan data [PETA 2] di atas. Buatlah sub-sub-bab (2.${startNum}.1, 2.${startNum}.2, dst) untuk SETIAP Tema yang ada di Peta 2. Sintesiskan argumen literatur di dalamnya).* \n\n`;
         }
 
-        // 3. Logika Jika Keduanya Kosong (Fallback Aman)
         if (!hasTaksonomi && !hasTema) {
              contextDataStr = "Pengguna belum membuat peta teori spesifik.";
-             subBabInstructions += `*(Tugas: Karena pengguna tidak memberikan panduan struktur spesifik, buatlah 2-3 sub-bab secara mandiri berdasarkan tren literatur yang disediakan).* \n\n`;
         }
 
-        // 4. Sub-bab Penutup (Selalu Ada)
-        const finalNum = (hasTaksonomi && hasTema) ? 3 : ((hasTaksonomi || hasTema) ? 2 : "X");
-        subBabInstructions += `**2.${finalNum} Kerangka Konseptual (Conceptual Framework)**\n*(Tugas: Merupakan SINTESIS AKHIR. Rangkum pembahasan sebelumnya menjadi satu alur logika yang utuh untuk menjawab masalah penelitian. Sarankan tempat menyisipkan Gambar Kerangka Konseptual).*`;
+        // --- TAHAP 3 DIMULAI: LOGIKA BERCABANG (BIFURCATION LOGIC) ---
+        const mode = projectData.modePenulisan || 'tesis';
+        const isJurnalMode = mode === 'jurnal';
+
+        const volumeInstruction = isJurnalMode
+            ? "**VOLUME MATRIKS (CRITICAL):** Targetkan panjang tulisan sekitar 500 - 900 kata (setara 3.000 - 6.000 karakter). Uraikan sintesis literatur secara komprehensif dan padat ala jurnal Q1."
+            : "";
+
+        const rolePersona = isJurnalMode
+            ? "Anda adalah penulis akademik spesialis jurnal internasional Q1. Tulis bagian Literature Review untuk artikel jurnal."
+            : "Anda adalah penulis akademik spesialis jurnal Q1. Tulis draf Bab 2: Tinjauan Pustaka untuk laporan akademis/tesis.";
+
+        let subBabInstructions = `**ATURAN STRUKTUR BAGIAN (WAJIB DIIKUTI PRESISI):**\n`;
+
+        if (isJurnalMode) {
+            subBabInstructions += `Gunakan struktur berikut untuk bagian studi literatur (Format Jurnal):\n\n**2. Literature Review (atau Theoretical Background)**\n*(Buat paragraf pengantar singkat)*\n\n`;
+            if (hasTaksonomi) {
+                subBabInstructions += `**Theoretical Foundation**\n*(Tugas: Gunakan data [PETA 1] di atas. Jelaskan akar filosofis penelitian ini mulai dari teori induk hingga teori operasionalnya secara naratif).* \n\n`;
+            }
+            if (hasTema) {
+                subBabInstructions += `**Thematic Literature Review**\n*(Tugas: Gunakan data [PETA 2] di atas. Buat sub-judul deskriptif tanpa penomoran hierarkis untuk SETIAP Tema yang ada di Peta 2. Sintesiskan argumen literatur di dalamnya).* \n\n`;
+            }
+            if (!hasTaksonomi && !hasTema) {
+                subBabInstructions += `*(Tugas: Karena pengguna tidak memberikan panduan struktur spesifik, buatlah sub-judul deskriptif secara mandiri berdasarkan tren literatur yang disediakan).* \n\n`;
+            }
+            subBabInstructions += `**Conceptual Framework**\n*(Tugas: Merupakan SINTESIS AKHIR. Rangkum pembahasan sebelumnya menjadi satu alur logika yang utuh. Sarankan tempat menyisipkan Gambar Kerangka Konseptual).* \n\n`;
+            subBabInstructions += `*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 2". DILARANG menggunakan penomoran sub-bab hierarkis yang kaku (seperti 2.1, 2.1.1). Gunakan sub-judul dengan format deskriptif yang elegan.`;
+        } else {
+            subBabInstructions += `Gunakan struktur berikut untuk menyusun Bab II Anda:\n\n**BAB 2 TINJAUAN PUSTAKA**\n*(Buat paragraf pengantar singkat)*\n\n`;
+            if (hasTaksonomi) {
+                subBabInstructions += `**2.1 Landasan Teori (Theoretical Foundation)**\n*(Tugas: Gunakan data [PETA 1] di atas. Jelaskan akar filosofis penelitian ini mulai dari teori induk hingga teori operasionalnya secara naratif).* \n\n`;
+            }
+            if (hasTema) {
+                const startNum = hasTaksonomi ? 2 : 1;
+                subBabInstructions += `**2.${startNum} Tinjauan Literatur Tematik**\n*(Tugas: Gunakan data [PETA 2] di atas. Buatlah sub-sub-bab (2.${startNum}.1, 2.${startNum}.2, dst) untuk SETIAP Tema yang ada di Peta 2. Sintesiskan argumen literatur di dalamnya).* \n\n`;
+            }
+            if (!hasTaksonomi && !hasTema) {
+                subBabInstructions += `*(Tugas: Karena pengguna tidak memberikan panduan struktur spesifik, buatlah 2-3 sub-bab secara mandiri berdasarkan tren literatur yang disediakan).* \n\n`;
+            }
+            const finalNum = (hasTaksonomi && hasTema) ? 3 : ((hasTaksonomi || hasTema) ? 2 : "X");
+            subBabInstructions += `**2.${finalNum} Kerangka Konseptual (Conceptual Framework)**\n*(Tugas: Merupakan SINTESIS AKHIR. Rangkum pembahasan sebelumnya menjadi satu alur logika yang utuh untuk menjawab masalah penelitian. Sarankan tempat menyisipkan Gambar Kerangka Konseptual).*`;
+        }
+        // --- TAHAP 3 BERAKHIR ---
 
         // Filter referensi
         const sourceRefs = (selectedIds && selectedIds.length > 0) 
@@ -11289,7 +11300,7 @@ ${existingContent}
         }
 
         // --- PENYUSUNAN PROMPT FINAL Q1 (STRICT OMISSION) ---
-        const prompt = `Anda adalah penulis akademik spesialis jurnal Q1. Tulis draf Bab 2: Tinjauan Pustaka (Literature Review).
+        const prompt = `${rolePersona}
 
 **Konteks Proyek:**
 - Judul: "${projectData.judulKTI}"
@@ -11303,6 +11314,8 @@ ${contextDataStr}
 **DATA LITERATUR (BAHAN BAKU SITASI):**
 Gunakan data abstrak/catatan ini untuk menyusun narasi tematik. WAJIB DISITASI!
 ${kutipanString}
+
+${volumeInstruction}
 
 ${subBabInstructions}
 
@@ -11319,7 +11332,7 @@ ${subBabInstructions}
             const result = await geminiService.run(prompt, geminiApiKeys);
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, studiLiteraturDraft: cleanResult }));
-            showInfoModal("Draf Studi Literatur (Strict Omission Q1) berhasil dibuat!");
+            showInfoModal("Draf Studi Literatur berhasil dibuat!");
         } catch (error) {
             showInfoModal(`Gagal menulis Studi Literatur: ${error.message}`);
         } finally {
@@ -11378,19 +11391,45 @@ ${existingContent}
         const contextBab2 = projectData.studiLiteraturDraft || "Belum ada draf Bab 2.";
         const contextBab3 = projectData.metodeDraft || "Belum ada draf Bab 3."; // <-- BAB 3 DITAMBAHKAN
 
-        const prompt = `Anda adalah seorang penulis akademis dan peneliti ahli. Tugas Anda adalah menulis draf Bab 4: Hasil dan Pembahasan yang komprehensif dan TERINTEGRASI SECARA TEORETIS.
+        // --- TAHAP 5 DIMULAI: LOGIKA BERCABANG (HASIL & PEMBAHASAN UMUM) ---
+        const mode = projectData.modePenulisan || 'tesis';
+        const isJurnalMode = mode === 'jurnal';
+
+        const volumeInstruction = isJurnalMode
+            ? "**VOLUME MATRIKS (CRITICAL):** Targetkan panjang tulisan sekitar 1.200 - 1.800 kata (setara 7.000 - 10.000+ karakter). Kedalaman analisis data, komparasi temuan dengan studi sebelumnya, dan dialog dengan teori adalah prioritas mutlak standar Q1."
+            : "";
+
+        let structureInstruction = "";
+        if (isJurnalMode) {
+            structureInstruction = `**Instruksi Struktur (Format Jurnal):**
+1. **Judul Utama:** "4. Results and Discussion" (Tanpa kata BAB).
+2. **4.1 Results:** Sajikan temuan utama dari Data Hasil Analisis secara objektif. Jika relevan, sertakan instruksi penempatan visual: "*(Sisipkan Tabel/Gambar 4.1 di sini)*".
+3. **4.2 Discussion:** Ini adalah inti argumen. Analisis makna hasil (mengapa demikian?), bandingkan temuan dengan referensi pembanding secara ekstensif, kaitkan kembali dengan landasan teori, dan jelaskan implikasi praktis/teoretis penelitian ini.
+
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 4" atau format penomoran yang terlalu kaku.`;
+        } else {
+            structureInstruction = `**Instruksi Struktur (Format Tesis):**
+1. **Judul Bab:** "BAB 4 HASIL DAN PEMBAHASAN".
+2. **4.1 Gambaran Umum/Karakteristik Responden:** Gunakan data deskripsi responden.
+3. **4.2 Hasil Penelitian:** Sajikan temuan utama dari Data Hasil Analisis dan Catatan Awal Pengguna. Sertakan instruksi penempatan visual: "*(Sisipkan Tabel/Gambar 4.1 di sini)*".
+4. **4.3 Pembahasan:** Analisis makna, bandingkan dengan studi terdahulu, kaitkan dengan teori, jelaskan implikasi.`;
+        }
+
+        const prompt = `Anda adalah seorang penulis akademis dan peneliti ahli Q1. Tugas Anda adalah menulis draf Hasil dan Pembahasan yang komprehensif dan TERINTEGRASI SECARA TEORETIS.
 
 **Aturan Paling Penting:**
 1. **Integrasi Catatan Pengguna (CRITICAL):** Jika ada "CATATAN AWAL / HASIL ANALISIS PENGGUNA", Anda dilarang membuangnya. Anda WAJIB meleburkan/mensintesis teks tersebut ke dalam pembahasan.
 2. **Theoretical Linking:** Hubungkan temuan data kembali ke teori di Bab 1 & 2.
-3. **Referensi Pembanding:** Gunakan data "Referensi Pembanding" untuk mendukung argumen.
-4. **No Hallucination:** Gunakan data dari "Data Hasil Analisis".
+3. **Referensi Pembanding:** Gunakan data "Referensi Pembanding" untuk mendukung argumen komparatif di bagian Discussion.
+4. **No Hallucination:** Gunakan data HANYA dari "Data Hasil Analisis" pengguna.
 5. **Format:** Teks biasa. Gunakan sub-judul bernomor.
 
+${volumeInstruction}
+
+${structureInstruction}
+
 **ATURAN VISUALISASI (WAJIB ADA):**
-Bab 4 adalah tempatnya data. Anda WAJIB memberikan instruksi penempatan Tabel/Gambar.
-- **Tabel 4.X: Karakteristik Responden**
-- **Tabel/Gambar 4.X: [Judul Sesuai Data]**
+Bab ini adalah tempatnya penyajian data. Anda WAJIB memberikan instruksi penempatan Tabel/Gambar di tengah narasi (Contoh: *(Sisipkan Tabel/Gambar 4.1: [Sebutkan Judul Tabel] di sini)*).
 
 **Sumber Data & Konteks:**
 - Judul: "${projectData.judulKTI}"
@@ -11406,12 +11445,8 @@ ${userNotesContext}
 - Referensi Pembanding (WAJIB DIGUNAKAN): 
 ${refPembandingString || "Tidak ada referensi pembanding khusus yang dipilih."}
 
-**Instruksi Bab 4:**
-1. **4.1 Gambaran Umum/Karakteristik Responden:** Gunakan data deskripsi responden.
-2. **4.2 Hasil Penelitian:** Sajikan temuan utama dari Data Hasil Analisis dan Catatan Awal Pengguna.
-3. **4.3 Pembahasan:** Analisis makna, bandingkan dengan studi terdahulu, kaitkan dengan teori, jelaskan implikasi.
-
 Hasilkan teks biasa tanpa format markdown berlebihan.`;
+        // --- TAHAP 5 BERAKHIR ---
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
@@ -11432,7 +11467,7 @@ Hasilkan teks biasa tanpa format markdown berlebihan.`;
         const existingContent = projectData.kesimpulanDraft || "";
         const userNotesContext = existingContent.trim() !== "" ? `
 **CATATAN AWAL PENGGUNA (KESIMPULAN):**
-Pengguna telah menulis poin-poin berikut. Pastikan poin-poin ini terwakili dalam Kesimpulan atau Saran.
+Pengguna telah menulis poin-poin berikut. Pastikan poin-poin ini terwakili dalam Kesimpulan, Implikasi, atau Saran.
 ---
 ${existingContent}
 ---
@@ -11451,21 +11486,48 @@ ${projectData.hasilPembahasanDraft}
 ${userNotesContext}
 `;
 
-        const prompt = `Anda adalah seorang penulis akademis ahli. Tugas Anda adalah menulis draf Bab 5: Kesimpulan.
+        // --- TAHAP 6 DIMULAI: LOGIKA BERCABANG (KESIMPULAN) ---
+        const mode = projectData.modePenulisan || 'tesis';
+        const isJurnalMode = mode === 'jurnal';
 
-**Konteks Penelitian:**
+        // --- TAHAP 2 (BLUEPRINT PROFESOR): UPDATE VOLUME & STRUKTUR ---
+        const volumeInstruction = isJurnalMode
+            ? "**VOLUME MATRIKS (CRITICAL):** Targetkan panjang total tulisan sekitar 600 - 1.000 kata (setara 4.000 - 7.000 karakter) untuk mencakup Kesimpulan, Implikasi, dan Limitasi secara mendalam ala jurnal Q1."
+            : "";
+
+        const rolePersona = isJurnalMode
+            ? "Anda adalah penulis akademik spesialis jurnal internasional Q1. Tugas Anda adalah menulis bagian Conclusion, Implications, dan Limitations."
+            : "Anda adalah seorang penulis akademis ahli. Tugas Anda adalah menulis draf Bab 5: Kesimpulan.";
+
+        let structureInstruction = "";
+        if (isJurnalMode) {
+            structureInstruction = `**Instruksi Struktur (Format Jurnal Q1):**
+1. **5. Conclusion:** Rangkum temuan utama secara langsung dan singkat untuk menjawab tujuan penelitian. JANGAN mengulang hasil statistik secara detail, melainkan fokus pada sintesis makna temuan. JANGAN overclaim. JANGAN memasukkan sitasi baru di sini.
+2. **5.1 Theoretical, Practical, and Policy Implications:** Jelaskan secara spesifik kontribusi penelitian ini terhadap literatur akademik (Theoretical) dan praktik/kebijakan di lapangan (Practical/Policy). Apa dampak nyata dan rekomendasi konkrit dari temuan ini?
+3. **5.2 Limitations and Future Research:** - **(CRITICAL - DEFENSIVE WRITING):** Tulis keterbatasan dengan gaya elegan dan defensif. JANGAN terdengar pasrah atau merendahkan karya sendiri (misal: "hanya pakai sedikit sampel"). Bingkai kelemahan sebagai "batasan ruang lingkup" (*boundary conditions*) yang wajar, lalu ubah kelemahan itu menjadi rekomendasi agenda *Future Research* yang solid dan tajam.
+
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 5". JANGAN menggunakan format bullet points (*) berlebihan; leburkan ke dalam paragraf naratif yang elegan dan mengalir.`;
+        } else {
+            structureInstruction = `**Instruksi Struktur (Format Tesis):**
+1.  **Judul Bab:** "BAB 5 KESIMPULAN DAN IMPLIKASI" (Tanpa tanda pagar).
+2.  **5.1 Kesimpulan:** Rangkum temuan utama yang menjawab tujuan penelitian.
+3.  **5.2 Keterbatasan:** Identifikasi kelemahan studi secara objektif.
+4.  **5.3 Saran/Rekomendasi:** Rekomendasi konkret untuk riset lanjut atau praktisi.`;
+        }
+
+        const prompt = `${rolePersona}
+
+**Konteks Penelitian (Bahan Sintesis):**
 ---
 ${context}
 ---
 
-**Instruksi Penulisan:**
-1.  **Struktur Bab:** 5.1 Kesimpulan, 5.2 Keterbatasan, 5.3 Saran.
-2.  **5.1 Kesimpulan:** Rangkum temuan utama yang menjawab tujuan. Jangan ada info baru. Integrasikan catatan pengguna jika ada.
-3.  **5.2 Keterbatasan:** Identifikasi kelemahan studi.
-4.  **5.3 Saran:** Rekomendasi konkret untuk riset lanjut atau praktisi.
-5.  **Format:** Teks biasa.
+${volumeInstruction}
 
-Pastikan ada alur yang logis.`;
+${structureInstruction}
+
+Pastikan ada alur yang logis dan langsung to-the-point.`;
+        // --- TAHAP 6 BERAKHIR ---
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys);
@@ -11511,7 +11573,7 @@ ${context}
 
 **ATURAN MUTLAK (STRICT RULES):**
 1. **Struktur IMRAD:** Harus memuat Introduction/Tujuan (1-2 kalimat), Methods (1-2 kalimat), Results (2-3 kalimat temuan utama), And Discussion/Conclusion (1-2 kalimat dampak/saran).
-2. **Panjang Karakter:** WAJIB di antara 150 hingga 250 kata.
+2. **Panjang Karakter:** WAJIB di antara 150 hingga 250 kata (sekitar 1.000 - 1.700 karakter).
 3. **Format:** SATU PARAGRAF UTUH. Jangan gunakan indentasi, jangan gunakan sub-judul (seperti "Tujuan:", "Metode:").
 4. **Sitasi:** DILARANG KERAS memasukkan nama penulis atau tahun sitasi ke dalam Abstrak (Contoh: Menurut Smith (2020)... -> HAPUS!).
 5. **Kata Kunci:** Ekstrak 3-5 kata kunci paling krusial, urutkan secara alfabetis, pisahkan dengan koma.
@@ -11545,26 +11607,39 @@ Berikan respons Anda HANYA dalam format JSON berikut.`;
 
     const handleTranslateAbstrak = async () => {
         setIsLoading(true);
-        const prompt = `Anda adalah seorang Proofreader Akademik *Native English Speaker* dari jurnal Elsevier/Springer.
-Tugas Anda adalah menerjemahkan Abstrak dan Kata Kunci berikut ke dalam Bahasa Inggris Akademik level tinggi (Q1 Academic English).
+        const prompt = `Anda adalah penerjemah akademik profesional Q1. Terjemahkan draf Abstrak dan Kata Kunci berikut dari Bahasa Indonesia ke Bahasa Inggris akademik.
 
-**ATURAN TERJEMAHAN:**
-1. Gunakan *passive voice* di mana hal itu lazim dalam sains (misal: "This study aims..." atau "Data were analyzed...").
-2. Gunakan kosakata akademik yang presisi (misal: gunakan "utilize" alih-alih "use", "demonstrate" alih-alih "show").
-3. Pertahankan struktur satu paragraf utuh.
-
-**TEKS ASLI:**
+Abstrak ID:
 ${projectData.abstrakDraftID}
 
-Berikan terjemahannya (hanya teks bahasa Inggrisnya saja, tanpa komentar apa pun).`;
+Kata Kunci ID:
+${projectData.kataKunciFinal}
+
+Berikan respons Anda HANYA dalam format JSON persis seperti ini:
+{
+    "abstrak_en": "Teks abstrak terjemahan...",
+    "keywords_en": "Keyword 1, Keyword 2, Keyword 3"
+}`;
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys);
-            const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "").trim();
-            setProjectData(p => ({ ...p, abstrakDraftEN: cleanResult }));
-            showInfoModal("Abstrak berhasil diterjemahkan ke standar Academic English!");
+            const result = await geminiService.run(prompt, geminiApiKeys, {
+                schema: {
+                    type: "OBJECT",
+                    properties: {
+                        abstrak_en: { type: "STRING" },
+                        keywords_en: { type: "STRING" }
+                    }
+                }
+            });
+            
+            setProjectData(p => ({ 
+                ...p, 
+                abstrakDraftEN: result.abstrak_en,
+                kataKunciFinalEN: result.keywords_en 
+            }));
+            showInfoModal("Terjemahan Abstrak & Kata Kunci (EN) berhasil dibuat!");
         } catch(error) {
-            showInfoModal(`Gagal menerjemahkan abstrak: ${error.message}`);
+            showInfoModal(`Gagal menerjemahkan: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -12036,23 +12111,44 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
         }));
     };
 
-    const handleGenerateQueriesFromPicos = async (picos, type) => {
+    const handleGenerateQueriesFromPicos = async (frameworkDataParams, type) => {
         setIsLoading(true);
-        // Hapus aiGeneratedQueries agar loading state terlihat
         if (type === 'query') {
             setProjectData(p => ({ ...p, aiGeneratedQueries: null }));
         }
 
+        const activeFw = projectData.selectedFramework || 'PICOS';
         let prompt;
-        if (type === 'rq') {
-            // --- PERUBAHAN DIMULAI DI SINI: PROMPT DIPERKETAT ---
-            prompt = `Anda adalah pakar metodologi SLR. Berdasarkan kerangka PICOS di bawah, formulasikan 3 Research Questions (RQ) yang saling melengkapi untuk paper internasional:
-            1. Descriptive: Fokus pada pemetaan tren/metode yang digunakan terkait ${picos.intervention}.
-            2. Substantive: Fokus pada dampak/hasil (${picos.outcome}) pada ${picos.population}.
-            3. Future Gap: Fokus pada celah penelitian yang belum terselesaikan.
 
-            Data PICOS:
-            - P: ${picos.population} | I: ${picos.intervention} | C: ${picos.comparison || 'N/A'} | O: ${picos.outcome} | S: ${picos.studyDesign || 'N/A'}
+        // --- TAHAP 3: ADAPTASI PROMPT FORMULASI RESEARCH QUESTION (RQ) ---
+        if (type === 'rq') {
+            let contextData = "";
+            let focusInstructions = "";
+
+            if (activeFw === 'PICOS') {
+                contextData = `- P: ${frameworkDataParams.population} | I: ${frameworkDataParams.intervention} | C: ${frameworkDataParams.comparison || 'N/A'} | O: ${frameworkDataParams.outcome} | S: ${frameworkDataParams.studyDesign || 'N/A'}`;
+                focusInstructions = `1. Descriptive: Fokus pada tren/metode terkait ${frameworkDataParams.intervention}.
+2. Substantive: Fokus pada efektivitas/dampak (${frameworkDataParams.outcome}) pada ${frameworkDataParams.population}.
+3. Future Gap: Fokus pada celah penelitian intervensi.`;
+            } else if (activeFw === 'PCC') {
+                contextData = `- Population: ${frameworkDataParams.population} | Concept: ${frameworkDataParams.concept} | Context: ${frameworkDataParams.context}`;
+                focusInstructions = `1. Mapping/Scoping: "Bagaimana peta literatur terkait konsep [Concept] pada populasi [Population] di konteks [Context]?"
+2. Thematic: "Tema atau dimensi utama apa saja yang mendominasi pembahasan literatur tersebut?"
+3. Contextual Gap: "Area penelitian apa yang masih kurang tereksplorasi di konteks [Context]?"`;
+            } else if (activeFw === 'SPIDER') {
+                contextData = `- Sample: ${frameworkDataParams.sample} | Phenomenon: ${frameworkDataParams.phenomenon} | Evaluation: ${frameworkDataParams.evaluation}`;
+                focusInstructions = `1. Experiential: Bagaimana sampel memaknai/mengalami fenomena [Phenomenon]?
+2. Evaluative: Bagaimana hasil evaluasi terhadap [Evaluation] dari sudut pandang sampel?
+3. Methodological/Gap: Celah apa yang belum terjawab dalam mengkaji fenomena tersebut secara mendalam?`;
+            }
+
+            prompt = `Anda adalah pakar metodologi tinjauan literatur (SLR/Scoping Review). Berdasarkan kerangka ${activeFw} di bawah, formulasikan 3 Research Questions (RQ) yang saling melengkapi untuk paper internasional:
+            
+            FOKUS RQ:
+            ${focusInstructions}
+
+            DATA ${activeFw}:
+            ${contextData}
     
             ATURAN FORMAT MUTLAK:
             1. Hasilkan HANYA daftar bernomor (1, 2, 3). 
@@ -12060,13 +12156,12 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
             3. DILARANG menggunakan cetak tebal (**).
             4. DILARANG menuliskan label/meta-teks seperti 'RQ1 (Descriptive):' di awal kalimat. 
             5. Langsung tuliskan pertanyaan penelitiannya secara bersih dan formal tanpa kalimat pengantar.`;
+
              try {
                 const result = await geminiService.run(prompt, geminiApiKeys);
-                // --- PERUBAHAN DI SINI: Bersihkan format & jangan tambahkan strip (-) ---
                 const cleanResult = result.replace(/[*_]/g, "").trim();
                 setProjectData(p => ({ ...p, rumusanMasalahDraft: (p.rumusanMasalahDraft ? p.rumusanMasalahDraft + '\n\n' : '') + cleanResult }));
-                showInfoModal(`Pertanyaan Penelitian berhasil dibuat dan ditambahkan ke kotak di bawah!`);
-                // --- AKHIR PERUBAHAN ---
+                showInfoModal(`Pertanyaan Penelitian (${activeFw}) berhasil dibuat dan ditambahkan ke kotak di bawah!`);
             } catch (error) {
                 showInfoModal(`Gagal membuat RQ: ${error.message}`);
             } finally {
@@ -12075,36 +12170,52 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
             return;
         } 
         
-        // else, it's 'query'
+        // --- TAHAP 3: ADAPTASI PROMPT GENERASI KUERI BOOLEAN ---
         let languageInstruction = includeIndonesianQuery 
             ? "Prioritaskan istilah Bahasa Inggris, tetapi sertakan padanan Bahasa Indonesia menggunakan operator OR."
             : "Gunakan HANYA istilah dalam Bahasa Inggris.";
 
-        prompt = `Anda adalah Pustakawan Riset ahli. Berdasarkan kerangka PICOS berikut, buatkan 5 level search query yang komprehensif untuk database ${projectData.queryGeneratorTargetDB}.
+        let queryInstructions = "";
+        let fwContextText = "";
 
-        **Kerangka PICOS:**
-        - P (Population/Problem): ${picos.population}
-        - I (Intervention): ${picos.intervention}
-        - C (Comparison): ${picos.comparison || 'Tidak ditentukan'}
-        - O (Outcome): ${picos.outcome}
-        - S (Study Design): ${picos.studyDesign || 'Tidak ditentukan'}
+        if (activeFw === 'PICOS') {
+            fwContextText = `- P: ${frameworkDataParams.population}\n- I: ${frameworkDataParams.intervention}\n- C: ${frameworkDataParams.comparison || '-'}\n- O: ${frameworkDataParams.outcome}\n- S: ${frameworkDataParams.studyDesign || '-'}`;
+            queryInstructions = `- Level 1 (Sangat Khusus): Gabungkan P, I, dan O menggunakan AND.
+- Level 2 (Khusus): Perluas dengan sinonim P, I, dan O.
+- Level 3 (Menengah): Gabungkan hanya P dan I beserta sinonimnya.
+- Level 4 (Umum): Gabungkan hanya P dan O.
+- Level 5 (Sangat Umum): Fokus hanya pada P dan sinonimnya.`;
+        } else if (activeFw === 'PCC') {
+            fwContextText = `- Population: ${frameworkDataParams.population}\n- Concept: ${frameworkDataParams.concept}\n- Context: ${frameworkDataParams.context}`;
+            queryInstructions = `- Level 1 (Sangat Khusus): Gabungkan Population, Concept, dan Context menggunakan AND.
+- Level 2 (Khusus): Perluas dengan sinonim Population, Concept, dan Context.
+- Level 3 (Menengah): Gabungkan hanya Concept dan Context.
+- Level 4 (Umum): Gabungkan hanya Population dan Concept.
+- Level 5 (Sangat Umum): Fokus murni pada perluasan sinonim Concept (Konsep Utama).`;
+        } else if (activeFw === 'SPIDER') {
+            fwContextText = `- Sample: ${frameworkDataParams.sample}\n- Phenomenon: ${frameworkDataParams.phenomenon}\n- Design: ${frameworkDataParams.design}\n- Evaluation: ${frameworkDataParams.evaluation}\n- Research Type: ${frameworkDataParams.researchType}`;
+            queryInstructions = `- Level 1 (Sangat Khusus): Gabungkan Sample, Phenomenon, dan Evaluation menggunakan AND.
+- Level 2 (Khusus): Perluas dengan sinonim Sample, Phenomenon, dan Evaluation.
+- Level 3 (Menengah): Gabungkan Phenomenon dan Evaluation.
+- Level 4 (Umum): Gabungkan Sample dan Phenomenon.
+- Level 5 (Sangat Umum): Fokus murni pada Phenomenon of Interest dan sinonimnya.`;
+        }
+
+        prompt = `Anda adalah Pustakawan Riset ahli. Berdasarkan kerangka ${activeFw} berikut, buatkan 5 level search query yang komprehensif untuk database ${projectData.queryGeneratorTargetDB}.
+
+        **Kerangka ${activeFw}:**
+        ${fwContextText}
 
         **Tugas Utama:**
-        Buat 5 level kueri pencarian (search strings), dari yang paling spesifik hingga paling luas, menggabungkan konsep dari PICOS.
+        Buat 5 level kueri pencarian (search strings), dari yang paling spesifik hingga paling luas.
 
         **Level Kueri:**
-        - Level 1 (Paling Khusus): Gabungkan P, I, dan O menggunakan operator AND.
-        - Level 2 (Sedikit Lebih Umum): Perluas pencarian dengan sinonim untuk konsep kunci dari P, I, dan O.
-        - Level 3 (Umum Menengah): Gabungkan hanya P dan I.
-        - Level 4 (Lebih Umum): Gabungkan hanya P dan O.
-        - Level 5 (Paling Umum): Fokus hanya pada P dan sinonimnya.
+        ${queryInstructions}
 
         **Aturan Penting:**
         - **Instruksi Bahasa:** ${languageInstruction}
         - **JANGAN** sertakan batasan tahun atau periode.
-
-        **Instruksi Sintaks:**
-        Gunakan sintaks yang paling sesuai untuk Database Target (${projectData.queryGeneratorTargetDB}).
+        - **Sintaks:** Gunakan format yang sesuai untuk ${projectData.queryGeneratorTargetDB} (Misal: Scopus gunakan TITLE-ABS-KEY).
 
         **Format Output:**
         Berikan jawaban HANYA dalam format JSON yang ketat.`;
@@ -12123,16 +12234,15 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema }); // UPDATE: geminiApiKeys (Cleanup Step 1)
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
             setProjectData(p => ({ ...p, aiGeneratedQueries: result }));
-            showInfoModal("Kueri berjenjang dari PICOS berhasil dibuat!");
+            showInfoModal(`Kueri berjenjang dari ${activeFw} berhasil dibuat!`);
         } catch (error) {
-            showInfoModal(`Gagal membuat kueri dari PICOS: ${error.message}`);
+            showInfoModal(`Gagal membuat kueri dari ${activeFw}: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
     };
-
 
     const handleGenerateAdvancedBooleanQuery = async (clueObj) => {
     const prompt = `Anda adalah seorang Pustakawan Riset (Research Librarian) ahli spesialis database Scopus. 
