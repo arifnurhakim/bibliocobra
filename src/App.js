@@ -8811,6 +8811,121 @@ Gunakan Bahasa Indonesia Akademis yang tajam dan analitis.`;
 
 // ================ KOMPONEN BARU: ABSTRAK & KATA KUNCI (MAHKOTA) ================
 
+// --- Komponen untuk Abstrak & Kata Kunci ---
+const Abstrak = ({ projectData, setProjectData, handleGenerateAbstrak, handleTranslateAbstrak, isLoading, handleCopyToClipboard }) => {
+    const isPremium = projectData.isPremium;
+
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Abstrak & Kata Kunci (Grand Finale)</h2>
+            <p className="text-gray-700 mb-6 text-sm leading-relaxed">
+                Langkah terakhir sebelum submit ke jurnal! AI akan membaca intisari dari Bab 1 hingga Bab 5 dan merangkumnya menjadi Abstrak IMRAD yang padat beserta daftar kata kuncinya.
+            </p>
+
+            <button 
+                onClick={handleGenerateAbstrak} 
+                className={`font-bold py-3 px-6 rounded-lg w-full mb-6 text-lg shadow-md transition-transform active:scale-95 flex items-center justify-center gap-3 ${!isPremium ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'}`}
+                disabled={isLoading || !projectData.judulKTI || !isPremium}
+            >
+                {isLoading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                    <span>{!isPremium ? '🔒' : '✨'}</span>
+                )}
+                {!isPremium ? 'Tulis Abstrak Otomatis (Premium)' : (isLoading ? 'Memeras Intisari Naskah...' : 'Tulis Abstrak & Kata Kunci')}
+            </button>
+            {!isPremium && <p className="text-xs text-red-500 -mt-4 mb-6 text-center italic">Upgrade ke Premium untuk mengekstrak intisari naskah secara otomatis.</p>}
+
+            {/* AREA ABSTRAK INDONESIA */}
+            {projectData.abstrakDraftID && (
+                <div className="space-y-6">
+                    <div className="p-5 bg-gray-50 border border-gray-200 rounded-xl shadow-inner">
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                🇮🇩 Abstrak (Bahasa Indonesia)
+                            </h3>
+                            <button onClick={() => handleCopyToClipboard(projectData.abstrakDraftID)} className="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm flex items-center gap-1 transition-colors">
+                                <CopyIcon /> Salin Teks
+                            </button>
+                        </div>
+                        <textarea
+                            value={projectData.abstrakDraftID}
+                            onChange={(e) => setProjectData(p => ({ ...p, abstrakDraftID: e.target.value }))}
+                            className="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-relaxed focus:ring-2 focus:ring-indigo-500 bg-white"
+                            rows="10"
+                        ></textarea>
+                        
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-gray-700 text-sm font-bold">Kata Kunci (Indonesia):</label>
+                                <button onClick={() => handleCopyToClipboard(projectData.kataKunciFinal)} className="text-blue-600 hover:text-blue-800 text-xs font-bold flex items-center gap-1">
+                                    <CopyIcon /> Salin
+                                </button>
+                            </div>
+                            <input 
+                                type="text"
+                                value={projectData.kataKunciFinal}
+                                onChange={(e) => setProjectData(p => ({ ...p, kataKunciFinal: e.target.value }))}
+                                className="shadow-sm appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 font-semibold text-sm bg-white"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex justify-center my-6">
+                        <button 
+                            onClick={handleTranslateAbstrak}
+                            disabled={isLoading || !isPremium}
+                            className={`font-bold py-2.5 px-8 rounded-full shadow-lg flex items-center gap-3 transition-all transform active:scale-95 ${!isPremium ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white hover:-translate-y-0.5'}`}
+                        >
+                            {isLoading ? (
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                                <span className="text-xl">🇬🇧</span>
+                            )}
+                            {!isPremium ? 'Terjemahkan (Premium)' : 'Terjemahkan ke English Akademik Q1'}
+                        </button>
+                    </div>
+
+                    {/* AREA ABSTRAK INGGRIS */}
+                    {projectData.abstrakDraftEN && (
+                        <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-xl shadow-md animate-fade-in">
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="text-lg font-bold text-emerald-900 flex items-center gap-2">
+                                    🇬🇧 Abstract (English Academic)
+                                </h3>
+                                <button onClick={() => handleCopyToClipboard(projectData.abstrakDraftEN)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm flex items-center gap-1 transition-colors">
+                                    <CopyIcon /> Copy Abstract
+                                </button>
+                            </div>
+                            <textarea
+                                value={projectData.abstrakDraftEN}
+                                onChange={(e) => setProjectData(p => ({ ...p, abstrakDraftEN: e.target.value }))}
+                                className="shadow-sm appearance-none border border-emerald-300 rounded-lg w-full py-3 px-4 text-emerald-900 leading-relaxed focus:ring-2 focus:ring-emerald-500 bg-white"
+                                rows="10"
+                            ></textarea>
+                            
+                            <div className="mt-4 pt-4 border-t border-emerald-200">
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="block text-emerald-800 text-sm font-bold">Keywords (English):</label>
+                                    <button onClick={() => handleCopyToClipboard(projectData.kataKunciFinalEN)} className="text-emerald-700 hover:text-emerald-900 text-xs font-bold flex items-center gap-1">
+                                        <CopyIcon /> Copy Keywords
+                                    </button>
+                                </div>
+                                <input 
+                                    type="text"
+                                    value={projectData.kataKunciFinalEN || ''}
+                                    onChange={(e) => setProjectData(p => ({ ...p, kataKunciFinalEN: e.target.value }))}
+                                    className="shadow-sm appearance-none border border-emerald-300 rounded-lg w-full py-2 px-3 text-emerald-900 font-semibold text-sm bg-white"
+                                    placeholder="Keywords will appear here..."
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
 
 // --- Komponen untuk Donasi ---
 const Donasi = ({ handleCopyToClipboard }) => {
