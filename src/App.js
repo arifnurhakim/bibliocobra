@@ -8183,18 +8183,10 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
             case 'setup': return renderSetup();
             case 'abstract_screening': return renderScreening('abstract');
             case 'fulltext_screening': return renderScreening('fulltext');
-            case 'appraisal_screening': // <-- TAHAP 2: Placeholder UI untuk Fase 3
-                return (
-                    <div className="text-center p-10 mt-6 bg-teal-50 border-2 border-dashed border-teal-300 rounded-xl animate-fade-in shadow-sm">
-                        <span className="text-5xl mb-4 block">⚖️</span>
-                        <h3 className="text-2xl font-bold text-teal-800 mb-3">Fase 3: Critical Appraisal (Uji Kualitas JBI)</h3>
-                        <p className="text-teal-700 max-w-xl mx-auto leading-relaxed">
-                            Antarmuka Stasiun Uji Kualitas sedang dalam tahap konstruksi (Menunggu Eksekusi Tahap 3).<br/><br/>
-                            Di sinilah Anda nantinya akan menilai bias metodologi paper yang lolos dari tahap kelayakan <i>Full-Text</i>, 
-                            sebelum mereka diizinkan masuk ke tabel sintesis akhir.
-                        </p>
-                    </div>
-                );
+            case 'appraisal_screening': 
+                // --- PERBAIKAN: Panggil fungsi renderAppraisal yang sudah kita buat ---
+                return renderAppraisal();
+                // ----------------------------------------------------------------------
             case 'review': return renderReview();
             case 'results': return renderResults();
             default: return renderSetup();
