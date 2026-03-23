@@ -54,27 +54,28 @@ const initialProjectData = {
         outcome: '',
         studyDesign: ''
     },
-    // picos: { ... } <-- STATE LAMA DIHAPUS (DIGANTI DENGAN DI ATAS)
     // --------------------------------------------------------
 
-    // State baru untuk PRISMA
+    // State PRISMA
     prismaState: {
-        isInitialized: false,
-        studies: [], // { ...ref, screeningStatus, exclusionReason }
-        initialRecordCount: 0,
-        duplicateCount: 0,
-        automationIneligible: 0,
-        otherReasonsRemoved: 0,
-        reportsNotRetrieved: 0,
-        exclusionReasons: {
-            abstract: ['Tidak relevan dengan topik', 'Jenis publikasi salah (misal: review, editorial)', 'Desain studi tidak sesuai', 'Lainnya'],
-            fulltext: ['Tidak dapat mengambil full-text', 'Hasil (outcome) tidak relevan', 'Populasi/subjek tidak sesuai', 'Intervensi tidak sesuai', 'Lainnya']
-        },
+        step: 1,
+        selectedDataset: [],
+        totalInitial: 0,
+        duplicatesRemoved: 0,
+        abstractQueue: [],
+        fullTextQueue: [],
+        
+        // --- INJEKSI TAHAP 1 (ALUR PROFESOR): ANTREAN UJI KUALITAS ---
+        appraisalQueue: [], 
+        // -----------------------------------------------------------
+        
+        excludedRecords: [],
+        extractedData: []
     },
-
-    // State baru untuk Ekstraksi & Sintesis
+    
+    // State tambahan PRISMA
+    isPrismaGenerated: false,
     synthesisTableColumns: [
-        { key: 'author', label: 'Author(s) & Year', type: 'text' },
         { key: 'qualityScore', label: 'Quality Score / Risk of Bias (Q1 Req)', type: 'textarea' }, // <-- KOLOM WAJIB BARU
         { key: 'population', label: 'Population/Problem', type: 'textarea' },
         { key: 'intervention', label: 'Intervention', type: 'textarea' },
@@ -1366,13 +1367,13 @@ const IdeKTI = ({
                             <div className="mb-3 p-3 bg-teal-50 border border-teal-200 rounded-lg flex items-start gap-2 animate-fade-in">
                                 <span className="text-teal-600 mt-0.5">💡</span>
                                 <div>
-                                    <p className="text-xs font-bold text-teal-800">Khusus Riset SLR:</p>
-                                    <p className="text-xs text-teal-700 mb-2">Jangan gunakan generator di atas. Rumusan Masalah untuk riset literatur wajib diturunkan dari kerangka PICOS.</p>
+                                    <p className="text-xs font-bold text-teal-800">Khusus Riset Tinjauan Pustaka (SLR/Scoping):</p>
+                                    <p className="text-xs text-teal-700 mb-2">Jangan gunakan generator otomatis di atas. Rumusan Masalah untuk riset literatur wajib diturunkan secara metodologis dari kerangka konseptual (PICOS, PCC, atau SPIDER).</p>
                                     <button 
                                         onClick={(e) => { e.preventDefault(); setCurrentSection('genLogKueri'); }}
                                         className="bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg shadow-sm transition-colors flex items-center gap-1"
                                     >
-                                        🚀 Buat RQ via Asisten PICOS (Pindah Menu)
+                                        🚀 Buat RQ via Asisten Literatur (Pindah Menu)
                                     </button>
                                 </div>
                             </div>
@@ -1539,6 +1540,7 @@ const Referensi = ({
     handleCopyToClipboard, 
     handleShowSearchPrompts, 
     handleGenerateReferenceClues,
+    handleExportClues, // <-- TAMBAHAN PROP BARU
     isLoading, 
     openNoteModal,
     triggerReferencesImport,
@@ -1775,7 +1777,7 @@ const Referensi = ({
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
             {/* ... (Modal Delete Confirm same as before) ... */}
-             {isBulkDeleteConfirmOpen && (
+            {isBulkDeleteConfirmOpen && (
                 <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-[9999] p-4">
                     <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full flex flex-col animate-fade-in">
                         <div className="flex items-center gap-3 mb-4 text-red-600">
@@ -1841,8 +1843,23 @@ const Referensi = ({
                                 {!isPremium && <p className="text-xs text-red-500 mt-1">Upgrade ke Premium untuk menggunakan bantuan AI ini.</p>}
                             </div>
                             {projectData.aiReferenceClues && (
-                                <div className="mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800">
-                                    <h5 className="font-bold mb-2">Clue Referensi Kunci untuk Riset Mandiri:</h5>
+                                <div className="mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded-r-lg">
+                                    <div className="flex justify-between items-center mb-3 border-b border-yellow-200 pb-2">
+                                        <h5 className="font-bold">Clue Referensi Kunci untuk Riset Mandiri:</h5>
+                                        {/* --- TOMBOL EKSPOR CLUE BARU --- */}
+                                        <button 
+                                            onClick={handleExportClues}
+                                            className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm flex items-center gap-1 transition-colors"
+                                            title="Ekspor untuk diaudit di aplikasi Cobrauditor"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 .5-.5z"/>
+                                                <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+                                            </svg>
+                                            Ekspor Clue (.json)
+                                        </button>
+                                        {/* ------------------------------- */}
+                                    </div>
                                     {projectData.aiReferenceClues.map((cat, index) => (
                                         <div key={index} className="mb-3">
                                             <p className="font-semibold">{cat.category}:</p>
@@ -2582,6 +2599,23 @@ const Referensi = ({
                        {/* ---------------------------------------------------- */}
                     </div>
                 </div>
+
+                {/* --- TAMBAHAN BARU: INFO COBRAUDITOR --- */}
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3 animate-fade-in shadow-sm">
+                    <span className="text-xl leading-none">🐍</span>
+                    <p className="text-sm text-blue-800 leading-relaxed">
+                        <strong>Audit Saturasi (Add-on):</strong> Ingin mengecek apakah perpustakaan Anda sudah memenuhi seluruh target literatur? Lakukan <i>cross-matching</i> otomatis antara file <strong>Ekspor Clue JSON</strong> dengan file <strong>Ekspor JSON</strong> perpustakaan Anda di aplikasi {' '}
+                        {isPremium ? (
+                            <a href="https://cobrauditor.netlify.app/" target="_blank" rel="noopener noreferrer" className="font-bold underline hover:text-blue-900 transition-colors">Cobrauditor ↗</a>
+                        ) : (
+                            <a href={`https://wa.me/6285123048010?text=${encodeURIComponent("Halo Admin, saya pengguna Free, saya ingin upgrade lisensi ke Premium untuk mengakses add-on Cobrauditor.")}`} target="_blank" rel="noopener noreferrer" className="font-bold underline text-gray-500 hover:text-gray-700 transition-colors inline-flex items-center gap-1">
+                                🔒 Cobrauditor (Premium)
+                            </a>
+                        )}.
+                    </p>
+                </div>
+                {/* --------------------------------------- */}
+
                 {projectData.allReferences.length > 0 ? (
                     <>
                         <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
@@ -4507,16 +4541,16 @@ Berikan jawaban HANYA dalam format JSON.`;
             <div className="mb-8 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <h3 className="font-bold text-yellow-800 text-sm flex items-center gap-2">
-                        🐍 Utilitas Eksternal: Cobrasaurus {projectData.showScopus ? "(Elite Access)" : "(Add-on)"}
+                        🐍 Utilitas Eksternal: Cobrasaurus {isPremium ? "(Premium Access)" : "(Add-on)"}
                     </h3>
                     <p className="text-sm text-yellow-700 mt-1">
                         Punya daftar kata kunci yang berantakan atau tidak konsisten? Gunakan <strong>Cobrasaurus</strong> (Add-on mirip OpenRefine) untuk membersihkan dan menstandarisasi kata kunci Anda sebelum menyusun kueri.
                     </p>
                 </div>
                 
-                {/* LOGIKA KONDISIONAL: Cek apakah user Elite (showScopus=true) atau Biasa */}
-                {projectData.showScopus ? (
-                    /* Tampilan untuk User Elite: Akses Langsung */
+                {/* LOGIKA KONDISIONAL: Cek apakah user Premium atau Biasa */}
+                {isPremium ? (
+                    /* Tampilan untuk User Premium: Akses Langsung */
                     <a 
                         href="https://cobrasaurus.vercel.app/" 
                         target="_blank" 
@@ -4526,9 +4560,9 @@ Berikan jawaban HANYA dalam format JSON.`;
                         Buka Cobrasaurus ↗
                     </a>
                 ) : (
-                    /* Tampilan untuk User Premium Biasa: Link ke Admin WA */
+                    /* Tampilan untuk User Free: Link ke Admin WA */
                     <a 
-                        href={`https://wa.me/6285123048010?text=${encodeURIComponent("Halo Admin, saya pengguna Premium biasa ingin membeli akses add-on Cobrasaurus.")}`}
+                        href={`https://wa.me/6285123048010?text=${encodeURIComponent("Halo Admin, saya pengguna Free, saya ingin upgrade lisensi ke Premium untuk mengakses add-on Cobrasaurus.")}`}
                         target="_blank" 
                         rel="noopener noreferrer" 
                         className="bg-gray-700 hover:bg-gray-800 text-white text-sm font-bold py-2 px-4 rounded-lg whitespace-nowrap shadow-sm transition-colors flex items-center gap-2"
@@ -4536,7 +4570,7 @@ Berikan jawaban HANYA dalam format JSON.`;
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                             <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
                         </svg>
-                        Beli Akses Add-on
+                        🔒 Beli Akses (Premium)
                     </a>
                 )}
             </div>
@@ -5148,10 +5182,18 @@ const AnalisisKualitatif = ({
                       Audiocobra adalah aplikasi ekosistem kami yang dirancang khusus untuk mentranskripsi wawancara audio menjadi teks dengan presisi tinggi menggunakan AI.
                   </p>
                   <div className="flex gap-2 justify-center">
-                      <button onClick={() => setShowPromoModal(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Tutup</button>
-                      <a href="https://audiocobra.vercel.app/" target="_blank" rel="noopener noreferrer" onClick={() => setShowPromoModal(false)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
-                          Buka Audiocobra ↗
-                      </a>
+                      <button onClick={() => setShowPromoModal(false)} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">Tutup</button>
+                      
+                      {/* LOGIKA KONDISIONAL: Cek apakah user Premium atau Gratis */}
+                      {isPremium ? (
+                          <a href="https://audiocobra.vercel.app/" target="_blank" rel="noopener noreferrer" onClick={() => setShowPromoModal(false)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shadow-sm">
+                              Buka Audiocobra ↗
+                          </a>
+                      ) : (
+                          <a href={`https://wa.me/6285123048010?text=${encodeURIComponent("Halo Admin, saya pengguna Free, saya ingin upgrade lisensi ke Premium untuk mengakses add-on Audiocobra.")}`} target="_blank" rel="noopener noreferrer" onClick={() => setShowPromoModal(false)} className="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shadow-sm">
+                              🔒 Beli Akses (Premium)
+                          </a>
+                      )}
                   </div>
               </div>
           </div>
@@ -6606,6 +6648,18 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
     const [expandedAbstractId, setExpandedAbstractId] = useState(null);
     // --- STATE BARU UNTUK MODAL INCLUDE (DINAMIS) ---
     const [includeModal, setIncludeModal] = useState({ isOpen: false, study: null, extraction: {} });
+    
+    // --- TAHAP 3: STATE BARU UNTUK FORMULIR APPRAISAL ---
+    const [appraisalForm, setAppraisalForm] = useState({ score: '', notes: '' });
+    
+    // --- BUG FIX: DAFTAR ALASAN EKSKLUSI DINAMIS (MENCEGAH CRASH) ---
+    const EXCLUSION_REASONS = {
+        abstract: ['Tidak relevan dengan topik', 'Bukan artikel jurnal peer-reviewed', 'Tahun publikasi di luar rentang', 'Lainnya'],
+        fulltext: ['Populasi/Subjek salah', 'Intervensi/Konsep salah', 'Outcome tidak diukur', 'Bahasa tidak dimengerti', 'Lainnya'],
+        appraisal: ['Metodologi cacat fatal (High Risk of Bias)', 'Data tidak lengkap/valid', 'Lainnya']
+    };
+    // -----------------------------------------------------------------
+
     const [aiReviews, setAiReviews] = useState({});
     const [reviewingId, setReviewingId] = useState(null);
     const svgRef = useRef(null); // Tambahkan ref untuk SVG
@@ -6666,11 +6720,14 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
         if (prismaState?.isInitialized) {
             const hasUnscreenedAbstracts = prismaState.studies.some(s => s.screeningStatus === 'unscreened');
             const hasUnscreenedFulltexts = prismaState.studies.some(s => s.screeningStatus === 'abstract_included');
+            const hasUnappraisedStudies = prismaState.studies.some(s => s.screeningStatus === 'fulltext_included'); // <-- TAHAP 2: Cek antrean baru JBI
 
             if (hasUnscreenedAbstracts) {
                 setCurrentStage('abstract_screening');
             } else if (hasUnscreenedFulltexts) {
                 setCurrentStage('fulltext_screening');
+            } else if (hasUnappraisedStudies) {
+                setCurrentStage('appraisal_screening'); // <-- TAHAP 2: Arahkan ke Appraisal
             } else {
                 setCurrentStage('results');
             }
@@ -7110,9 +7167,9 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
         if (!study) return;
 
         setProjectData(p => {
-            // 1. Update status PRISMA
+            // 1. Update status PRISMA (Telah Lolos Uji Kualitas Sepenuhnya)
             const updatedStudies = p.prismaState.studies.map(s =>
-                s.id === study.id ? { ...s, screeningStatus: 'fulltext_included' } : s
+                s.id === study.id ? { ...s, screeningStatus: 'appraisal_included' } : s
             );
 
             // 2. Simpan hasil ekstraksi ke Tabel Sintesis
@@ -7145,7 +7202,8 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
         });
 
         setIncludeModal({ isOpen: false, study: null, extraction: {} });
-        showInfoModal("Artikel di-Include dan Data Ekstraksi berhasil disimpan ke Tabel Sintesis!");
+        setAppraisalForm({ score: '', notes: '' }); // Bersihkan form uji kualitas
+        showInfoModal("Artikel Lolos Uji dan Data Ekstraksi berhasil disimpan ke Tabel Sintesis Utama!");
     };
     // -----------------------------------------------------------
     
@@ -7161,7 +7219,11 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
             showInfoModal("Alasan pengecualian harus diisi.");
             return;
         }
-        const newStatus = exclusionModal.screeningType === 'abstract' ? 'abstract_excluded' : 'fulltext_excluded';
+        
+        let newStatus = 'abstract_excluded';
+        if (exclusionModal.screeningType === 'fulltext') newStatus = 'fulltext_excluded';
+        if (exclusionModal.screeningType === 'appraisal') newStatus = 'appraisal_excluded';
+        
         handleScreeningDecision(exclusionModal.studyId, newStatus, finalReason);
         setExclusionModal({ isOpen: false, studyId: null, screeningType: '' });
     };
@@ -7187,8 +7249,11 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
         const reports_not_retrieved_count = reportsNotRetrieved;
         const reports_assessed_for_eligibility = reports_sought_for_retrieval - reports_not_retrieved_count;
         
-        const reports_excluded_fulltext = studies.filter(s => s.screeningStatus === 'fulltext_excluded').length;
-        const studies_included_in_review = reports_assessed_for_eligibility - reports_excluded_fulltext;
+        // TAHAP 3: Gabungkan Fulltext & Appraisal Excluded agar PRISMA Diagram tidak error
+        const reports_excluded_fulltext = studies.filter(s => s.screeningStatus === 'fulltext_excluded' || s.screeningStatus === 'appraisal_excluded').length;
+        
+        // TAHAP 3: Hanya hitung yang benar-benar lolos Appraisal (Telah diinklusi)
+        const studies_included_in_review = studies.filter(s => s.screeningStatus === 'appraisal_included').length;
 
         return {
             identification_databases,
@@ -7431,7 +7496,7 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                     <p className="text-gray-600 mt-2">
                         {isAbstract 
                             ? "Silakan lanjutkan ke tahap screening full-text." 
-                            : "Semua studi telah disaring. Lihat diagram PRISMA di tab Hasil."
+                            : "Semua studi yang layak secara teks telah masuk ke antrean Uji Kualitas. Silakan periksa tab '3. Quality Appraisal'."
                         }
                     </p>
                 </div>
@@ -7440,7 +7505,7 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
 
         const total = isAbstract 
             ? prismaState.studies.length
-            : prismaState.studies.filter(s => ['abstract_included', 'fulltext_excluded', 'fulltext_included'].includes(s.screeningStatus)).length;
+            : prismaState.studies.filter(s => ['abstract_included', 'fulltext_excluded', 'fulltext_included', 'appraisal_excluded', 'appraisal_included'].includes(s.screeningStatus)).length;
         const remainingToScreen = prismaState.studies.filter(s => s.screeningStatus === targetStatus).length;
         const screened = total - remainingToScreen;
 
@@ -7448,7 +7513,7 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
             <div>
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-xl font-semibold text-gray-800">
-                        {isAbstract ? 'Screening Abstrak' : 'Screening Full-Text'}
+                        {isAbstract ? 'Screening Abstrak' : 'Screening Full-Text (Uji Kelayakan)'}
                     </h3>
                     <button 
                         onClick={() => handleExportBatchMetadataTxt(isAbstract)}
@@ -7461,26 +7526,7 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                         Ekspor {remainingToScreen} Data (.txt)
                     </button>
                 </div>
-                {!isAbstract && (
-                 <div className="mb-6 p-4 bg-teal-50 border border-teal-200 rounded-lg animate-fade-in">
-                     <h3 className="text-lg font-bold text-teal-800 flex items-center gap-2 mb-2">
-                         💡 Validasi Kualitas JBI (Langkah Wajib Q1)
-                     </h3>
-                     <p className="text-sm text-teal-700 leading-relaxed mb-3">
-                         Selama Anda melakukan screening teks lengkap (Full-Text) di bawah ini, nilai juga risiko bias setiap artikel bersama 1 pakar independen lainnya menggunakan <strong>JBI/CASP Checklist</strong>.
-                         <br/><br/>
-                         <em>Langkah selanjutnya:</em> Setelah Anda berdua mencapai konsensus (kesepakatan) di luar aplikasi, simpan catatan tersebut dalam format <code>.txt</code>, lalu bawa ke menu <strong>Analisis Data Kualitatif & Sintesis Konsensus</strong> untuk diubah oleh AI menjadi argumen validitas untuk Bab Pembahasan/Metode.
-                     </p>
-                     <a 
-                         href="https://jbi.global/critical-appraisal-tools" 
-                         target="_blank" 
-                         rel="noopener noreferrer"
-                         className="inline-flex items-center text-teal-600 hover:text-teal-800 text-xs font-bold underline"
-                     >
-                         Unduh Format JBI Checklist Resmi ↗
-                     </a>
-                 </div>
-             )}
+                
                 <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
                 <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${(screened / total) * 100}%` }}></div>
                 </div>
@@ -7585,9 +7631,7 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                 </div>
 
                 <div className="mt-6 flex justify-center gap-4 flex-wrap">
-                    {/* Urutan Baru: Include - Exclude - Kembali - Lanjutkan */}
-                    
-                    {/* --- LOGIKA TOMBOL INCLUDE (PISAH ABSTRAK & FULLTEXT) --- */}
+                    {/* --- LOGIKA TOMBOL INCLUDE PISAH (TAHAP 3) --- */}
                     {isAbstract ? (
                         <button 
                             onClick={() => handleScreeningDecision(studyToScreen.id, 'abstract_included')} 
@@ -7596,25 +7640,12 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                             Include
                         </button>
                     ) : (
-                        /* --- UPDATE HOOK: KUNCI TOMBOL INCLUDE & EKSTRAK FULLTEXT --- */
                         <button 
-                            onClick={() => {
-                                const blankExtraction = {};
-                                projectData.synthesisTableColumns.forEach(col => blankExtraction[col.key] = '');
-                                setIncludeModal({ isOpen: true, study: studyToScreen, extraction: blankExtraction });
-                            }} 
-                            disabled={!projectData.isPremium}
-                            className={`font-bold py-2 px-6 rounded-lg shadow-sm flex items-center gap-2 ${!projectData.isPremium ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-                            title={!projectData.isPremium ? "Fitur Premium" : ""}
+                            onClick={() => handleScreeningDecision(studyToScreen.id, 'fulltext_included')} 
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm"
                         >
-                            {!projectData.isPremium ? '🔒 Include & Ekstrak (Premium)' : (
-                                <>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M14 14V4.5L9.5 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM9.5 3A1.5 1.5 0 0 0 11 4.5h2V14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5v2z"/><path d="M4.5 10a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5z"/></svg>
-                                    Include & Ekstrak
-                                </>
-                            )}
+                            Include (Lanjut Uji Kualitas)
                         </button>
-                        /* ------------------------------------------------------------ */
                     )}
                     {/* -------------------------------------------------------- */}
 
@@ -7644,6 +7675,151 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
         );
     };
 
+    // --- TAHAP 3: STASIUN UJI KUALITAS (APPRAISAL SCREENING) ---
+    const renderAppraisal = () => {
+        const targetStatus = 'fulltext_included';
+        const studyToScreen = prismaState.studies.find(s => s.screeningStatus === targetStatus);
+
+        if (!studyToScreen) {
+            return (
+                <div className="text-center p-8">
+                    <p className="text-lg text-teal-600 font-semibold">Tahap Uji Kualitas selesai!</p>
+                    <p className="text-gray-600 mt-2">Semua studi yang layak secara teks telah diuji kualitasnya.</p>
+                </div>
+            );
+        }
+
+        const total = prismaState.studies.filter(s => ['fulltext_included', 'appraisal_included', 'appraisal_excluded'].includes(s.screeningStatus)).length;
+        const remainingToScreen = prismaState.studies.filter(s => s.screeningStatus === targetStatus).length;
+        const screened = total - remainingToScreen;
+
+        return (
+            <div>
+                {/* Header */}
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-semibold text-gray-800">Critical Appraisal (Uji Kualitas JBI/CASP)</h3>
+                </div>
+
+                {/* JBI INFO BOX (Dipindahkan ke sini) */}
+                <div className="mb-6 p-4 bg-teal-50 border border-teal-200 rounded-lg animate-fade-in">
+                     <h3 className="text-lg font-bold text-teal-800 flex items-center gap-2 mb-2">
+                         💡 Validasi Kualitas JBI (Langkah Wajib Q1)
+                     </h3>
+                     <p className="text-sm text-teal-700 leading-relaxed mb-3">
+                         Nilai risiko bias artikel ini bersama 1 pakar independen lainnya menggunakan <strong>JBI/CASP Checklist</strong> di luar aplikasi. Jika sudah berdiskusi, masukkan skor akhirnya pada formulir di bawah ini untuk dilanjutkan ke tahap ekstraksi data.
+                         <br/><br/>
+                         <em>Alternatif:</em> Gunakan <strong>Aplikasi Satelit JBI</strong> untuk mengekspor catatan rapat konsensus tim Anda secara otomatis.
+                     </p>
+                     <a 
+                         href="https://jbi.global/critical-appraisal-tools" 
+                         target="_blank" 
+                         rel="noopener noreferrer"
+                         className="inline-flex items-center text-teal-600 hover:text-teal-800 text-xs font-bold underline"
+                     >
+                         Unduh Format JBI Checklist Resmi ↗
+                     </a>
+                 </div>
+
+                {/* Progress bar */}
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                    <div className="bg-teal-600 h-2.5 rounded-full" style={{ width: `${(screened / total) * 100}%` }}></div>
+                </div>
+                <p className="text-sm text-gray-600 mb-4 text-center">Progress: {screened} / {total}</p>
+
+                {/* Paper Details */}
+                <div className="p-4 border rounded-lg bg-white">
+                    <h4 className="font-bold text-lg text-gray-800">{studyToScreen.title}</h4>
+                    <p className="text-sm text-gray-600 my-2">{studyToScreen.author} ({studyToScreen.year})</p>
+                    <p className="text-xs italic text-gray-500">{studyToScreen.journal?.name || studyToScreen.journal}</p>
+                    {studyToScreen.doi && <a href={`https://doi.org/${studyToScreen.doi}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">DOI: {studyToScreen.doi}</a>}
+                    
+                    <div className="mt-4">
+                        <button onClick={() => toggleAbstract(studyToScreen.id)} className="text-xs text-blue-600 hover:underline font-semibold">
+                            {expandedAbstractId === studyToScreen.id ? 'Sembunyikan Abstrak / Catatan' : 'Tampilkan Abstrak / Catatan'}
+                        </button>
+                        {expandedAbstractId === studyToScreen.id && (
+                            <div className="mt-2 p-3 bg-gray-50 rounded-md border">
+                                <p className="text-sm text-gray-700 max-h-40 overflow-y-auto leading-relaxed">
+                                    {studyToScreen.abstract || studyToScreen.isiKutipan || "Tidak ada catatan atau abstrak."}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* FORM PENILAIAN JBI */}
+                <div className="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200 shadow-sm">
+                    <h4 className="font-bold text-indigo-800 mb-3 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>
+                        Formulir Penilaian Metodologi
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+                        <div className="md:col-span-1">
+                            <label className="block text-xs font-bold text-indigo-900 mb-1">Skor Kualitas (JBI/CASP):</label>
+                            <input 
+                                type="text" 
+                                value={appraisalForm.score} 
+                                onChange={e => setAppraisalForm({...appraisalForm, score: e.target.value})} 
+                                placeholder="Misal: 8/10 atau Low Risk" 
+                                className="shadow-sm border border-indigo-200 rounded w-full py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 font-semibold text-indigo-800" 
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-bold text-indigo-900 mb-1">Catatan Metodologi / Bias:</label>
+                            <input 
+                                type="text" 
+                                value={appraisalForm.notes} 
+                                onChange={e => setAppraisalForm({...appraisalForm, notes: e.target.value})} 
+                                placeholder="Misal: Metode sampling valid, namun sampel terlalu kecil." 
+                                className="shadow-sm border border-indigo-200 rounded w-full py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 text-gray-700" 
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* BUTTONS */}
+                <div className="mt-6 flex justify-center gap-4 flex-wrap">
+                    <button 
+                        onClick={() => {
+                            if (!appraisalForm.score) {
+                                showInfoModal("Harap isi 'Skor Kualitas' terlebih dahulu sebelum mengekstrak data.");
+                                return;
+                            }
+                            
+                            // Siapkan blank extraction data
+                            const blankExtraction = {};
+                            projectData.synthesisTableColumns.forEach(col => blankExtraction[col.key] = '');
+                            
+                            // PRE-FILL Data Skor ke Kolom Ekstraksi (Penyatuan Workflow)
+                            blankExtraction.qualityScore = `[Skor: ${appraisalForm.score}] - ${appraisalForm.notes}`;
+                            
+                            // Buka Modal Include & Ekstrak
+                            setIncludeModal({ isOpen: true, study: studyToScreen, extraction: blankExtraction });
+                        }} 
+                        disabled={!projectData.isPremium}
+                        className={`font-bold py-2 px-6 rounded-lg shadow-sm flex items-center gap-2 transition-transform transform active:scale-95 ${!projectData.isPremium ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
+                        title={!projectData.isPremium ? "Fitur Premium" : ""}
+                    >
+                        {!projectData.isPremium ? '🔒 Lolos Uji (Premium)' : '✅ Lolos Uji (Include & Ekstrak)'}
+                    </button>
+
+                    <button onClick={() => openExclusionModal(studyToScreen.id, 'appraisal')} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm">
+                        ❌ Gagal (Exclude)
+                    </button>
+
+                    <button onClick={() => handleNavigateStudy(studyToScreen.id, 'prev')} className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg shadow-sm flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fillRule="evenodd" d="M12 8a.5.5 0 0 1-.5.5H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5H11.5a.5.5 0 0 1 .5.5z"/></svg>
+                        Kembali
+                    </button>
+                    <button onClick={() => handleNavigateStudy(studyToScreen.id, 'next')} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg shadow-sm flex items-center gap-2">
+                        Lanjutkan
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fillRule="evenodd" d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"/></svg>
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     const renderReview = () => {
         // ... (Existing code for renderReview)
         const reviewLists = [
@@ -7651,6 +7827,9 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
             { status: 'abstract_included', label: 'Diterima (Abstrak)', revertTo: 'unscreened' },
             { status: 'fulltext_excluded', label: 'Ditolak (Full-Text)', revertTo: 'abstract_included' },
             { status: 'fulltext_included', label: 'Diterima (Full-Text)', revertTo: 'abstract_included' },
+            // --- TAHAP 3: TAMBAHKAN LIST UNTUK APPRAISAL ---
+            { status: 'appraisal_excluded', label: 'Ditolak (Appraisal)', revertTo: 'fulltext_included' },
+            { status: 'appraisal_included', label: 'Diterima (Sintesis Akhir)', revertTo: 'fulltext_included' },
         ];
 
         const studiesToList = reviewingList
@@ -8004,6 +8183,18 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
             case 'setup': return renderSetup();
             case 'abstract_screening': return renderScreening('abstract');
             case 'fulltext_screening': return renderScreening('fulltext');
+            case 'appraisal_screening': // <-- TAHAP 2: Placeholder UI untuk Fase 3
+                return (
+                    <div className="text-center p-10 mt-6 bg-teal-50 border-2 border-dashed border-teal-300 rounded-xl animate-fade-in shadow-sm">
+                        <span className="text-5xl mb-4 block">⚖️</span>
+                        <h3 className="text-2xl font-bold text-teal-800 mb-3">Fase 3: Critical Appraisal (Uji Kualitas JBI)</h3>
+                        <p className="text-teal-700 max-w-xl mx-auto leading-relaxed">
+                            Antarmuka Stasiun Uji Kualitas sedang dalam tahap konstruksi (Menunggu Eksekusi Tahap 3).<br/><br/>
+                            Di sinilah Anda nantinya akan menilai bias metodologi paper yang lolos dari tahap kelayakan <i>Full-Text</i>, 
+                            sebelum mereka diizinkan masuk ke tabel sintesis akhir.
+                        </p>
+                    </div>
+                );
             case 'review': return renderReview();
             case 'results': return renderResults();
             default: return renderSetup();
@@ -8019,10 +8210,11 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                  <div className="flex overflow-x-auto no-scrollbar gap-2 flex-grow">
                      {/* Array menu didefinisikan secara manual untuk mencegah error rendering */}
                      {prismaState.isInitialized && [
-                         { id: 'abstract_screening', label: 'Abstract Screening' },
-                         { id: 'fulltext_screening', label: 'Fulltext Screening' },
-                         { id: 'review', label: 'Review' }, // Menu Review dipastikan ada di sini
-                         { id: 'results', label: 'Results' }
+                         { id: 'abstract_screening', label: '1. Abstract Screening' },
+                         { id: 'fulltext_screening', label: '2. Full-Text (Eligibility)' },
+                         { id: 'appraisal_screening', label: '3. Quality Appraisal' }, // <-- TAHAP 2: Menu Baru Ditambahkan
+                         { id: 'review', label: 'Review & Revisi' }, 
+                         { id: 'results', label: 'Diagram PRISMA' }
                      ].map(menuItem => (
                         <button 
                             key={menuItem.id}
@@ -8227,16 +8419,18 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
             {/* --------------------------------------- */}
 
             {exclusionModal.isOpen && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50 p-4">
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-[110] p-4">
                     <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full">
                         <h3 className="text-xl font-semibold mb-4 text-gray-800">Alasan Pengecualian</h3>
                         <div className="space-y-2">
-                            {(exclusionModal.screeningType === 'abstract' ? prismaState.exclusionReasons.abstract : prismaState.exclusionReasons.fulltext).map(reason => (
+                            {/* --- BUG FIX TAHAP 3: Render Dinamis Menggunakan Array Lokal --- */}
+                            {(EXCLUSION_REASONS[exclusionModal.screeningType] || []).map(reason => (
                                 <label key={reason} className="flex items-center">
                                     <input type="radio" name="exclusionReason" value={reason} checked={exclusionReason === reason} onChange={e => setExclusionReason(e.target.value)} className="h-4 w-4 text-blue-600"/>
                                     <span className="ml-3 text-gray-700">{reason}</span>
                                 </label>
                             ))}
+                            {/* ---------------------------------------------------------------- */}
                         </div>
                         {exclusionReason === 'Lainnya' && (
                              <div className="mt-4">
@@ -8462,15 +8656,13 @@ Gunakan Bahasa Indonesia Akademis yang tajam dan analitis.`;
 
             const newHasilTotal = (projectData.hasilPembahasanDraft || '') + separator + cleanResult;
 
-                setProjectData(p => ({
+            setProjectData(p => ({
                 ...p, 
                 sintesisNaratifDraft: cleanResult,
                 hasilPembahasanDraft: newHasilTotal
             }));
             
-            showInfoModal("Draf narasi berhasil dibuat dan ditambahkan ke Bab Hasil & Pembahasan. Anda akan diarahkan ke sana sekarang.");
-            setCurrentSection('hasil');
-
+            showInfoModal("Sintesis Naratif berhasil dibuat dan ditambahkan ke Draf Hasil & Pembahasan!");
         } catch (error) {
             showInfoModal(`Gagal membuat sintesis naratif: ${error.message}`);
         } finally {
@@ -9133,6 +9325,7 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
     const isElite = projectData ? projectData.showScopus : false;
     const isPremium = projectData ? projectData.isPremium : false; // Ambil status Premium
 
+    // --- TAHAP 1: STANDARDISASI ARRAY ADD-ON (Sentralisasi Data) ---
     const addons = [
         {
             name: "Audiocobra",
@@ -9146,7 +9339,7 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
                 </svg>
             ),
             color: "bg-pink-50 border-pink-200",
-            premiumOnly: true // Kunci untuk Free
+            accessTier: "premium"
         },
         {
             name: "Cobrasaurus",
@@ -9158,7 +9351,7 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
                 </svg>
             ),
             color: "bg-green-50 border-green-200",
-            premiumOnly: true // Kunci untuk Free
+            accessTier: "premium"
         },
         {
             name: "Cobralysis",
@@ -9172,7 +9365,20 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
                 </svg>
             ),
             color: "bg-blue-50 border-blue-200",
-            premiumOnly: true
+            accessTier: "premium"
+        },
+        {
+            name: "Cobrauditor",
+            description: "Mesin audit saturasi literatur untuk mengecek celah (gap) pada referensi Anda.",
+            url: "https://cobrauditor.netlify.app/",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" className="text-red-600" viewBox="0 0 16 16">
+                    <path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.775 11.775 0 0 1-2.517 2.453 7.159 7.159 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7.158 7.158 0 0 1-1.048-.625 11.777 11.777 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 62.456 62.456 0 0 1 5.072.56z"/>
+                    <path d="M10.854 5.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 7.793l2.646-2.647a.5.5 0 0 1 .708 0z"/>
+                </svg>
+            ),
+            color: "bg-red-50 border-red-200",
+            accessTier: "premium"
         },
         {
             name: "Cobra Pemburu",
@@ -9184,12 +9390,9 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
                 </svg>
             ),
             color: "bg-purple-50 border-purple-200",
-            premiumOnly: true
-        }
-    ];
-
-    if (isElite) {
-        addons.push({
+            accessTier: "premium"
+        },
+        {
             name: "Venom Converter",
             description: "Konversi referensi Scopus AI/WoS ke format standar Bibliocobra.",
             url: "https://venom-reference-converter.vercel.app/",
@@ -9200,9 +9403,10 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
             ),
             color: "bg-orange-50 border-orange-200",
             badge: "Elite Only",
-            premiumOnly: false // Sudah dilindungi oleh blok if(isElite)
-        });
-    }
+            accessTier: "elite"
+        }
+    ];
+    // --- AKHIR TAHAP 1 ---
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
@@ -9260,14 +9464,45 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {addons.map((addon, index) => {
-                        // Logika Kunci untuk Free User
-                        const isLocked = addon.premiumOnly && !isPremium;
+                        // --- TAHAP 2: LOGIKA GEMBOK DINAMIS (Paywall Mechanism) ---
+                        let isLocked = false;
+                        if (addon.accessTier === 'elite') {
+                            isLocked = !isElite; // Mutlak hanya terbuka jika punya akses Elite
+                        } else if (addon.accessTier === 'premium') {
+                            isLocked = !(isPremium || isElite); // Terbuka untuk Premium ATAU Elite
+                        }
+                        // ----------------------------------------------------------
                         
                         const commonClasses = `block p-4 rounded-xl border transition-all relative group h-full flex flex-col text-left w-full ${
                             isLocked 
-                                ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-75' 
+                                ? 'bg-gray-100 border-gray-200 cursor-not-allowed opacity-75 hover:opacity-90' 
                                 : `bg-white hover:shadow-lg hover:-translate-y-1 transform ${addon.color}`
                         }`;
+
+                        // --- TAHAP 3: LOGIKA LENCANA VISUAL (UX Feedback) ---
+                        let badgeUI = null;
+                        if (isLocked) {
+                            if (addon.accessTier === 'elite') {
+                                badgeUI = (
+                                    <span className="absolute top-3 right-3 text-[10px] bg-purple-800 text-purple-100 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm border border-purple-600">
+                                        🔒 ELITE ONLY
+                                    </span>
+                                );
+                            } else {
+                                badgeUI = (
+                                    <span className="absolute top-3 right-3 text-[10px] bg-yellow-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                                        🔒 PREMIUM
+                                    </span>
+                                );
+                            }
+                        } else if (addon.badge) {
+                            badgeUI = (
+                                <span className="absolute top-3 right-3 text-[10px] bg-gray-800 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">
+                                    {addon.badge}
+                                </span>
+                            );
+                        }
+                        // --------------------------------------------------
 
                         const cardContent = (
                             <>
@@ -9280,27 +9515,15 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
                                     </h4>
                                 </div>
                                 
-                                {/* Badge Elite */}
-                                {addon.badge && (
-                                    <span className="absolute top-3 right-3 text-[10px] bg-gray-800 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                                        {addon.badge}
-                                    </span>
-                                )}
-                                
-                                {/* Badge Premium Lock */}
-                                {isLocked && (
-                                    <span className="absolute top-3 right-3 text-[10px] bg-yellow-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
-                                        PREMIUM
-                                    </span>
-                                )}
+                                {/* Tampilkan Lencana Dinamis */}
+                                {badgeUI}
 
                                 <p className="text-xs text-gray-600 mb-4 flex-grow leading-relaxed">
                                     {addon.description}
                                 </p>
                                 
                                 <div className={`flex items-center text-xs font-semibold mt-auto ${isLocked ? 'text-gray-400' : 'text-teal-700 group-hover:text-teal-900'}`}>
-                                     {isLocked ? '🔒 Terkunci (Upgrade)' : 'Buka Aplikasi'}
+                                     {isLocked ? 'Terkunci (Klik untuk Akses)' : 'Buka Aplikasi'}
                                      {!isLocked && (
                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -9311,15 +9534,21 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
                         );
 
                         if (isLocked) {
+                            // --- TAHAP 3 REVISI: LANGSUNG KE WHATSAPP TANPA POPUP ---
+                            const waText = addon.accessTier === 'elite' 
+                                ? `Halo Admin, saya ingin upgrade lisensi ke Elite untuk mengakses add-on ${addon.name}.`
+                                : `Halo Admin, saya pengguna Free, saya ingin upgrade lisensi ke Premium untuk mengakses add-on ${addon.name}.`;
+
                             return (
-                                <button
+                                <a
                                     key={index}
-                                    type="button"
-                                    onClick={() => showInfoModal("Fitur ini khusus untuk pengguna Premium/Elite.")}
+                                    href={`https://wa.me/6285123048010?text=${encodeURIComponent(waText)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                     className={commonClasses}
                                 >
                                     {cardContent}
-                                </button>
+                                </a>
                             );
                         }
 
@@ -12604,12 +12833,20 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
 
     const handleExportProject = () => {
         try {
-            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(projectData, null, 2))}`;
+            // --- PERBAIKAN FATAL: MENGGUNAKAN BLOB API ---
+            const jsonString = JSON.stringify(projectData, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
             const link = document.createElement("a");
-            link.href = jsonString;
+            link.href = url;
             const date = new Date().toISOString().slice(0, 10);
             link.download = `bibliocobra_project_${date}.json`;
             link.click();
+            
+            // Bersihkan memori setelah mengunduh
+            URL.revokeObjectURL(url);
+            // ---------------------------------------------
         } catch (error) {
             showInfoModal("Gagal mengekspor proyek.");
         }
@@ -12680,16 +12917,58 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
     
     const handleExportReferences = () => {
         try {
-            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(projectData.allReferences, null, 2))}`;
+            // --- PERBAIKAN FATAL: MENGGUNAKAN BLOB API ---
+            const jsonString = JSON.stringify(projectData.allReferences, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+
             const link = document.createElement("a");
-            link.href = jsonString;
+            link.href = url;
             const date = new Date().toISOString().slice(0, 10);
             link.download = `bibliocobra_references_${date}.json`;
             link.click();
+            
+            // Bersihkan memori setelah mengunduh
+            URL.revokeObjectURL(url);
+            // ---------------------------------------------
         } catch (error) {
             showInfoModal("Gagal mengekspor referensi.");
         }
     };
+
+    // --- FUNGSI BARU: EKSPOR CLUE REFERENSI KE JSON ---
+    const handleExportClues = () => {
+        if (!projectData.aiReferenceClues) {
+            showInfoModal("Tidak ada clue referensi untuk diekspor.");
+            return;
+        }
+        try {
+            // --- TAHAP 1: INVISIBLE CONTEXT INJECTION (SMART OBJECT) ---
+            // Kita membungkus clue array dengan konteks Judul/Topik
+            const exportPayload = {
+                judul_riset: projectData.judulKTI || projectData.topikTema || "Penelitian Tanpa Judul",
+                target_pencarian: projectData.aiReferenceClues
+            };
+            
+            // --- PERBAIKAN FATAL: MENGGUNAKAN BLOB API ---
+            const jsonString = JSON.stringify(exportPayload, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement("a");
+            link.href = url;
+            const date = new Date().toISOString().slice(0, 10);
+            link.download = `bibliocobra_clues_${date}.json`;
+            link.click();
+            
+            // Bersihkan memori setelah mengunduh
+            URL.revokeObjectURL(url);
+            // ---------------------------------------------
+        } catch (error) {
+            showInfoModal("Gagal mengekspor clue referensi.");
+        }
+    };
+    // ---------------------------------------------------
 
     const triggerReferencesImport = () => importReferencesInputRef.current.click();
 
@@ -12777,6 +13056,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     handleCopyToClipboard, 
                     handleShowSearchPrompts, 
                     handleGenerateReferenceClues, 
+                    handleExportClues, // <-- TAMBAHAN PROP BARU DILEWATKAN KE KOMPONEN
                     isLoading, 
                     openNoteModal, 
                     triggerReferencesImport, 
