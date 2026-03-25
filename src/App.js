@@ -6685,6 +6685,10 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
     const [selectedPrismaIds, setSelectedPrismaIds] = useState([]);
     // --------------------------------------------------------
 
+    // --- STATE BARU UNTUK DOKTRIN SOP PRISMA ---
+    const [isSopOpen, setIsSopOpen] = useState(false);
+    // -------------------------------------------
+
     // --- EFEK BARU: OTOMATIS PILIH RIS (AUTO-INCLUDE) ---
     useEffect(() => {
         // Hanya jalankan jika PRISMA belum diinisialisasi (masih tahap Setup)
@@ -6814,19 +6818,30 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
         });
     };
     // ----------------------------------------
+    
+    // --- REVISI METODOLOGI (MODE TIRAN): CEGAH BYPASS JBI ---
     const handleAcceptAiRecommendation = () => {
         const targetStudy = prismaState.studies.find(s => s.screeningStatus === 'abstract_included');
         if (targetStudy && fulltextAnalysis && fulltextAnalysis.extraction) {
             setShowFulltextModal(false);
-            setIncludeModal({ 
-                isOpen: true, 
-                study: targetStudy, 
-                extraction: fulltextAnalysis.extraction 
+            
+            setProjectData(p => {
+                const updatedStudies = p.prismaState.studies.map(s =>
+                    s.id === targetStudy.id ? { 
+                        ...s, 
+                        screeningStatus: 'fulltext_included', // PAKSA PINDAH KE TAB 3 (APPRAISAL)
+                        aiExtractionCache: fulltextAnalysis.extraction // SIMPAN DATA SEMENTARA (CACHE)
+                    } : s
+                );
+                return { ...p, prismaState: { ...p.prismaState, studies: updatedStudies } };
             });
+            
+            showInfoModal("Artikel diloloskan ke tahap Uji Kualitas. Sesuai standar PRISMA & JBI, data ekstraksi AI telah diamankan sementara dan akan dimunculkan setelah Anda menyelesaikan Critical Appraisal manusia.");
         } else {
             showInfoModal("Gagal memuat data ekstraksi AI atau dokumen tidak ditemukan.");
         }
     };
+    // --------------------------------------------------------
 
     // --- FUNGSI BARU: ANALISIS FULLTEXT ---
     const handleAnalyzeFulltext = async () => {
@@ -7711,12 +7726,12 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                          <em>Alternatif:</em> Gunakan <strong>Aplikasi Satelit JBI</strong> untuk mengekspor catatan rapat konsensus tim Anda secara otomatis.
                      </p>
                      <a 
-                         href="https://jbi.global/critical-appraisal-tools" 
+                         href="https://jbi-checklist.netlify.app/" 
                          target="_blank" 
                          rel="noopener noreferrer"
                          className="inline-flex items-center text-teal-600 hover:text-teal-800 text-xs font-bold underline"
                      >
-                         Unduh Format JBI Checklist Resmi ↗
+                         Gunakan Format JBI Checklist Resmi ↗
                      </a>
                  </div>
 
@@ -7786,15 +7801,23 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                                 return;
                             }
                             
-                            // Siapkan blank extraction data
-                            const blankExtraction = {};
-                            projectData.synthesisTableColumns.forEach(col => blankExtraction[col.key] = '');
+                            // --- REVISI METODOLOGI: Ambil dari Cache AI jika ada ---
+                            const baseExtraction = studyToScreen.aiExtractionCache || {};
+                            const blankExtraction = { ...baseExtraction };
+                            
+                            // Pastikan semua kolom template tetap terisi (fallback string kosong jika AI gagal menangkap suatu kolom)
+                            projectData.synthesisTableColumns.forEach(col => {
+                                if (blankExtraction[col.key] === undefined) {
+                                    blankExtraction[col.key] = '';
+                                }
+                            });
                             
                             // PRE-FILL Data Skor ke Kolom Ekstraksi (Penyatuan Workflow)
                             blankExtraction.qualityScore = `[Skor: ${appraisalForm.score}] - ${appraisalForm.notes}`;
                             
-                            // Buka Modal Include & Ekstrak
+                            // Buka Modal Include & Ekstrak (Dengan pre-fill AI dan Skor Manusia)
                             setIncludeModal({ isOpen: true, study: studyToScreen, extraction: blankExtraction });
+                            // -------------------------------------------------------
                         }} 
                         disabled={!projectData.isPremium}
                         className={`font-bold py-2 px-6 rounded-lg shadow-sm flex items-center gap-2 transition-transform transform active:scale-95 ${!projectData.isPremium ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
@@ -8197,6 +8220,58 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
         <div className="p-6 bg-white rounded-lg shadow-md animate-fade-in">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Generator PRISMA SLR</h2>
             
+            {/* --- INJEKSI DOKTRIN METODOLOGI (SOP ACCORDION) DIPINDAHKAN KE SINI --- */}
+            <div className="mb-6 border border-teal-200 rounded-lg bg-white shadow-sm overflow-hidden transition-all duration-300">
+                <button 
+                    onClick={() => setIsSopOpen(!isSopOpen)} 
+                    className={`w-full flex justify-between items-center p-4 text-left transition-colors duration-200 ${isSopOpen ? 'bg-teal-50 border-b border-teal-200' : 'hover:bg-teal-50'}`}
+                >
+                    <span className="font-bold text-teal-900 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 1.002C3.84 1.002 0 4.15 0 8.002s3.84 7 8 7 8-3.148 8-7-3.84-6.998-8-6.998zm0 1.5c3.27 0 6 2.414 6 5.5s-2.73 5.5-6 5.5-6-2.414-6-5.5 2.73-5.5 6-5.5zm-.5 3a.5.5 0 0 1 1 0v4a.5.5 0 0 1-1 0v-4zm.5 6.5a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z"/>
+                        </svg>
+                        📖 Standar Operasional & Doktrin Metodologi SLR
+                    </span>
+                    <ChevronDownIcon isOpen={isSopOpen} />
+                </button>
+                {isSopOpen && (
+                    <div className="p-5 bg-teal-50/30 text-sm text-gray-800 leading-relaxed animate-fade-in border-l-4 border-teal-500 mx-4 my-4 rounded-r-lg shadow-inner">
+                        <p className="mb-4 font-semibold text-teal-800 italic">
+                            "Agar proses systematic literature review berjalan lebih tertib dan dapat dipertanggungjawabkan, Bibliocobra menempatkan critical appraisal sebagai tahapan wajib setelah full-text eligibility assessment dan sebelum studi dinyatakan siap masuk ke sintesis akhir."
+                        </p>
+                        <ol className="list-decimal list-outside ml-5 space-y-3">
+                            <li>
+                                <strong>Full-Text Eligibility Assessment:</strong><br/>
+                                Setelah artikel lolos screening abstrak, tim melakukan pembacaan full-text untuk memastikan kesesuaian topik, desain, dan konteks studi dengan kriteria inklusi protokol riset.
+                            </li>
+                            <li>
+                                <strong>Antrean Critical Appraisal (Pencegahan Bias):</strong><br/>
+                                Artikel yang eligible tidak langsung disintesis. Studi dipindahkan ke antrean <em>Quality Appraisal</em> untuk dinilai kualitas metodologisnya menggunakan instrumen baku (seperti JBI Checklist). Ini memastikan studi yang dipakai memiliki bukti empiris yang kuat.
+                            </li>
+                            <li>
+                                <strong>Penggunaan Alat Appraisal:</strong><br/>
+                                Hasil appraisal (jawaban per item, kelemahan/potensi bias, dan keputusan final) didokumentasikan. Skor internal hanya digunakan sebagai ringkasan operasional, bukan pengganti penilaian substantif manusia.
+                            </li>
+                            <li>
+                                <strong>Ekstraksi Data Setelah Appraisal:</strong><br/>
+                                Formulir ekstraksi data (Tabel Sintesis) HANYA dapat dibuka setelah tahap <em>critical appraisal</em> selesai. Ini menjamin data yang diekstrak berasal dari studi yang relevan DAN berkualitas.
+                            </li>
+                            <li>
+                                <strong>Status Final Studi:</strong><br/>
+                                Suatu studi baru dapat dianggap <em>final included for synthesis</em> setelah:
+                                <ul className="list-disc list-outside ml-5 mt-2 space-y-1 font-medium text-teal-900">
+                                    <li>lolos screening judul dan abstrak,</li>
+                                    <li>lolos full-text eligibility assessment, dan</li>
+                                    <li>selesai melalui critical appraisal sesuai prosedur review.</li>
+                                </ul>
+                                <p className="mt-2">Struktur ini membantu memastikan bahwa proses review berjalan secara lebih transparan, konsisten, dan siap dilaporkan dalam manuskrip systematic review.</p>
+                            </li>
+                        </ol>
+                    </div>
+                )}
+            </div>
+            {/* -------------------------------------------------- */}
+
             {/* --- UPDATE NAVIGATION BAR: Pastikan Menu 'Review' Muncul --- */}
             <div className="flex border-b mb-6 justify-between items-center bg-white sticky top-0 z-10 pb-2">
                  <div className="flex overflow-x-auto no-scrollbar gap-2 flex-grow">
@@ -8390,12 +8465,19 @@ ${study.abstract || study.isiKutipan || 'Tidak ada abstrak.'}`;
                                     {/* TOMBOL AKSI CERDAS */}
                                     <div className="mt-6">
                                         {fulltextAnalysis.recommendation === 'INCLUDE' ? (
-                                            <button 
-                                                onClick={handleAcceptAiRecommendation}
-                                                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg shadow flex items-center justify-center gap-2"
-                                            >
-                                                <span>✨ Terima & Lanjut ke Formulir Ekstraksi</span>
-                                            </button>
+                                            <>
+                                                {/* --- INFO BOX ANTI-BYPASS METODOLOGI --- */}
+                                                <div className="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-800 text-xs rounded leading-relaxed shadow-sm">
+                                                    <strong className="block mb-1 text-sm">Validasi Metodologi (Q1):</strong> 
+                                                    Sesuai standar PRISMA 2020 dan JBI, AI bertugas membantu ekstraksi, namun <b>dilarang keras</b> mem-<i>bypass</i> uji kelayakan bias (Risk of Bias) tanpa supervisi manusia. Anda tetap diwajibkan melakukan <i>Critical Appraisal</i> di tab selanjutnya.
+                                                </div>
+                                                <button 
+                                                    onClick={handleAcceptAiRecommendation}
+                                                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-lg shadow flex items-center justify-center gap-2 transition-transform transform active:scale-95"
+                                                >
+                                                    <span>✨ Terima & Lanjut ke Uji Kualitas (Wajib)</span>
+                                                </button>
+                                            </>
                                         ) : (
                                             <p className="text-xs text-center text-red-600 font-semibold italic">
                                                 AI menyarankan untuk menolak artikel ini. Klik tombol "Exclude" di layar utama.
