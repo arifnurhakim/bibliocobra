@@ -8901,10 +8901,6 @@ const SintesisData = ({ projectData, setProjectData, showInfoModal, geminiApiKey
     const [isAutoExtracting, setIsAutoExtracting] = useState(false);
     const autoExtractRef = useRef(null);
     // ----------------------------------------------------------
-
-    // --- STATE BARU UNTUK PROTEKSI MASSAL (LAPIS 3) ---
-    const [isClearTableConfirmOpen, setIsClearTableConfirmOpen] = useState(false);
-    // --------------------------------------------------
     
     // --- STATE BARU UNTUK MODAL HAPUS BARIS ---
     const [itemToDelete, setItemToDelete] = useState(null);
