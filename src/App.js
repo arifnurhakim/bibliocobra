@@ -10530,10 +10530,9 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
         // --- PERUBAHAN TAHAP 1: PROMPT SUMBER STATISTIK ---
         const prompt = `Anda adalah peneliti level Q1. Cari FAKTA EMPIRIS, DATA STATISTIK TERBARU, atau FENOMENA NYATA mengenai masalah dalam topik: "${projectData.topikTema}". Rangkum dan susun menjadi 2-3 kalimat lugas yang secara tegas menunjukkan adanya 'Masalah' (kesenjangan antara harapan dan kenyataan). 
         
-ATURAN MUTLAK:
 1. JIKA Anda menyajikan angka statistik, persentase, atau peringkat, Anda WAJIB menyebutkan nama lembaga, institusi, atau laporan resmi yang merilisnya di dalam kalimat tersebut (Contoh: "Menurut laporan Oxford Insights 2024..." atau "Berdasarkan data BPS 2023..."). DILARANG memberikan angka tanpa sumber yang jelas.
-2. Jangan bertele-tele dan jangan menggunakan bahasa hiperbolis.`;
-        // ---------------------------------------------------
+2. Anda WAJIB menyertakan URL sumber asli atau nama dokumen resmi di akhir kalimat dalam kurung siku. Contoh: [Sumber: https://... atau Laporan Tahunan Bappenas 2023].
+3. Jangan bertele-tele dan jangan menggunakan bahasa hiperbolis.`;        // ---------------------------------------------------
 
         try {
             // EKSEKUSI DENGAN GOOGLE SEARCH GROUNDING
