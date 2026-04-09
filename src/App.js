@@ -93,11 +93,14 @@ const initialProjectData = {
     deskripsiRespondenDraft: '',
     analisisKuantitatifHasil: '',
     analisisKuantitatifDraft: '',
+    statusAnalisisKuantitatif: false,
     analisisKualitatifHasil: null,
     analisisKualitatifDraft: '',
+    statusAnalisisKualitatif: false,
     deskripsiVisualisasi: '',
     interpretasiData: '',
     analisisVisualDraft: '',
+    statusAnalisisVisual: false,
     analisisGapNoveltyDraft: '', 
     // ---------------------------------------
     thematicMapData: null, // <-- Penambahan State untuk Peta Tematik (Langkah 1)
@@ -3425,13 +3428,17 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
     const isPremium = projectData.isPremium;
 
     const availableDrafts = [
-        { key: 'analisisKuantitatifDraft', name: 'Analisis Kuantitatif' },
-        { key: 'analisisKualitatifDraft', name: 'Analisis Kualitatif' },
-        { key: 'analisisVisualDraft', name: 'Analisis Visual' },
+        { key: 'analisisKuantitatifDraft', statusKey: 'statusAnalisisKuantitatif', name: 'Analisis Kuantitatif' },
+        { key: 'analisisKualitatifDraft', statusKey: 'statusAnalisisKualitatif', name: 'Analisis Kualitatif' },
+        { key: 'analisisVisualDraft', statusKey: 'statusAnalisisVisual', name: 'Analisis Visual' },
     ];
 
-    const readyDrafts = availableDrafts.filter(d => projectData[d.key] && projectData[d.key].trim() !== '');
-    const isReady = readyDrafts.length > 0;
+    const readyDrafts = availableDrafts.filter(d => (projectData[d.key] && projectData[d.key].trim() !== '') || projectData[d.statusKey] === true);
+    
+    // --- TAMBAHAN LOGIKA BYPASS ---
+    const hasDirectAnalysis = projectData.hasilPembahasanDraft && projectData.hasilPembahasanDraft.trim().length > 10;
+    const isReady = readyDrafts.length > 0 || hasDirectAnalysis;
+    // -----------------------------
 
     const isSLR = projectData.metode && (
         projectData.metode.toLowerCase().includes('slr') ||
@@ -3460,7 +3467,7 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                         <p className="text-sm text-gray-700 mb-4">Fitur ini akan menyintesis draf analisis yang telah Anda simpan. Pastikan setidaknya satu draf analisis sudah selesai sebelum melanjutkan.</p>
                         <ul className="space-y-2">
                             {availableDrafts.map(draft => {
-                                const hasContent = projectData[draft.key] && projectData[draft.key].trim() !== '';
+                                const hasContent = (projectData[draft.key] && projectData[draft.key].trim() !== '') || projectData[draft.statusKey] === true;
                                 return (
                                     <li key={draft.key} className="flex items-center text-sm">
                                         <span className={`mr-2 ${hasContent ? 'text-green-500' : 'text-red-500'}`}>{hasContent ? '✅' : '❌'}</span>
@@ -3468,6 +3475,13 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                                     </li>
                                 );
                             })}
+                            {/* --- TAMBAHAN VISUAL BYPASS --- */}
+                            {hasDirectAnalysis && readyDrafts.length === 0 && (
+                                <li className="flex items-center text-sm font-semibold text-green-700 mt-2 pt-2 border-t border-blue-200">
+                                    <span className="mr-2">✅</span> Data analisis terdeteksi langsung di Draf Hasil & Pembahasan.
+                                </li>
+                            )}
+                            {/* ------------------------------ */}
                         </ul>
                     </div>
 
@@ -4908,7 +4922,8 @@ const AnalisisKuantitatif = ({
       return {
           ...p,
           [targetDraftKey]: oldDraftContent + newContent, // <-- Update draf yang ditargetkan
-          analisisKuantitatifHasil: '' // Reset hasil sementara
+          analisisKuantitatifHasil: '', // Reset hasil sementara
+          statusAnalisisKuantitatif: true
       };
     });
 
@@ -5156,7 +5171,8 @@ const AnalisisKualitatif = ({
     setProjectData(p => ({
         ...p,
         [targetDraft]: (p[targetDraft] || '') + newContent,
-        analisisKualitatifHasil: null
+        analisisKualitatifHasil: null,
+        statusAnalisisKualitatif: true
     }));
 
     setFileName('');
@@ -5395,7 +5411,8 @@ const AnalisisVisual = ({ projectData, setProjectData, handleGenerateAnalisisVis
         ...p,
         [targetDraftKey]: oldDraftContent + newContent,
         deskripsiVisualisasi: '',
-        interpretasiData: ''
+        interpretasiData: '',
+        statusAnalisisVisual: true
       };
     });
 
