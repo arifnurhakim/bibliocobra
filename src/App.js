@@ -436,8 +436,8 @@ const geminiService = {
         // Konfigurasi Retry & Fallback
         const MAX_RETRIES = 5; 
         const INITIAL_BACKOFF_MS = 5000; 
-        const PRO_MODEL = 'gemini-2.5-flash'; // Flash sebagai utama untuk RPM tinggi
-        const FLASH_MODEL = 'gemini-2.5-flash';
+        const PRO_MODEL = 'gemini-3-flash-preview'; 
+        const FLASH_MODEL = 'gemini-3.1-flash-lite-preview'; // Flash sebagai utama untuk RPM tinggi
         const FALLBACK_ATTEMPT_THRESHOLD = 2; // Pindah ke Flash setelah 2x gagal
 
         const parts = [{ text: prompt }];
