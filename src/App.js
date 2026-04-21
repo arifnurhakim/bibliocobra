@@ -121,6 +121,9 @@ const initialProjectData = {
     kataKunciFinalEN: '',
     // -------------------------------------------------------------
     
+    // Konfigurasi Sistem
+    aiModelVersion: 'v3', // <-- TAMBAHAN BARU: Default ke Gemini 3
+
     // Status Akun (Sistem Lisensi)
     isPremium: false, // Default terkunci
 };
@@ -433,12 +436,22 @@ const geminiService = {
             throw new Error("Kunci API Google AI belum dimasukkan. Silakan tambahkan minimal satu kunci API.");
         }
 
+        // Ambil versi model dari Local Storage (Default ke v3 jika kosong)
+        const selectedVersion = localStorage.getItem('gemini-model-version') || 'v3';
+
         // Konfigurasi Retry & Fallback
         const MAX_RETRIES = 5; 
         const INITIAL_BACKOFF_MS = 5000; 
-        const PRO_MODEL = 'gemini-3-flash-preview'; 
-        const FLASH_MODEL = 'gemini-3.1-flash-lite-preview'; // Flash sebagai utama untuk RPM tinggi
         const FALLBACK_ATTEMPT_THRESHOLD = 2; // Pindah ke Flash setelah 2x gagal
+
+        let PRO_MODEL = 'gemini-3-flash-preview'; 
+        let FLASH_MODEL = 'gemini-3.1-flash-lite-preview'; // Flash sebagai utama untuk RPM tinggi
+
+        // Modifikasi Jika User Memilih Versi 2.5
+        if (selectedVersion === 'v2.5') {
+            PRO_MODEL = 'gemini-2.5-pro';
+            FLASH_MODEL = 'gemini-2.5-flash-lite';
+        }
 
         const parts = [{ text: prompt }];
         if (image) {
@@ -10484,6 +10497,12 @@ const setGeminiApiKey = (val) => {
             }
 
             if (savedScopusKey) setScopusApiKey(savedScopusKey);
+
+            // --- TAMBAHAN BARU: Pemulihan Model AI ---
+            const savedModelVersion = localStorage.getItem('gemini-model-version');
+            if (savedModelVersion) {
+                setProjectData(p => ({ ...p, aiModelVersion: savedModelVersion }));
+            }
         } catch (error) {
             console.error("Gagal memuat data dari localStorage:", error);
         }
@@ -14723,6 +14742,24 @@ try {
                                             Tambah Kunci API Cadangan
                                         </button>
                                     </div>
+
+                                    {/* --- TAMBAHAN BARU: DROPDOWN VERSI MODEL AI --- */}
+                                    <div className="mt-4 pt-4 border-t border-purple-300">
+                                        <label className="block text-purple-900 text-xs font-bold mb-2">Versi Mesin AI:</label>
+                                        <select 
+                                            value={projectData.aiModelVersion || 'v3'} 
+                                            onChange={(e) => {
+                                                const newVersion = e.target.value;
+                                                setProjectData(p => ({ ...p, aiModelVersion: newVersion }));
+                                                localStorage.setItem('gemini-model-version', newVersion); // Simpan ke memori lokal
+                                            }}
+                                            className="shadow-sm border-2 border-purple-300 rounded py-1.5 px-3 text-xs font-bold text-purple-800 outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                                        >
+                                            <option value="v3">Gemini 3 Preview</option>
+                                            <option value="v2.5">Gemini 2.5 Stable</option>
+                                        </select>
+                                    </div>
+                                    {/* ------------------------------------------------ */}
                                     {/* ---------------------------------- */}
 
                                     
