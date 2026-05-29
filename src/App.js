@@ -444,13 +444,13 @@ const geminiService = {
         const INITIAL_BACKOFF_MS = 5000; 
         const FALLBACK_ATTEMPT_THRESHOLD = 2; // Pindah ke Flash setelah 2x gagal
 
-        let PRO_MODEL = 'gemini-3-flash-preview'; 
-        let FLASH_MODEL = 'gemini-3.1-flash-lite-preview'; // Flash sebagai utama untuk RPM tinggi
+        let PRO_MODEL = 'gemini-3.5-flash'; 
+        let FLASH_MODEL = 'gemini-3.1-flash-lite'; // Flash sebagai utama untuk RPM tinggi
 
         // Modifikasi Jika User Memilih Versi 2.5
         if (selectedVersion === 'v2.5') {
             PRO_MODEL = 'gemini-2.5-pro';
-            FLASH_MODEL = 'gemini-2.5-flash-lite';
+            FLASH_MODEL = 'gemini-2.5-flash';
         }
 
         const parts = [{ text: prompt }];
@@ -2936,21 +2936,25 @@ const MetodePenelitian = ({ projectData, setProjectData, handleGenerateMetode, i
                 </div>
             )}
 
-            {projectData.metodeDraft && (
-                <div className="mt-6">
-                    <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-lg font-bold text-gray-800">Draf Metode Penelitian</h3>
+            <div className="mt-6">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-bold text-gray-800">Draf Bab Metode</h3>
+                    {projectData.metodeDraft && (
                         <button onClick={() => handleCopyToClipboard(projectData.metodeDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-3 rounded-lg">
                             Salin Teks
                         </button>
-                    </div>
-                    <textarea
-                        value={projectData.metodeDraft}
-                        onChange={(e) => setProjectData(p => ({ ...p, metodeDraft: e.target.value }))}
-                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                        rows="15"
-                    ></textarea>
-                    {/* Fitur Modifikasi Teks */}
+                    )}
+                </div>
+                <textarea
+                    value={projectData.metodeDraft || ''}
+                    onChange={(e) => setProjectData(p => ({ ...p, metodeDraft: e.target.value }))}
+                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    rows="20"
+                    placeholder="Tuliskan draf metode Anda secara manual di sini, atau klik tombol AI di atas untuk menghasilkan metodologi terstruktur..."
+                ></textarea>
+                
+                {/* Fitur Modifikasi Teks */}
+                {projectData.metodeDraft && (
                     <div className="mt-4 pt-4 border-t border-gray-200">
                         <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf {isPremium ? '' : '(Premium Only)'}</h4>
                         <div className="flex flex-wrap gap-2">
@@ -2975,19 +2979,17 @@ const MetodePenelitian = ({ projectData, setProjectData, handleGenerateMetode, i
                             >
                                 {!isPremium ? '🔒 Panjang' : 'Buat Versi Panjang'}
                             </button>
+                            <button 
+                                onClick={() => handleModifyText('humanize', 'metodeDraft')}
+                                disabled={isLoading || !projectData.metodeDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300'}`}
+                            >
+                                {!isPremium ? '🔒 Parafrasa (Premium)' : 'Parafrasa (Humanisasi)'}
+                            </button>
                         </div>
-                        {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
-                        <button 
-                            onClick={() => handleModifyText('humanize', 'metodeDraft')}
-                            disabled={isLoading || !projectData.metodeDraft || !isPremium}
-                            className={`mt-2 text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300'}`}
-                        >
-                            {!isPremium ? '🔒 Parafrasa (Premium)' : 'Parafrasa (Humanisasi)'}
-                        </button>
-                        {/* --- AKHIR TOMBOL BARU --- */}
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 };
@@ -3379,21 +3381,25 @@ const StudiLiteratur = ({
                 </div>
             )}
 
-            {projectData.studiLiteraturDraft && (
-                <div className="mt-6">
-                    <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-lg font-bold text-gray-800">Draf Studi Literatur</h3>
+            <div className="mt-6">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-bold text-gray-800">Draf Studi Literatur</h3>
+                    {projectData.studiLiteraturDraft && (
                         <button onClick={() => handleCopyToClipboard(projectData.studiLiteraturDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-3 rounded-lg">
                             Salin Teks
                         </button>
-                    </div>
-                    <textarea
-                        value={projectData.studiLiteraturDraft}
-                        onChange={(e) => setProjectData(p => ({ ...p, studiLiteraturDraft: e.target.value }))}
-                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                        rows="15"
-                    ></textarea>
-                    {/* Fitur Modifikasi Teks */}
+                    )}
+                </div>
+                <textarea
+                    value={projectData.studiLiteraturDraft || ''}
+                    onChange={(e) => setProjectData(p => ({ ...p, studiLiteraturDraft: e.target.value }))}
+                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    rows="15"
+                    placeholder="Tuliskan kajian pustaka Anda secara mandiri di sini, atau klik tombol AI di atas untuk menyusun sintesis literatur otomatis..."
+                ></textarea>
+                
+                {/* Fitur Modifikasi Teks */}
+                {projectData.studiLiteraturDraft && (
                     <div className="mt-4 pt-4 border-t border-gray-200">
                         <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf {isPremium ? '' : '(Premium Only)'}</h4>
                         <div className="flex flex-wrap gap-2">
@@ -3418,19 +3424,17 @@ const StudiLiteratur = ({
                             >
                                 {!isPremium ? '🔒 Panjang' : 'Buat Versi Panjang'}
                             </button>
+                            <button 
+                                onClick={() => handleModifyText('humanize', 'studiLiteraturDraft')}
+                                disabled={isLoading || !projectData.studiLiteraturDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300'}`}
+                            >
+                                {!isPremium ? '🔒 Parafrasa (Premium)' : 'Parafrasa (Humanisasi)'}
+                            </button>
                         </div>
-                        {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
-                        <button 
-                            onClick={() => handleModifyText('humanize', 'studiLiteraturDraft')}
-                            disabled={isLoading || !projectData.studiLiteraturDraft || !isPremium}
-                            className={`mt-2 text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300'}`}
-                        >
-                            {!isPremium ? '🔒 Parafrasa (Premium)' : 'Parafrasa (Humanisasi)'}
-                        </button>
-                        {/* --- AKHIR TOMBOL BARU --- */}
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 };
@@ -3527,21 +3531,25 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                 </div>
             )}
 
-            {projectData.hasilPembahasanDraft && (
-                 <div className="mt-6">
-                    <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-lg font-bold text-gray-800">Draf Hasil & Pembahasan</h3>
+            <div className="mt-6">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-bold text-gray-800">Draf Hasil & Pembahasan</h3>
+                    {projectData.hasilPembahasanDraft && (
                         <button onClick={() => handleCopyToClipboard(projectData.hasilPembahasanDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-3 rounded-lg">
                             Salin Teks
                         </button>
-                    </div>
-                    <textarea
-                        value={projectData.hasilPembahasanDraft}
-                        onChange={(e) => setProjectData(p => ({ ...p, hasilPembahasanDraft: e.target.value }))}
-                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                        rows="20"
-                    ></textarea>
-                    {/* Fitur Modifikasi Teks */}
+                    )}
+                </div>
+                <textarea
+                    value={projectData.hasilPembahasanDraft || ''}
+                    onChange={(e) => setProjectData(p => ({ ...p, hasilPembahasanDraft: e.target.value }))}
+                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    rows="20"
+                    placeholder="Sintesis temuan riset Anda di sini secara manual, atau gunakan tombol AI untuk menggabungkan hasil analisis data otomatis..."
+                ></textarea>
+                
+                {/* Fitur Modifikasi Teks */}
+                {projectData.hasilPembahasanDraft && (
                     <div className="mt-4 pt-4 border-t border-gray-200">
                         <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf {isPremium ? '' : '(Premium Only)'}</h4>
                         <div className="flex flex-wrap gap-2">
@@ -3575,8 +3583,8 @@ const HasilPembahasan = ({ projectData, setProjectData, handleGenerateHasilPemba
                             </button>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 };
@@ -4932,12 +4940,22 @@ const AnalisisKuantitatif = ({
     setProjectData(p => { // <-- PERUBAHAN LOGIKA
       // Dapatkan konten draf lama dari target yang dipilih
       const oldDraftContent = p[targetDraftKey] || '';
-      return {
+      
+      // --- DUAL-SAVE LOGIC ---
+      const updates = {
           ...p,
           [targetDraftKey]: oldDraftContent + newContent, // <-- Update draf yang ditargetkan
           analisisKuantitatifHasil: '', // Reset hasil sementara
           statusAnalisisKuantitatif: true
       };
+      
+      // Jika target BUKAN draf gabungan, tetap simpan salinannya ke draf gabungan
+      if (targetDraftKey !== 'analisisKuantitatifDraft') {
+          const oldLogContent = p.analisisKuantitatifDraft || '';
+          updates.analisisKuantitatifDraft = oldLogContent + newContent;
+      }
+      
+      return updates;
     });
 
     // Reset state file
@@ -5181,12 +5199,22 @@ const AnalisisKualitatif = ({
 
     const newContent = separator + formattedText;
 
-    setProjectData(p => ({
-        ...p,
-        [targetDraft]: (p[targetDraft] || '') + newContent,
-        analisisKualitatifHasil: null,
-        statusAnalisisKualitatif: true
-    }));
+    setProjectData(p => {
+        // --- DUAL-SAVE LOGIC ---
+        const updates = {
+            ...p,
+            [targetDraft]: (p[targetDraft] || '') + newContent,
+            analisisKualitatifHasil: null,
+            statusAnalisisKualitatif: true
+        };
+        
+        // Jika target BUKAN draf gabungan, tetap simpan salinannya ke draf gabungan
+        if (targetDraft !== 'analisisKualitatifDraft') {
+            updates.analisisKualitatifDraft = (p.analisisKualitatifDraft || '') + newContent;
+        }
+        
+        return updates;
+    });
 
     setFileName('');
     setFileContent('');
@@ -5420,13 +5448,23 @@ const AnalisisVisual = ({ projectData, setProjectData, handleGenerateAnalisisVis
 
     setProjectData(p => {
       const oldDraftContent = p[targetDraftKey] || '';
-      return {
+      
+      // --- DUAL-SAVE LOGIC ---
+      const updates = {
         ...p,
         [targetDraftKey]: oldDraftContent + newContent,
         deskripsiVisualisasi: '',
         interpretasiData: '',
         statusAnalisisVisual: true
       };
+      
+      // Jika target BUKAN draf gabungan, tetap simpan salinannya ke draf gabungan
+      if (targetDraftKey !== 'analisisVisualDraft') {
+          const oldLogContent = p.analisisVisualDraft || '';
+          updates.analisisVisualDraft = oldLogContent + newContent;
+      }
+      
+      return updates;
     });
 
     setImageFile(null);
@@ -6612,21 +6650,25 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
                 </div>
             )}
 
-            {projectData.kesimpulanDraft && (
-                 <div className="mt-6">
-                    <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-lg font-bold text-gray-800">Draf Bab Kesimpulan</h3>
+            <div className="mt-6">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-bold text-gray-800">Draf Kesimpulan</h3>
+                    {projectData.kesimpulanDraft && (
                         <button onClick={() => handleCopyToClipboard(projectData.kesimpulanDraft)} className="bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold py-2 px-3 rounded-lg">
                             Salin Teks
                         </button>
-                    </div>
-                    <textarea
-                        value={projectData.kesimpulanDraft}
-                        onChange={(e) => setProjectData(p => ({ ...p, kesimpulanDraft: e.target.value }))}
-                        className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed"
-                        rows="25"
-                    ></textarea>
-                    {/* Fitur Modifikasi Teks */}
+                    )}
+                </div>
+                <textarea
+                    value={projectData.kesimpulanDraft || ''}
+                    onChange={(e) => setProjectData(p => ({ ...p, kesimpulanDraft: e.target.value }))}
+                    className="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-relaxed focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    rows="15"
+                    placeholder="Tuliskan rangkuman dan implikasi riset Anda secara manual di sini, atau biarkan AI mengekstraksinya dari Bab 4 Anda..."
+                ></textarea>
+                
+                {/* Fitur Modifikasi Teks */}
+                {projectData.kesimpulanDraft && (
                     <div className="mt-4 pt-4 border-t border-gray-200">
                         <h4 className="text-md font-semibold mb-3 text-gray-700">Modifikasi Draf {isPremium ? '' : '(Premium Only)'}</h4>
                         <div className="flex flex-wrap gap-2">
@@ -6651,19 +6693,17 @@ const Kesimpulan = ({ projectData, setProjectData, handleGenerateKesimpulan, isL
                             >
                                 {!isPremium ? '🔒 Panjang' : 'Buat Versi Panjang'}
                             </button>
+                            <button 
+                                onClick={() => handleModifyText('humanize', 'kesimpulanDraft')}
+                                disabled={isLoading || !projectData.kesimpulanDraft || !isPremium}
+                                className={`text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300'}`}
+                            >
+                                {!isPremium ? '🔒 Parafrasa (Premium)' : 'Parafrasa (Humanisasi)'}
+                            </button>
                         </div>
-                        {/* --- TOMBOL BARU DITAMBAHKAN DI SINI --- */}
-<button 
-    onClick={() => handleModifyText('humanize', 'kesimpulanDraft')}
-    disabled={isLoading || !projectData.kesimpulanDraft || !isPremium}
-    className={`mt-2 text-white text-sm font-bold py-2 px-3 rounded-lg ${!isPremium ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300'}`}
->
-    {!isPremium ? '🔒 Parafrasa (Premium)' : 'Parafrasa (Humanisasi)'}
-</button>
-{/* --- AKHIR TOMBOL BARU --- */}
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 };
@@ -11840,13 +11880,14 @@ const handleGenerateFullPendahuluan = async (selectedIds = []) => {
 
     let structureInstruction = "";
     if (isJurnalMode) {
-        structureInstruction = `**STRUKTUR OUTPUT WAJIB (FORMAT ARTIKEL JURNAL):**
-1. Pendahuluan (Latar Belakang & Fenomena)
-2. Kesenjangan Penelitian (Research Gap) -> **TUGAS KHUSUS:** ${gapTask}
-3. Rumusan Masalah -> **TUGAS KHUSUS:** Buat 1 paragraf pengantar singkat, lalu di bawahnya, SALIN VERBATIM "PERTANYAAN PENELITIAN" dalam bentuk poin bernomor (1, 2, 3).
-4. Tujuan & Kontribusi Penelitian -> (Gabungkan SALINAN VERBATIM "TUJUAN PENELITIAN" dan urgensi kontribusi teoretis/praktis dalam format poin/narasi).
+        structureInstruction = `**STRUKTUR OUTPUT WAJIB (FORMAT ARTIKEL JURNAL Q1):**
+1. **Judul Utama:** Tuliskan "1. Introduction" di baris paling atas.
+2. **Narasi Pendahuluan:** Di bawah judul utama, tuliskan pendahuluan sebagai sebuah narasi yang mengalir (tanpa sub-judul internal) dengan alur berikut:
+   - **Konteks & Fenomena:** Mulai dengan latar belakang masalah secara memikat.
+   - **Kesenjangan Penelitian (Research Gap):** -> **TUGAS KHUSUS:** ${gapTask}
+   - **Pertanyaan, Tujuan, & Kontribusi (The Golden Thread):** -> **TUGAS KHUSUS:** Di paragraf terakhir, LEBURKAN "PERTANYAAN PENELITIAN" dan "TUJUAN PENELITIAN" menjadi 1 paragraf naratif tunggal. DILARANG KERAS menyisakan karakter angka penomoran (1., 2., 3., dst) di dalam teks. Hapus semua angka tersebut! Ubah menjadi kalimat majemuk yang elegan dengan konjungsi. (Contoh gaya bahasa: "Oleh karena itu, penelitian ini secara khusus bertujuan untuk menganalisis [Tujuan A], memetakan [Tujuan B], serta mengidentifikasi [Tujuan C]").
 
-*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 1" atau menyertakan sub-bab "Struktur Artikel". Gunakan penomoran numerik standar (1, 2, 3, 4) BUKAN (1.1, 1.2).`;
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 1". DILARANG menggunakan sub-judul internal (seperti 1.1, 1.2, Latar Belakang, dll) di dalam teks Pendahuluan. Buatlah menjadi satu kesatuan teks naratif yang padu di bawah judul "1. Introduction" ala jurnal internasional top-tier.`;
     } else {
         structureInstruction = `**STRUKTUR OUTPUT WAJIB (FORMAT TESIS/LAPORAN):**
 BAB 1 PENDAHULUAN
@@ -11864,14 +11905,14 @@ BAB 1 PENDAHULUAN
 
 **TUGAS ANDA (MODE ${isManualSelection ? 'MANUAL' : 'KURATOR CERDAS'}):**
 ${isManualSelection 
-    ? "Gunakan REFERENSI PENDUKUNG yang dipilih pengguna di bawah ini untuk menyusun narasi." 
-    : "Daftar di bawah adalah seluruh perpustakaan pengguna. Tugas Anda adalah MENYELEKSI secara mandiri maksimal 5-8 referensi yang paling kuat dan relevan untuk membangun Latar Belakang dan Gap penelitian ini."
+    ? "Gunakan SEMUA REFERENSI PENDUKUNG yang dipilih pengguna di bawah ini untuk menyusun narasi." 
+    : "Daftar di bawah adalah seluruh perpustakaan pengguna. Tugas Anda adalah MENGGUNAKAN SEBANYAK MUNGKIN referensi yang relevan dari daftar tersebut untuk membangun Latar Belakang dan Gap yang sangat padat literatur."
 }
 
-**STANDAR SITASI WAJIB (CRITICAL):**
-1. Gunakan format **APA 7th Edition** secara konsisten di seluruh narasi (Contoh: Penulis, 2024 atau Menurut Penulis (2024)).
-2. Setiap klaim atau data empiris WAJIB didukung oleh sitasi dari "Referensi Pendukung" atau "Strategi Teori" di bawah.
-3. DILARANG menulis nama penulis tanpa tahun.
+**STANDAR SITASI WAJIB (CRITICAL - Q1 LEVEL):**
+1. Gunakan format **APA 7th Edition** (Penulis, 2024).
+2. **DENSE CITATION (SITASI BERKELOMPOK):** Anda WAJIB meniru gaya jurnal Q1 dengan mengelompokkan 2 hingga 4 referensi sekaligus di dalam satu tanda kurung di akhir klaim kalimat untuk menunjukkan dukungan literatur yang masif. Contoh: "(Smith, 2021; Doe et al., 2022; Johnson, 2023)".
+3. JANGAN menghemat sitasi. Setiap kalimat klaim harus di-backing literatur.
 
 **DATA FONDASI (BAHAN BAKU PENULISAN):**
 - DESKRIPSI MASALAH DARI PENGGUNA: "${projectData.faktaMasalahDraft}"
@@ -12070,10 +12111,27 @@ ${extractionColumns}
 3. **JANGAN HALUSINASI.**
 
 **ATURAN VISUALISASI (WAJIB ADA):**
-Bantu pembaca memahami metode dengan menyarankan visualisasi:
-- Untuk Desain Penelitian, sisipkan: **Gambar 3.1: Alur Penelitian (Flowchart)**
-  *[Instruksi: Masukkan diagram alir tahapan penelitian di sini]*
-${visualInstruction}
+Bantu pembaca memahami metode dengan menyarankan visualisasi. 
+Khusus untuk "Gambar 3.1: Alur Penelitian", Anda WAJIB menggambarkannya secara eksplisit menggunakan format teks terstruktur (ASCII Art Box). Isi dari tahapan di dalam kotak WAJIB disesuaikan dengan langkah-langkah riil dari metode penelitian yang digunakan pengguna.
+
+Gunakan format kerangka berikut sebagai contoh bentuknya:
+
+Gambar 3.1: Alur Penelitian (Flowchart)
++-------------------------------------------------------------------------+
+|                          1. TAHAP PERTAMA                               |
+| - Detail langkah operasional 1                                          |
+| - Detail langkah operasional 2                                          |
++-------------------------------------------------------------------------+
+                                    |
+                                    v
++-------------------------------------------------------------------------+
+|                          2. TAHAP KEDUA                                 |
+| - Detail langkah operasional 1                                          |
+| - Detail langkah operasional 2                                          |
++-------------------------------------------------------------------------+
+(Lanjutkan kotak-kotak ini ke bawah hingga tahap kesimpulan/sintesis akhir)
+
+\${visualInstruction}
 `;
 
         const promptBase = `
@@ -12109,12 +12167,13 @@ ${kutipanMetodologiString || "Tidak ada referensi terpilih."}
             if (isBibliometricOnly) {
                 structureInstructions = isJurnalMode ? `
 **Struktur Bagian Methods (Bibliometrik - Format Jurnal):**
-1.  **Judul Utama:** "3. Methods" (Tanpa kata BAB).
-2.  **3.1 Research Design:** Jelaskan penggunaan pendekatan analisis Bibliometrik. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
-3.  **3.2 Data Source & Search Strategy:** Tampilkan String Kueri (Verbatim), Database, dan Tanggal.
-4.  **3.3 Data Analysis:** Jelaskan Tools dan teknik analisis. Pastikan setiap penjelasan alat didukung oleh sitasi ke referensi pengguna yang juga menggunakan alat/metode serupa.
+1. **Judul Utama:** "3. Methods" (Tanpa kata BAB).
+2. **Narasi Metodologi:** Tuliskan SATU KESATUAN narasi yang mengalir (tanpa sub-bab 3.1, 3.2, dst). Ceritakan urutan penelitian mulai dari:
+   - Desain penelitian (pendekatan bibliometrik) dan hubungannya dengan landasan operasional.
+   - Sumber Data & Strategi Pencarian (String Kueri, Database, dan Tanggal).
+   - Analisis Data (Tools dan teknik). Pastikan setiap penggunaan alat didukung oleh sitasi ke referensi pengguna.
 
-*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 3" atau hierarki penomoran rumit (cukup 3.1, 3.2, dst).` : `
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 3". DILARANG KERAS memecah narasi menjadi sub-judul angka (seperti 3.1, 3.2). Biarkan mengalir dari paragraf ke paragraf.` : `
 **Struktur Bab Metode Bibliometrik:**
 1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
 2.  **3.1 Desain Penelitian:** Jelaskan penggunaan pendekatan analisis Bibliometrik. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
@@ -12124,14 +12183,15 @@ ${kutipanMetodologiString || "Tidak ada referensi terpilih."}
             } else {
                 structureInstructions = isJurnalMode ? `
 **Struktur Bagian Methods (SLR - Format Jurnal Q1):**
-1.  **Judul Utama:** "3. Methods" (Tanpa kata BAB).
-2.  **3.1 Data Sources & Search Strategy:** Jelaskan penggunaan pedoman SLR/PRISMA, daftar Database yang digunakan, String Kueri (Verbatim), dan waktu penelusuran. Hubungkan dengan "LANDASAN OPERASIONAL" jika relevan.
-3.  **3.2 Inclusion and Exclusion Criteria:** Definisikan secara eksplisit dan rinci kriteria inklusi dan eksklusi yang digunakan dalam seleksi.
-4.  **3.3 Screening Process (PRISMA):** Uraikan proses penyaringan studi langkah demi langkah, WAJIB menggunakan angka-angka dari kerangka PRISMA yang diberikan.
-5.  **3.4 Quality Appraisal (Risk of Bias):** Jelaskan metode dan kriteria yang digunakan untuk menilai kualitas dan risiko bias artikel yang diinklusi (Rujuk pada kolom ekstraksi data).
-6.  **3.5 Data Extraction & Synthesis:** Sebutkan variabel/kolom data yang diekstraksi dan jelaskan teknik sintesis data atau analisis tematiknya dengan sitasi pendukung.
+1. **Judul Utama:** "3. Methods" (Tanpa kata BAB).
+2. **Narasi Metodologi:** Tuliskan SATU KESATUAN narasi yang mengalir (tanpa sub-bab 3.1, 3.2, dst). Ceritakan urutan penelitian mulai dari:
+   - Penggunaan pedoman SLR/PRISMA, daftar Database, String Kueri (Verbatim), dan waktu penelusuran. Hubungkan dengan "LANDASAN OPERASIONAL".
+   - Kriteria inklusi dan eksklusi secara eksplisit.
+   - Proses penyaringan studi langkah demi langkah, WAJIB menggunakan angka-angka dari kerangka PRISMA.
+   - Quality Appraisal (Risk of Bias).
+   - Ekstraksi Data & Sintesis.
 
-*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 3" atau hierarki penomoran rumit (cukup 3.1, 3.2, dst). Transparansi metode adalah harga mati.` : `
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 3". DILARANG KERAS memecah narasi menjadi sub-judul angka (seperti 3.1, 3.2). Transparansi metode adalah harga mati, tuliskan mengalir dari paragraf ke paragraf.` : `
 **Struktur Bab Metode SLR:**
 1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
 2.  **3.1 Desain Penelitian:** Jelaskan penggunaan SLR/PRISMA. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
@@ -12153,12 +12213,13 @@ Susun narasi akademis yang mengalir.`;
              // PROMPT UMUM (NON-SLR)
              const structureInstructions = isJurnalMode ? `
 **Struktur Bagian Methods (Format Jurnal):**
-1.  **Judul Utama:** "3. Methods" (Tanpa kata BAB).
-2.  **3.1 Research Design:** Jelaskan desain penelitian. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
-3.  **3.2 Data Collection / Procedure:** Jelaskan langkah kerja.
-4.  **3.3 Data Analysis:** Jelaskan cara data diolah dengan dukungan referensi.
+1. **Judul Utama:** "3. Methods" (Tanpa kata BAB).
+2. **Narasi Metodologi:** Tuliskan SATU KESATUAN narasi yang mengalir (tanpa sub-bab 3.1, 3.2, dst). Ceritakan urutan penelitian mulai dari:
+   - Desain penelitian dan hubungannya dengan landasan operasional.
+   - Prosedur pengumpulan data dan langkah kerja.
+   - Cara data diolah/dianalisis dengan dukungan referensi.
 
-*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 3" atau hierarki penomoran rumit (cukup 3.1, 3.2, dst).` : `
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 3". DILARANG KERAS memecah narasi menjadi sub-judul angka (seperti 3.1, 3.2). Biarkan mengalir dari paragraf ke paragraf.` : `
 **Struktur Bab:**
 1.  **Judul Bab:** "BAB III METODE PENELITIAN" (Tanpa tanda pagar).
 2.  **3.1 Desain Penelitian:** Jelaskan desain penelitian. Hubungkan dengan "LANDASAN OPERASIONAL" jika ada.
@@ -12238,6 +12299,24 @@ ${existingContent}
 
         let subBabInstructions = `**ATURAN STRUKTUR BAGIAN (WAJIB DIIKUTI PRESISI):**\n`;
 
+        // --- INSTRUKSI VISUALISASI KERANGKA KONSEPTUAL (ASCII ART) ---
+        const visualFrameworkInstruction = `*(Tugas: Merupakan SINTESIS AKHIR. Rangkum pembahasan sebelumnya menjadi satu alur logika yang utuh untuk menjawab masalah penelitian.
+Selain menulis narasi sintesis, Anda WAJIB menggambar visualisasi kerangka konseptual tersebut menggunakan format teks terstruktur (ASCII Art Box). Susun kotak-kotak tersebut secara logis (misalnya: Variabel Bebas/Tema Dasar -> Konsep Inti -> Output Riset/Dampak).
+
+Gunakan format kerangka berikut sebagai contoh/acuan bentuknya:
+
+Gambar: Model Kerangka Konseptual
++-----------------------+       +-----------------------+       +-----------------------+
+|    [Faktor/Teori A]   | ===>  |     [Konsep Inti]     | ===>  |    [Output/Dampak]    |
++-----------------------+       +-----------------------+       +-----------------------+
+         |                               ^
+         v                               |
++-----------------------+                |
+|    [Faktor/Teori B]   | ================
++-----------------------+
+
+PENTING: Sesuaikan teks di dalam kurung siku [...] dan arah panah dengan argumen teori/tema yang baru saja Anda sintesis!)*`;
+
         if (isJurnalMode) {
             subBabInstructions += `Gunakan struktur berikut untuk bagian studi literatur (Format Jurnal):\n\n**2. Literature Review (atau Theoretical Background)**\n*(Buat paragraf pengantar singkat)*\n\n`;
             if (hasTaksonomi) {
@@ -12249,7 +12328,7 @@ ${existingContent}
             if (!hasTaksonomi && !hasTema) {
                 subBabInstructions += `*(Tugas: Karena pengguna tidak memberikan panduan struktur spesifik, buatlah sub-judul deskriptif secara mandiri berdasarkan tren literatur yang disediakan).* \n\n`;
             }
-            subBabInstructions += `**Conceptual Framework**\n*(Tugas: Merupakan SINTESIS AKHIR. Rangkum pembahasan sebelumnya menjadi satu alur logika yang utuh. Sarankan tempat menyisipkan Gambar Kerangka Konseptual).* \n\n`;
+            subBabInstructions += `**Conceptual Framework**\n${visualFrameworkInstruction}\n\n`;
             subBabInstructions += `*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 2". DILARANG menggunakan penomoran sub-bab hierarkis yang kaku (seperti 2.1, 2.1.1). Gunakan sub-judul dengan format deskriptif yang elegan.`;
         } else {
             subBabInstructions += `Gunakan struktur berikut untuk menyusun Bab II Anda:\n\n**BAB 2 TINJAUAN PUSTAKA**\n*(Buat paragraf pengantar singkat)*\n\n`;
@@ -12264,7 +12343,7 @@ ${existingContent}
                 subBabInstructions += `*(Tugas: Karena pengguna tidak memberikan panduan struktur spesifik, buatlah 2-3 sub-bab secara mandiri berdasarkan tren literatur yang disediakan).* \n\n`;
             }
             const finalNum = (hasTaksonomi && hasTema) ? 3 : ((hasTaksonomi || hasTema) ? 2 : "X");
-            subBabInstructions += `**2.${finalNum} Kerangka Konseptual (Conceptual Framework)**\n*(Tugas: Merupakan SINTESIS AKHIR. Rangkum pembahasan sebelumnya menjadi satu alur logika yang utuh untuk menjawab masalah penelitian. Sarankan tempat menyisipkan Gambar Kerangka Konseptual).*`;
+            subBabInstructions += `**2.${finalNum} Kerangka Konseptual (Conceptual Framework)**\n${visualFrameworkInstruction}`;
         }
         // --- TAHAP 3 BERAKHIR ---
 
@@ -12386,12 +12465,15 @@ ${existingContent}
 
         let structureInstruction = "";
         if (isJurnalMode) {
-            structureInstruction = `**Instruksi Struktur (Format Jurnal):**
-1. **Judul Utama:** "4. Results and Discussion" (Tanpa kata BAB).
-2. **4.1 Results:** Sajikan temuan utama dari Data Hasil Analisis secara objektif. Jika relevan, sertakan instruksi penempatan visual: "*(Sisipkan Tabel/Gambar 4.1 di sini)*".
-3. **4.2 Discussion:** Ini adalah inti argumen. Analisis makna hasil (mengapa demikian?), bandingkan temuan dengan referensi pembanding secara ekstensif, kaitkan kembali dengan landasan teori, dan jelaskan implikasi praktis/teoretis penelitian ini.
+            structureInstruction = `**Instruksi Struktur (Format Jurnal Q1):**
+1. **Judul Utama:** Tuliskan "4. Results and Discussion" di baris paling atas (Tanpa kata BAB).
+2. **Sub-bab Berbasis Tema (Terintegrasi):** Bagilah sub-bab (4.1, 4.2, 4.3, dst) HANYA berdasarkan TEMA, TAHAPAN ANALISIS, atau VARIABEL temuan (misalnya: 4.1 Karakteristik Bibliometrik, 4.2 Peta Tematik dan Analisis Kesenjangan, dst).
+3. **Hasil & Pembahasan Terintegrasi (Inline Discussion):** Di dalam SETIAP sub-bab tematik tersebut, Anda WAJIB langsung menggabungkan presentasi data (Hasil) dan analisis maknanya (Pembahasan/Diskusi) secara bersamaan.
+   - Sajikan temuan objektifnya terlebih dahulu (sertakan instruksi penempatan visual jika ada, contoh: "*(Sisipkan Tabel/Gambar X di sini)*").
+   - Langsung ikuti dengan diskusi argumen: analisis makna hasil tersebut (mengapa demikian?), bandingkan temuan dengan referensi pembanding secara ekstensif, dan kaitkan kembali dengan landasan teori.
+   - DILARANG memisahkan bagian "Results" dan "Discussion" secara kaku ke dalam sub-bab yang terpisah.
 
-*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 4" atau format penomoran yang terlalu kaku.`;
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 4". Gunakan judul sub-bab yang deskriptif dan mencerminkan tema analisis (hindari penamaan generik seperti "4.1 Results" atau "4.2 Discussion").`;
         } else {
             structureInstruction = `**Instruksi Struktur (Format Tesis):**
 1. **Judul Bab:** "BAB 4 HASIL DAN PEMBAHASAN".
@@ -12487,11 +12569,14 @@ ${userNotesContext}
         let structureInstruction = "";
         if (isJurnalMode) {
             structureInstruction = `**Instruksi Struktur (Format Jurnal Q1):**
-1. **5. Conclusion:** Rangkum temuan utama secara langsung dan singkat untuk menjawab tujuan penelitian. JANGAN mengulang hasil statistik secara detail, melainkan fokus pada sintesis makna temuan. JANGAN overclaim. JANGAN memasukkan sitasi baru di sini.
-2. **5.1 Theoretical, Practical, and Policy Implications:** Jelaskan secara spesifik kontribusi penelitian ini terhadap literatur akademik (Theoretical) dan praktik/kebijakan di lapangan (Practical/Policy). Apa dampak nyata dan rekomendasi konkrit dari temuan ini?
-3. **5.2 Limitations and Future Research:** - **(CRITICAL - DEFENSIVE WRITING):** Tulis keterbatasan dengan gaya elegan dan defensif. JANGAN terdengar pasrah atau merendahkan karya sendiri (misal: "hanya pakai sedikit sampel"). Bingkai kelemahan sebagai "batasan ruang lingkup" (*boundary conditions*) yang wajar, lalu ubah kelemahan itu menjadi rekomendasi agenda *Future Research* yang solid dan tajam.
+Tulis bagian ini sebagai 3-4 paragraf naratif utuh tanpa menggunakan sub-bab (tanpa 5.1, 5.2, dst). Gunakan Judul Utama "5. Conclusions".
 
-*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 5". JANGAN menggunakan format bullet points (*) berlebihan; leburkan ke dalam paragraf naratif yang elegan dan mengalir.`;
+Alur Narasi Paragraf:
+1. **Paragraf 1 (Kesimpulan Inti):** Rangkum temuan utama secara langsung untuk menjawab tujuan penelitian. Fokus pada sintesis makna temuan, BUKAN mengulang detail statistik. JANGAN overclaim dan JANGAN memasukkan sitasi baru.
+2. **Paragraf 2 (Implikasi):** Jelaskan dampak/kontribusi temuan terhadap literatur akademik (teoretis) dan praktik di lapangan secara mengalir.
+3. **Paragraf 3 (Limitasi & Agenda Riset):** Tulis keterbatasan dengan gaya defensif elegan (*boundary conditions*), dan tutup paragraf dengan rekomendasi konkrit untuk riset masa depan (*Future Research*).
+
+*CATATAN MUTLAK JURNAL:* DILARANG menggunakan kata "BAB 5". DILARANG memecah teks dengan sub-judul/poin-poin (bullet points/angka). Jadikan narasi yang padu.`;
         } else {
             structureInstruction = `**Instruksi Struktur (Format Tesis):**
 1.  **Judul Bab:** "BAB 5 KESIMPULAN DAN IMPLIKASI" (Tanpa tanda pagar).
@@ -14755,8 +14840,8 @@ try {
                                             }}
                                             className="shadow-sm border-2 border-purple-300 rounded py-1.5 px-3 text-xs font-bold text-purple-800 outline-none focus:ring-2 focus:ring-purple-500 bg-white"
                                         >
-                                            <option value="v3">Gemini 3 Preview</option>
-                                            <option value="v2.5">Gemini 2.5 Stable</option>
+                                            <option value="v3">Gemini 3</option>
+                                            <option value="v2.5">Gemini 2.5</option>
                                         </select>
                                     </div>
                                     {/* ------------------------------------------------ */}
