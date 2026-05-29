@@ -12131,7 +12131,7 @@ Gambar 3.1: Alur Penelitian (Flowchart)
 +-------------------------------------------------------------------------+
 (Lanjutkan kotak-kotak ini ke bawah hingga tahap kesimpulan/sintesis akhir)
 
-\${visualInstruction}
+${visualInstruction}
 `;
 
         const promptBase = `
