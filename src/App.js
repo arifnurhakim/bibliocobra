@@ -10995,23 +10995,8 @@ Abstract: `;
         setProjectData(prev => ({ ...prev, [name]: value }));
     };
 
-    // --- HELPER BARU: Update salah satu key dalam array ---
-    const handleGeminiKeyChange = (index, value) => {
-        const newKeys = [...geminiApiKeys];
-        newKeys[index] = value;
-        setGeminiApiKeys(newKeys);
-    };
-
-    const addGeminiKeyField = () => {
-        setGeminiApiKeys([...geminiApiKeys, '']);
-    };
-
-    const removeGeminiKeyField = (index) => {
-        const newKeys = geminiApiKeys.filter((_, i) => i !== index);
-        setGeminiApiKeys(newKeys.length > 0 ? newKeys : ['']); // Sisakan minimal 1
-    };
-    // ----------------------------------------------------
-
+    // Fungsi input kunci API manual telah dihapus karena menggunakan Vercel
+    
     // --- ALUR KERJA IDE KTI BARU ---
 
     const handleGenerateIdeKTI = async () => {
