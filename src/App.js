@@ -487,7 +487,6 @@ const geminiService = {
 
                     // Rotasi Key jika kena Rate Limit
                     if (response.status === 429) {
-                        currentKeyIndex++;
                         if (currentModel !== FLASH_MODEL) {
                             currentModel = FLASH_MODEL; // Auto-downgrade
                         }
