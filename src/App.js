@@ -12902,7 +12902,7 @@ Berikan respons Anda HANYA dalam format JSON persis seperti ini:
         setSearchResults(null); // Bersihkan hasil sebelumnya
 
         try {
-            const results = await semanticScholarService.search(query, S2_API_KEY);
+            const results = await semanticScholarService.search(query);
             setSearchResults(results);
         } catch (error) {
             showInfoModal(`Gagal mencari referensi: ${error.message}`);
@@ -14155,7 +14155,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
             const keyQuote = await geminiService.run(quotePrompt, geminiApiKeys, { useGrounding: true });
 
             // Langkah 3: Cari judul di database akademis
-            const s2results = await semanticScholarService.search(referenceTitle, S2_API_KEY);
+            const s2results = await semanticScholarService.search(referenceTitle);
 
             // Langkah 4: Sajikan hasil
             if (s2results.length > 0) {
