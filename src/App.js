@@ -425,14 +425,20 @@ const QueueStatusIndicator = ({ queueSize }) => {
 // --- LANGKAH 3: UPDATE LOGIKA GEMINI SERVICE (MIGRASI KE OPENROUTER) ---
 const geminiService = {
     run: async (prompt, ignoredApiKey, options = {}, image = null) => {
+        const useFlashModel = options.useFlashModel || false; // <-- SAKLAR BARU
         // Kunci API diabaikan, ditangani Vercel
         const MAX_RETRIES = 5;
         const INITIAL_BACKOFF_MS = 5000;
         const FALLBACK_ATTEMPT_THRESHOLD = 2;
 
         // KITA TETAPKAN STRATEGI BISNIS: PRO = Pintar, FLASH = Cepat/Murah
-        let PRO_MODEL = 'gemini/gemini-2.5-flash-lite'; 
-        let FLASH_MODEL = 'openai/gpt-4o-mini';
+        // KITA TETAPKAN STRATEGI BISNIS: PRO = Pintar, FLASH = Cepat/Murah
+        let PRO_MODEL = 'openai/gpt-4o-mini'; 
+        let FLASH_MODEL = 'gemini/gemini-2.0-flash-lite';
+        
+        // --- LOGIKA HYBRID AKTIF ---
+        // Saklar: Jika komponen meminta Flash, pakai Flash. Jika tidak, pakai Pro.
+        let currentModel = useFlashModel ? FLASH_MODEL : PRO_MODEL;
 
         let messages = [];
         if (options.schema) {
@@ -451,14 +457,14 @@ const geminiService = {
         }
         messages.push({ role: "user", content: contentArray });
 
+        // Bungkus paket MENGGUNAKAN kurir yang sudah dipilih di atas
         const payload = {
-            model: PRO_MODEL,
+            model: currentModel, // <-- KINI DINAMIS (Bukan PRO_MODEL lagi)
             messages: messages,
             response_format: options.schema ? { type: "json_object" } : undefined,
             max_tokens: 4000
         };
 
-        let currentModel = PRO_MODEL;
         let lastError = null;
 
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -4311,7 +4317,7 @@ Berikan jawaban HANYA dalam format JSON.`;
         }
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true });
 
             // Isi hasil dari AI ke dalam state frameworkData utama
             setProjectData(p => ({
@@ -6127,7 +6133,7 @@ Berikan jawaban HANYA dalam format JSON Array of Objects.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true });
             setProjectData(p => ({ ...p, stateOfTheArtMatrix: result }));
             showInfoModal("Matriks State of the Art (SoA) berhasil dibuat! AI berhasil menemukan celah dari pesaing Anda.");
         } catch (error) {
@@ -6228,7 +6234,7 @@ Berikan jawaban HANYA dalam format JSON Object yang berisi properti 'clusters'.`
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true });
             setProjectData(p => ({
                 ...p,
                 thematicMapData: {
