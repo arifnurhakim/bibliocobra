@@ -431,8 +431,8 @@ const geminiService = {
         const FALLBACK_ATTEMPT_THRESHOLD = 2;
 
         // KITA TETAPKAN STRATEGI BISNIS: PRO = Pintar, FLASH = Cepat/Murah
-        let PRO_MODEL = 'openai/gpt-4o-mini'; 
-        let FLASH_MODEL = 'gemini/gemini-2.5-flash';
+        let PRO_MODEL = 'gemini-2.0-flash-lite'; 
+        let FLASH_MODEL = 'openai/gpt-4o-mini';
 
         let messages = [];
         if (options.schema) {
