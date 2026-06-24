@@ -434,7 +434,7 @@ const geminiService = {
         // KITA TETAPKAN STRATEGI BISNIS: PRO = Pintar, FLASH = Cepat/Murah
         // KITA TETAPKAN STRATEGI BISNIS: PRO = Pintar, FLASH = Cepat/Murah
         let PRO_MODEL = 'openai/gpt-4o-mini'; 
-        let FLASH_MODEL = 'gemini/gemini-2.0-flash-lite';
+        let FLASH_MODEL = 'gemini/gemini-2.5-flash-lite';
         
         // --- LOGIKA HYBRID AKTIF ---
         // Saklar: Jika komponen meminta Flash, pakai Flash. Jika tidak, pakai Pro.
