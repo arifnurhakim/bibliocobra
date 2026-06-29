@@ -6118,23 +6118,29 @@ Untuk SETIAP literatur yang dianalisis, ekstrak:
 Berikan jawaban HANYA dalam format JSON Array of Objects.`;
 
         const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    penulis_tahun: { type: "STRING" },
-                    fokus: { type: "STRING" },
-                    metode: { type: "STRING" },
-                    hasil: { type: "STRING" },
-                    kelemahan_gap: { type: "STRING" }
-                },
-                required: ["penulis_tahun", "fokus", "metode", "hasil", "kelemahan_gap"]
-            }
+            type: "OBJECT",
+            properties: {
+                matriks: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            penulis_tahun: { type: "STRING" },
+                            fokus: { type: "STRING" },
+                            metode: { type: "STRING" },
+                            hasil: { type: "STRING" },
+                            kelemahan_gap: { type: "STRING" }
+                        },
+                        required: ["penulis_tahun", "fokus", "metode", "hasil", "kelemahan_gap"]
+                    }
+                }
+            },
+            required: ["matriks"]
         };
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true });
-            setProjectData(p => ({ ...p, stateOfTheArtMatrix: result }));
+            setProjectData(p => ({ ...p, stateOfTheArtMatrix: result.matriks || [] }));
             showInfoModal("Matriks State of the Art (SoA) berhasil dibuat! AI berhasil menemukan celah dari pesaing Anda.");
         } catch (error) {
             showInfoModal(`Gagal membuat matriks: ${error.message}`);
@@ -11065,17 +11071,23 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
         const prompt = `Berdasarkan konteks yang diperkaya berikut, berikan 5 rekomendasi ide KTI (judul, kata kunci dipisahkan koma, penjelasan singkat). Pastikan ide-ide tersebut sangat terfokus dan relevan dengan jawaban pengguna.\n\n${context}`;
 
         const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: { "judul": { "type": "STRING" }, "kata_kunci": { "type": "STRING" }, "penjelasan": { "type": "STRING" } },
-                required: ["judul", "kata_kunci", "penjelasan"]
-            }
+            type: "OBJECT",
+            properties: {
+                ide_kti: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: { "judul": { "type": "STRING" }, "kata_kunci": { "type": "STRING" }, "penjelasan": { "type": "STRING" } },
+                        required: ["judul", "kata_kunci", "penjelasan"]
+                    }
+                }
+            },
+            required: ["ide_kti"]
         };
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
-            setAiStructuredResponse(result);
+            setAiStructuredResponse(result.ide_kti || []);
         } catch (error) {
             showInfoModal(`Gagal menghasilkan ide: ${error.message}`);
         } finally {
@@ -11965,29 +11977,35 @@ ${context}
         // --- MODIFIKASI PROMPT BERAKHIR DI SINI ---
 
         const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    category: { type: "STRING" },
-                    clues: {
-                        type: "ARRAY",
-                        items: {
-                            type: "OBJECT",
-                            properties: {
-                                clue: { type: "STRING", description: "Kata kunci pencarian singkat (maks. 5 kata)." },
-                                explanation: { type: "STRING", description: "Kalimat penjelasan lengkap tentang relevansi clue." }
-                            },
-                            required: ["clue", "explanation"]
-                        }
+            type: "OBJECT",
+            properties: {
+                clues_list: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            category: { type: "STRING" },
+                            clues: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        clue: { type: "STRING", description: "Kata kunci pencarian singkat (maks. 5 kata)." },
+                                        explanation: { type: "STRING", description: "Kalimat penjelasan lengkap tentang relevansi clue." }
+                                    },
+                                    required: ["clue", "explanation"]
+                                }
+                            }
+                        },
+                        required: ["category", "clues"]
                     }
-                },
-                required: ["category", "clues"]
-            }
+                }
+            },
+            required: ["clues_list"]
         };
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
-            setProjectData(prev => ({ ...prev, aiReferenceClues: result }));
+            setProjectData(prev => ({ ...prev, aiReferenceClues: result.clues_list || [] }));
             showInfoModal("Clue referensi berhasil dibuat!");
         } catch (error) {
             showInfoModal(`Gagal membuat clue: ${error.message}`);
@@ -13155,20 +13173,26 @@ ${projectData.variabelBebas.map(v => `- ${v}`).join('\n')}
 Berikan jawaban hanya dalam format JSON.`;
 
         const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    h1: { type: "STRING" },
-                    h0: { type: "STRING" }
-                },
-                required: ["h1", "h0"]
-            }
+            type: "OBJECT",
+            properties: {
+                hipotesis: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            h1: { type: "STRING" },
+                            h0: { type: "STRING" }
+                        },
+                        required: ["h1", "h0"]
+                    }
+                }
+            },
+            required: ["hipotesis"]
         };
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
-            setProjectData(prev => ({ ...prev, aiSuggestedHypotheses: result }));
+            setProjectData(prev => ({ ...prev, aiSuggestedHypotheses: result.hipotesis || [] }));
             showInfoModal("Saran hipotesis berhasil dibuat! Silakan sunting dan simpan.");
         } catch (error) {
             showInfoModal(`Gagal membuat saran hipotesis: ${error.message}`);
@@ -13201,23 +13225,29 @@ PENTING:
 Berikan jawaban hanya dalam format JSON yang ketat.`;
 
         const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    nama_variabel: { type: "STRING" },
-                    item_kuesioner: {
-                        type: "ARRAY",
-                        items: { type: "STRING" }
+            type: "OBJECT",
+            properties: {
+                kuesioner: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            nama_variabel: { type: "STRING" },
+                            item_kuesioner: {
+                                type: "ARRAY",
+                                items: { type: "STRING" }
+                            }
+                        },
+                        required: ["nama_variabel", "item_kuesioner"]
                     }
-                },
-                required: ["nama_variabel", "item_kuesioner"]
-            }
+                }
+            },
+            required: ["kuesioner"]
         };
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
-            setProjectData(prev => ({ ...prev, aiSuggestedKuesioner: result }));
+            setProjectData(prev => ({ ...prev, aiSuggestedKuesioner: result.kuesioner || [] }));
             showInfoModal("Draf kuesioner berhasil dibuat! Silakan sunting dan simpan.");
         } catch (error) {
             showInfoModal(`Gagal membuat draf kuesioner: ${error.message}`);
@@ -13252,24 +13282,30 @@ Kategori yang harus ada:
 Berikan jawaban hanya dalam format JSON yang ketat.`;
 
         const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    kategori: { type: "STRING" },
-                    deskripsi_kategori: { type: "STRING" },
-                    pertanyaan: {
-                        type: "ARRAY",
-                        items: { type: "STRING" }
+            type: "OBJECT",
+            properties: {
+                wawancara: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            kategori: { type: "STRING" },
+                            deskripsi_kategori: { type: "STRING" },
+                            pertanyaan: {
+                                type: "ARRAY",
+                                items: { type: "STRING" }
+                            }
+                        },
+                        required: ["kategori", "deskripsi_kategori", "pertanyaan"]
                     }
-                },
-                required: ["kategori", "deskripsi_kategori", "pertanyaan"]
-            }
+                }
+            },
+            required: ["wawancara"]
         };
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
-            setProjectData(prev => ({ ...prev, aiSuggestedWawancara: result }));
+            setProjectData(prev => ({ ...prev, aiSuggestedWawancara: result.wawancara || [] }));
             showInfoModal("Draf panduan wawancara berhasil dibuat! Silakan sunting dan simpan.");
         } catch (error) {
             showInfoModal(`Gagal membuat draf panduan wawancara: ${error.message}`);
@@ -13318,21 +13354,27 @@ Gunakan sintaks yang paling sesuai untuk Database Target.
 Berikan jawaban HANYA dalam format JSON yang ketat.`;
 
         const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    level: { type: "STRING" },
-                    penjelasan: { type: "STRING" },
-                    kueri: { type: "STRING" }
-                },
-                required: ["level", "penjelasan", "kueri"]
-            }
+            type: "OBJECT",
+            properties: {
+                kueri_list: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            level: { type: "STRING" },
+                            penjelasan: { type: "STRING" },
+                            kueri: { type: "STRING" }
+                        },
+                        required: ["level", "penjelasan", "kueri"]
+                    }
+                }
+            },
+            required: ["kueri_list"]
         };
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
-            setProjectData(p => ({ ...p, aiGeneratedQueries: result }));
+            setProjectData(p => ({ ...p, aiGeneratedQueries: result.kueri_list || [] }));
             showInfoModal("Kueri berjenjang berhasil dibuat!");
         } catch (error) {
             showInfoModal(`Gagal membuat kueri: ${error.message}`);
@@ -13458,21 +13500,27 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
         Berikan jawaban HANYA dalam format JSON yang ketat.`;
 
         const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    level: { type: "STRING" },
-                    penjelasan: { type: "STRING" },
-                    kueri: { type: "STRING" }
-                },
-                required: ["level", "penjelasan", "kueri"]
-            }
+            type: "OBJECT",
+            properties: {
+                kueri_list: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            level: { type: "STRING" },
+                            penjelasan: { type: "STRING" },
+                            kueri: { type: "STRING" }
+                        },
+                        required: ["level", "penjelasan", "kueri"]
+                    }
+                }
+            },
+            required: ["kueri_list"]
         };
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
-            setProjectData(p => ({ ...p, aiGeneratedQueries: result }));
+            setProjectData(p => ({ ...p, aiGeneratedQueries: result.kueri_list || [] }));
             showInfoModal(`Kueri berjenjang dari ${activeFw} berhasil dibuat!`);
         } catch (error) {
             showInfoModal(`Gagal membuat kueri dari ${activeFw}: ${error.message}`);
@@ -13653,24 +13701,30 @@ ${fileContent}
 Berikan jawaban hanya dalam format JSON yang ketat.`;
 
         const schema = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    tema: { type: "STRING" },
-                    deskripsi: { type: "STRING" },
-                    kutipan_pendukung: {
-                        type: "ARRAY",
-                        items: { type: "STRING" }
+            type: "OBJECT",
+            properties: {
+                tema_list: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            tema: { type: "STRING" },
+                            deskripsi: { type: "STRING" },
+                            kutipan_pendukung: {
+                                type: "ARRAY",
+                                items: { type: "STRING" }
+                            }
+                        },
+                        required: ["tema", "deskripsi", "kutipan_pendukung"]
                     }
-                },
-                required: ["tema", "deskripsi", "kutipan_pendukung"]
-            }
+                }
+            },
+            required: ["tema_list"]
         };
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, { schema });
-            setProjectData(p => ({ ...p, analisisKualitatifHasil: result }));
+            setProjectData(p => ({ ...p, analisisKualitatifHasil: result.tema_list || [] }));
             showInfoModal("Analisis tematik berhasil dibuat! Silakan tinjau hasilnya.");
         } catch (error) {
             showInfoModal(`Gagal menganalisis data kualitatif: ${error.message}`);
