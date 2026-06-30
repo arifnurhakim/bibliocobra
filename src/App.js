@@ -7296,7 +7296,7 @@ const PrismaSLR = ({ projectData, setProjectData, showInfoModal, handleAiReview,
         // ----------------------------------------------------------------------
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true });
             setFulltextAnalysis(result);
         } catch (error) {
             showInfoModal(`Gagal menganalisis fulltext: ${error.message}`);
@@ -7355,7 +7355,7 @@ Berikan jawaban dalam format JSON ketat.`;
             };
 
             try {
-                const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+                const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true });
 
                 setIncludeModal(prev => {
                     const newExtraction = { ...prev.extraction };
@@ -9441,7 +9441,7 @@ Berikan jawaban dalam format JSON ketat.`;
             };
 
             try {
-                const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+                const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true });
 
                 setCurrentExtractionData(prev => {
                     const newExtraction = { ...prev.data };
@@ -11635,7 +11635,7 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
 
         // 5. Eksekusi AI
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true });
             return result;
         } catch (error) {
             showInfoModal(`Gagal mereview paper: ${error.message}`);
@@ -12004,7 +12004,7 @@ ${context}
             required: ["clues_list"]
         };
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true }); // <-- INJEKSI FLASH
             setProjectData(prev => ({ ...prev, aiReferenceClues: result.clues_list || [] }));
             showInfoModal("Clue referensi berhasil dibuat!");
         } catch (error) {
@@ -12878,6 +12878,7 @@ Berikan respons Anda HANYA dalam format JSON persis seperti ini:
 
         try {
             const result = await geminiService.run(prompt, geminiApiKeys, {
+                useFlashModel: true, // <-- INJEKSI FLASH
                 schema: {
                     type: "OBJECT",
                     properties: {
@@ -13373,7 +13374,7 @@ Berikan jawaban HANYA dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true }); // <-- INJEKSI FLASH
             setProjectData(p => ({ ...p, aiGeneratedQueries: result.kueri_list || [] }));
             showInfoModal("Kueri berjenjang berhasil dibuat!");
         } catch (error) {
@@ -13585,7 +13586,7 @@ ${rawData}
 Hasilkan teks narasi saja.`;
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys);
+            const result = await geminiService.run(prompt, geminiApiKeys, { useFlashModel: true }); // <-- INJEKSI FLASH
             const cleanResult = result.replace(/[*_]/g, "").replace(/<[^>]*>/g, "");
             setProjectData(prev => ({ ...prev, deskripsiRespondenDraft: cleanResult }));
             showInfoModal("Deskripsi responden berhasil dibuat!");
@@ -13660,7 +13661,7 @@ Gunakan format teks biasa dengan sub-judul yang jelas (misal: "1. Statistik Desk
         }
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys);
+            const result = await geminiService.run(prompt, geminiApiKeys, { useFlashModel: true });
             setProjectData(p => ({ ...p, analisisKuantitatifHasil: result }));
             showInfoModal("Analisis data berhasil dibuat!");
         } catch (error) {
@@ -13723,7 +13724,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema });
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true });
             setProjectData(p => ({ ...p, analisisKualitatifHasil: result.tema_list || [] }));
             showInfoModal("Analisis tematik berhasil dibuat! Silakan tinjau hasilnya.");
         } catch (error) {
@@ -13763,7 +13764,7 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
         };
 
         try {
-            const result = await geminiService.run(prompt, geminiApiKeys, { schema }, imageFile);
+            const result = await geminiService.run(prompt, geminiApiKeys, { schema, useFlashModel: true }, imageFile);
             setProjectData(p => ({
                 ...p,
                 deskripsiVisualisasi: result.deskripsi,
