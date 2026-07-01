@@ -5389,11 +5389,54 @@ const AnalisisVisual = ({ projectData, setProjectData, handleGenerateAnalisisVis
         if (file && (file.type === 'image/png' || file.type === 'image/jpeg')) {
             setFileName(file.name);
             const reader = new FileReader();
+            
             reader.onloadend = () => {
+                // 1. Tampilkan preview asli di UI (Cepat)
                 setImagePreview(reader.result);
-                const base64Data = reader.result.split(',')[1];
-                setImageFile({ mimeType: file.type, data: base64Data });
+                
+                // 2. Mulai Proses Kompresi (Smart Resizing)
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    // Tentukan batas maksimal resolusi (1280px sudah sangat tajam untuk OCR AI)
+                    const MAX_DIMENSION = 1280;
+
+                    // Kalkulasi rasio aspek jika gambar kebesaran
+                    if (width > height) {
+                        if (width > MAX_DIMENSION) {
+                            height *= MAX_DIMENSION / width;
+                            width = MAX_DIMENSION;
+                        }
+                    } else {
+                        if (height > MAX_DIMENSION) {
+                            width *= MAX_DIMENSION / height;
+                            height = MAX_DIMENSION;
+                        }
+                    }
+
+                    // Terapkan ukuran baru ke canvas
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    // Gambar ulang piksel ke canvas
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // 3. Konversi ke JPEG dengan kualitas 85% (Mengurangi ukuran file hingga 80-90%)
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    
+                    // Ambil string Base64 yang sudah ringan
+                    const base64Data = compressedDataUrl.split(',')[1];
+
+                    // Simpan ke state untuk dikirim ke API Vercel
+                    setImageFile({ mimeType: 'image/jpeg', data: base64Data });
+                };
+                img.src = reader.result;
             };
+            
             reader.onerror = () => showInfoModal("Gagal membaca file gambar.");
             reader.readAsDataURL(file);
         } else {
