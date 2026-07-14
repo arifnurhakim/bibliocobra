@@ -532,8 +532,8 @@ const geminiService = {
             const INITIAL_BACKOFF_MS = 5000;
             const FALLBACK_ATTEMPT_THRESHOLD = 2;
 
-            let PRO_MODEL = 'openai/gpt-5-mini'; 
-            let FLASH_MODEL = 'gemini/gemini-2.5-flash';
+            let PRO_MODEL = 'gemini/gemini-2.5-flash'; 
+            let FLASH_MODEL = 'openai/gpt-4o-mini';
             
             let currentModel = useFlashModel ? FLASH_MODEL : PRO_MODEL;
 
