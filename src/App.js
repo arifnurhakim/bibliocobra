@@ -532,8 +532,8 @@ const geminiService = {
             const INITIAL_BACKOFF_MS = 5000;
             const FALLBACK_ATTEMPT_THRESHOLD = 2;
 
-            let PRO_MODEL = 'openai/gpt-5-mini'; 
-            let FLASH_MODEL = 'gemini/gemini-2.5-flash';
+            let PRO_MODEL = 'gemini/gemini-2.5-flash'; 
+            let FLASH_MODEL = 'openai/gpt-4o-mini';
             
             let currentModel = useFlashModel ? FLASH_MODEL : PRO_MODEL;
 
@@ -9399,7 +9399,7 @@ const SintesisData = ({ projectData, setProjectData, showInfoModal, geminiApiKey
         const nCount = projectData.extractedData.length;
 
         const volumeInstruction = isJurnalMode
-            ? "**VOLUME MATRIKS (CRITICAL):** Targetkan panjang tulisan sekitar 800 - 1000 kata (setara 5000 - 7000 karakter). Ini adalah gabungan dari Results (8.000-12.000 karakter) dan Discussion (6.000-10.000 karakter). Kedalaman sintesis, komparasi temuan, dan argumen kritis di bagian Discussion adalah prioritas mutlak standar Q1. Discussion harus sangat analitis dan tidak boleh hanya mengulang-ulang hasil."
+            ? "**VOLUME MATRIKS (CRITICAL):** Targetkan panjang tulisan sekitar 2.000 - 3.200 kata (setara 14.000 - 22.000 karakter). Ini adalah gabungan dari Results (8.000-12.000 karakter) dan Discussion (6.000-10.000 karakter). Kedalaman sintesis, komparasi temuan, dan argumen kritis di bagian Discussion adalah prioritas mutlak standar Q1. Discussion harus sangat analitis dan tidak boleh hanya mengulang-ulang hasil."
             : "";
 
         let structureInstruction = "";
