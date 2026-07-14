@@ -424,124 +424,217 @@ const QueueStatusIndicator = ({ queueSize }) => {
 
 // --- LANGKAH 3: UPDATE LOGIKA GEMINI SERVICE (MIGRASI KE OPENROUTER) ---
 const geminiService = {
-    run: async (prompt, ignoredApiKey, options = {}, image = null) => {
-        const useFlashModel = options.useFlashModel || false; // <-- SAKLAR BARU
-        // Kunci API diabaikan, ditangani Vercel
-        const MAX_RETRIES = 5;
-        const INITIAL_BACKOFF_MS = 5000;
-        const FALLBACK_ATTEMPT_THRESHOLD = 2;
-
-        // KITA TETAPKAN STRATEGI BISNIS: PRO = Pintar, FLASH = Cepat/Murah
-        // KITA TETAPKAN STRATEGI BISNIS: PRO = Pintar, FLASH = Cepat/Murah
-        let PRO_MODEL = 'openai/gpt-4o-mini'; 
-        let FLASH_MODEL = 'gemini/gemini-2.5-flash-lite';
+    run: async (prompt, apiKeys, options = {}, image = null) => {
+        const useFlashModel = options.useFlashModel || false;
         
-        // --- LOGIKA HYBRID AKTIF ---
-        // Saklar: Jika komponen meminta Flash, pakai Flash. Jika tidak, pakai Pro.
-        let currentModel = useFlashModel ? FLASH_MODEL : PRO_MODEL;
+        // --- 1. EKSTRAK KUNCI API PRIBADI (BYOK) ---
+        const apiKey = apiKeys && apiKeys[0] ? apiKeys[0].trim() : '';
 
-        let messages = [];
-        if (options.schema) {
-            messages.push({
-                role: "system",
-                content: `You MUST respond in strictly valid JSON format matching this JSON Schema. Do NOT wrap the JSON in markdown blocks like \`\`\`json. Return raw JSON object ONLY.\n\nSchema: ${JSON.stringify(options.schema)}`
-            });
-        }
+        // --- MODE BYOK (DIRECT GOOGLE GEMINI API) ---
+        if (apiKey) {
+            const MAX_RETRIES = 5;
+            const INITIAL_BACKOFF_MS = 2000;
+            const currentModel = useFlashModel ? 'gemini-3.5-flash' : 'gemini-3.5-flash'; 
 
-        let contentArray = [{ type: "text", text: prompt }];
-        if (image) {
-            contentArray.push({
-                type: "image_url",
-                image_url: { url: `data:${image.mimeType};base64,${image.data}` }
-            });
-        }
-        messages.push({ role: "user", content: contentArray });
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
 
-        // Bungkus paket MENGGUNAKAN kurir yang sudah dipilih di atas
-        const payload = {
-            model: currentModel, // <-- KINI DINAMIS (Bukan PRO_MODEL lagi)
-            messages: messages,
-            response_format: options.schema ? { type: "json_object" } : undefined,
-            max_tokens: 4000
-        };
+            // Konstruksi payload sesuai spesifikasi standar Google Gemini API
+            const googlePayload = {
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            { text: prompt }
+                        ]
+                    }
+                ]
+            };
 
-        let lastError = null;
-
-        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-            // PANGGIL TUKANG POS VERCEL (Tidak pakai URL Koboi/Google lagi)
-            const apiUrl = `/api/chat`;
-
-            try {
-                console.log(`[Attempt ${attempt + 1}] Model: ${currentModel} (via Vercel)`);
-                payload.model = currentModel;
-
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                        // HEADER KUNCI API DIHAPUS, AMAN 100%!
-                    },
-                    body: JSON.stringify(payload)
+            // Tambahkan gambar jika ada
+            if (image) {
+                googlePayload.contents[0].parts.push({
+                    inlineData: {
+                        mimeType: image.mimeType,
+                        data: image.data
+                    }
                 });
+            }
 
-                if (!response.ok) {
-                    let errorText = await response.text();
-                    try { errorText = JSON.parse(errorText).error.message; } catch (e) { }
+            // Tambahkan konfigurasi JSON Schema jika diperlukan
+            if (options.schema) {
+                googlePayload.generationConfig = {
+                    responseMimeType: "application/json",
+                    responseSchema: options.schema
+                };
+            }
 
-                    lastError = new Error(`HTTP ${response.status} - ${errorText}`);
-                    console.warn(`API Error: ${lastError.message}`);
+            // Tambahkan pencarian web (Grounding) jika diperlukan
+            if (options.useGrounding) {
+                googlePayload.tools = [{ google_search: {} }];
+            }
 
-                    // Rotasi Key jika kena Rate Limit
-                    if (response.status === 429) {
-                        if (currentModel !== FLASH_MODEL) {
-                            currentModel = FLASH_MODEL; // Auto-downgrade
+            let lastError = null;
+
+            for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+                try {
+                    console.log(`[Attempt ${attempt + 1}] Model: ${currentModel} (BYOK Direct)`);
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(googlePayload)
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        lastError = new Error(`HTTP ${response.status} - ${errData.error?.message || 'Unknown error'}`);
+                        
+                        if (response.status === 429) {
+                            await new Promise(r => setTimeout(r, 4000));
+                            continue;
                         }
-                        await new Promise(r => setTimeout(r, 4000));
-                        continue;
+                        if (response.status >= 500 && attempt < MAX_RETRIES - 1) {
+                            await new Promise(r => setTimeout(r, INITIAL_BACKOFF_MS * Math.pow(2, attempt)));
+                            continue;
+                        }
+                        throw lastError; 
                     }
 
-                    // Backoff & Downgrade jika Error Server
-                    if (attempt < MAX_RETRIES - 1) {
-                        if (attempt + 1 >= FALLBACK_ATTEMPT_THRESHOLD && currentModel !== FLASH_MODEL) {
-                            currentModel = FLASH_MODEL;
-                        }
-                        const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 500;
-                        await new Promise(r => setTimeout(r, delay));
-                    } else {
-                        throw lastError;
-                    }
-                } else {
                     const result = await response.json();
+                    const textContent = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
-                    if (result.choices && result.choices.length > 0 && result.choices[0].message && result.choices[0].message.content) {
-                        const rawText = result.choices[0].message.content;
-
-                        if (options.schema) {
-                            try {
-                                const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-                                return JSON.parse(cleanedText);
-                            } catch (e) {
-                                console.error("JSON Parse Error", e);
-                                if (attempt < MAX_RETRIES - 1) continue;
-                                throw new Error("Gagal parsing JSON dari OpenRouter.");
-                            }
-                        }
-                        return rawText;
-                    } else {
-                        throw new Error("Respons dari AI OpenRouter kosong.");
+                    if (!textContent) {
+                        throw new Error("Respons teks kosong dari Google Gemini API.");
                     }
-                }
 
-            } catch (error) {
-                lastError = error;
-                if (attempt < MAX_RETRIES - 1) {
-                    await new Promise(r => setTimeout(r, 2000));
+                    if (options.schema) {
+                        try {
+                            return JSON.parse(textContent);
+                        } catch (e) {
+                            throw new Error("Gagal parsing JSON dari BYOK Gemini API.");
+                        }
+                    }
+
+                    return textContent;
+
+                } catch (err) {
+                    lastError = err;
+                    if (attempt < MAX_RETRIES - 1) {
+                        await new Promise(r => setTimeout(r, 2000));
+                    }
                 }
             }
-        }
+            throw lastError;
+        } 
+        
+        // --- MODE PREMIUM (VIA SERVER VERCEL ANDA) ---
+        else {
+            const MAX_RETRIES = 5;
+            const INITIAL_BACKOFF_MS = 5000;
+            const FALLBACK_ATTEMPT_THRESHOLD = 2;
 
-        console.error("Semua percobaan API OpenRouter gagal.");
-        throw lastError;
+            let PRO_MODEL = 'openai/gpt-4o-mini'; 
+            let FLASH_MODEL = 'gemini/gemini-2.5-flash-lite';
+            
+            let currentModel = useFlashModel ? FLASH_MODEL : PRO_MODEL;
+
+            let messages = [];
+            if (options.schema) {
+                messages.push({
+                    role: "system",
+                    content: `You MUST respond in strictly valid JSON format matching this JSON Schema. Do NOT wrap the JSON in markdown blocks like \`\`\`json. Return raw JSON object ONLY.\n\nSchema: ${JSON.stringify(options.schema)}`
+                });
+            }
+
+            let contentArray = [{ type: "text", text: prompt }];
+            if (image) {
+                contentArray.push({
+                    type: "image_url",
+                    image_url: { url: `data:${image.mimeType};base64,${image.data}` }
+                });
+            }
+            messages.push({ role: "user", content: contentArray });
+
+            const payload = {
+                model: currentModel, 
+                messages: messages,
+                response_format: options.schema ? { type: "json_object" } : undefined,
+                max_tokens: 4000
+            };
+
+            let lastError = null;
+
+            for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+                const apiUrl = `/api/chat`;
+
+                try {
+                    console.log(`[Attempt ${attempt + 1}] Model: ${currentModel} (via Vercel)`);
+                    payload.model = currentModel;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        let errorText = await response.text();
+                        try { errorText = JSON.parse(errorText).error.message; } catch (e) { }
+
+                        lastError = new Error(`HTTP ${response.status} - ${errorText}`);
+                        console.warn(`API Error: ${lastError.message}`);
+
+                        if (response.status === 429) {
+                            if (currentModel !== FLASH_MODEL) {
+                                currentModel = FLASH_MODEL; 
+                            }
+                            await new Promise(r => setTimeout(r, 4000));
+                            continue;
+                        }
+
+                        if (attempt < MAX_RETRIES - 1) {
+                            if (attempt + 1 >= FALLBACK_ATTEMPT_THRESHOLD && currentModel !== FLASH_MODEL) {
+                                currentModel = FLASH_MODEL;
+                            }
+                            const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 500;
+                            await new Promise(r => setTimeout(r, delay));
+                        } else {
+                            throw lastError;
+                        }
+                    } else {
+                        const result = await response.json();
+
+                        if (result.choices && result.choices.length > 0 && result.choices[0].message && result.choices[0].message.content) {
+                            const rawText = result.choices[0].message.content;
+
+                            if (options.schema) {
+                                try {
+                                    const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                                    return JSON.parse(cleanedText);
+                                } catch (e) {
+                                    console.error("JSON Parse Error", e);
+                                    if (attempt < MAX_RETRIES - 1) continue;
+                                    throw new Error("Gagal parsing JSON dari OpenRouter.");
+                                }
+                            }
+                            return rawText;
+                        } else {
+                            throw new Error("Respons dari AI OpenRouter kosong.");
+                        }
+                    }
+
+                } catch (error) {
+                    lastError = error;
+                    if (attempt < MAX_RETRIES - 1) {
+                        await new Promise(r => setTimeout(r, 2000));
+                    }
+                }
+            }
+
+            console.error("Semua percobaan API OpenRouter gagal.");
+            throw lastError;
+        }
     }
 };
 // -------------------------------------------------------------------------
@@ -10160,7 +10253,7 @@ const Tutorial = () => {
 };
 
 // --- Komponen BARU untuk Reset & Hapus Proyek (MANAJEMEN APLIKASI) ---
-const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGeminiApiKey, setScopusApiKey, showInfoModal, setForceShowLicense, setGeminiApiKeys, projectData }) => {
+const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGeminiApiKey, setScopusApiKey, showInfoModal, setForceShowLicense, setGeminiApiKeys, geminiApiKeys, projectData }) => {
 
     // State lokal untuk modal konfirmasi
     const [isLocalResetConfirmOpen, setIsLocalResetConfirmOpen] = useState(false);
@@ -10303,7 +10396,28 @@ const ResetHapusProyek = ({ setIsResetConfirmOpen, handleCopyToClipboard, setGem
 
             {/* Bagian 3: Keamanan Lokal (API Key) */}
             <div className="mb-8 p-4 border-2 border-dashed border-gray-400 rounded-lg bg-gray-50">
-                <h3 className="text-xl font-bold mb-2 text-gray-800">3. Keamanan Perangkat (Hapus Kunci API)</h3>
+                <h3 className="text-xl font-bold mb-2 text-gray-800">3. Kunci API & Keamanan Perangkat</h3>
+                
+                {/* --- INPUT API KEY UNTUK PENGGUNA GRATIS --- */}
+                {!projectData.isPremium && (
+                    <div className="mb-4 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
+                        <label className="block text-yellow-900 text-sm font-bold mb-2">
+                            Google Gemini API Key (Untuk Mode Gratis / BYOK):
+                        </label>
+                        <input
+                            type="password"
+                            value={geminiApiKeys[0] || ''}
+                            onChange={(e) => setGeminiApiKey(e.target.value)}
+                            className="shadow-sm appearance-none border border-yellow-400 rounded-lg w-full py-2.5 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white"
+                            placeholder="Paste API Key Gemini Anda di sini..."
+                        />
+                        <p className="text-xs text-yellow-700 mt-2 font-medium">
+                            *Dapatkan kunci gratis di <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline font-bold text-blue-600 hover:text-blue-800">Google AI Studio</a>. Kunci ini hanya akan disimpan secara lokal di browser Anda.
+                        </p>
+                    </div>
+                )}
+                {/* ------------------------------------------- */}
+
                 <p className="text-gray-700 mb-4 text-sm">
                     Gunakan tombol di bawah ini jika Anda menggunakan komputer publik atau ingin mengganti Kunci API. Tindakan ini hanya akan menghapus <strong>Google AI API Key</strong> dan <strong>Scopus API Key</strong> yang tersimpan di browser ini. Data proyek Anda tetap aman di server.
                 </p>
@@ -11055,6 +11169,7 @@ Abstract: `;
     // --- ALUR KERJA IDE KTI BARU ---
 
     const handleGenerateIdeKTI = async () => {
+        if (!checkByokGuard()) return;
         setIsLoading(true);
         setIdeKtiMode('ai');
         setAiStructuredResponse(null);
@@ -11230,6 +11345,7 @@ Buatlah 3 pertanyaan berdasarkan panduan di atas.`;
 
     // 0. Generator Otomatis Fakta (Grounding Web)
     const handleGenerateFakta = async () => {
+        if (!checkByokGuard()) return;
         if (!projectData.isPremium) {
             showInfoModal("Fitur 'Auto-Fakta' khusus untuk pengguna Premium.");
             return;
@@ -11274,6 +11390,7 @@ ATURAN MUTLAK:
 
     // 0.5 Generator Otomatis Rumusan Masalah (Auto-RQ)
     const handleGenerateRumusan = async () => {
+        
         if (!projectData.isPremium) {
             showInfoModal("Fitur 'Auto-Rumusan' khusus untuk pengguna Premium.");
             return;
@@ -12057,9 +12174,23 @@ ${context}
         }
     };
 
+    // --- FUNGSI BARU: PENJAGA GERBANG BYOK ---
+    const checkByokGuard = () => {
+        if (!projectData.isPremium && (!geminiApiKeys[0] || geminiApiKeys[0].trim() === '')) {
+            showInfoModal("Akses Ditolak: Anda menggunakan Mode Gratis. Silakan masukkan API Key Gemini Anda di menu 'Proyek' -> 'Manajemen Aplikasi' terlebih dahulu.");
+            return false;
+        }
+        return true;
+    };
+    // -----------------------------------------
+
     // UPDATE: Menerima selectedIds untuk Pendahuluan (MERGED: Q1 Anchor + Visual Context)
     // Gantikan blok handleGenerateFullPendahuluan dengan ini:
     const handleGenerateFullPendahuluan = async (selectedIds = []) => {
+        // --- INJEKSI PENJAGA GERBANG BYOK ---
+        if (!checkByokGuard()) return;
+        // -----------------------------------
+        
         setIsLoading(true);
 
         // 1. Ekstraksi Teori (Tetap Sama)
@@ -12137,10 +12268,10 @@ ${isManualSelection
                 : "Daftar di bawah adalah seluruh perpustakaan pengguna. Tugas Anda adalah MENGGUNAKAN SEBANYAK MUNGKIN referensi yang relevan dari daftar tersebut untuk membangun Latar Belakang dan Gap yang sangat padat literatur."
             }
 
-**STANDAR SITASI WAJIB (CRITICAL - Q1 LEVEL):**
-1. Gunakan format **APA 7th Edition** (Penulis, 2024).
-2. **DENSE CITATION (SITASI BERKELOMPOK):** Anda WAJIB meniru gaya jurnal Q1 dengan mengelompokkan 2 hingga 4 referensi sekaligus di dalam satu tanda kurung di akhir klaim kalimat untuk menunjukkan dukungan literatur yang masif. Contoh: "(Smith, 2021; Doe et al., 2022; Johnson, 2023)".
-3. JANGAN menghemat sitasi. Setiap kalimat klaim harus di-backing literatur.
+**STANDAR SITASI WAJIB (CRITICAL - AKURASI TINGGI):**
+1. Gunakan format **APA 7th Edition** (Penulis, Tahun).
+2. **SITASI PRESISI 1:1:** Kutip referensi secara spesifik dan proporsional (satu per satu atau sesuai konteks riil). JANGAN mengelompokkan banyak referensi secara paksa jika mereka tidak membahas hal yang persis sama.
+3. **ANTI-HALUSINASI:** Jika klaim, fakta, atau angka berasal murni dari "DESKRIPSI MASALAH DARI PENGGUNA" di bawah ini, JANGAN menambahkan sitasi dari "Referensi Pendukung" di kalimat tersebut. Sitasi "Referensi Pendukung" HANYA boleh diletakkan pada argumen yang memang berasal dari catatan referensi tersebut.
 
 **DATA FONDASI (BAHAN BAKU PENULISAN):**
 - DESKRIPSI MASALAH DARI PENGGUNA: "${projectData.faktaMasalahDraft}"
@@ -12755,6 +12886,9 @@ Hasilkan teks biasa tanpa format markdown berlebihan.`;
     };
 
     const handleGenerateKesimpulan = async () => {
+        // --- TAMBAHKAN PENJAGA GERBANG BYOK DI SINI ---
+        if (!checkByokGuard()) return;
+
         setIsLoading(true);
         // HAPUS: setProjectData(p => ({ ...p, kesimpulanDraft: '' }));
 
@@ -14199,10 +14333,11 @@ Berikan jawaban hanya dalam format JSON yang ketat.`;
                     showInfoModal={showInfoModal}
                     setForceShowLicense={setForceShowLicense} // Pass fungsi ini
                     setGeminiApiKeys={setGeminiApiKeys} // Pass setter array untuk fix hapus kunci
+                    geminiApiKeys={geminiApiKeys} // PASSED DOWN API KEYS
                     projectData={projectData} // UPDATE: Kirim projectData untuk cek Elite
                 />;
             default:
-                return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode }} />;
+                return <IdeKTI {...{ projectData, handleInputChange, handleGenerateIdeKTI, handleStartNewIdea, isLoading, aiStructuredResponse, editingIdea, setEditingIdea, handleStartEditing, handleSaveIdea, ideKtiMode, handleGenerateMirrorReflection, handleValidateMirrorReflection, handleGenerateFakta, handleGenerateRumusan, setCurrentSection }} />;
 
         }
     };
